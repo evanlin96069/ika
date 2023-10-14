@@ -1,19 +1,43 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "lexer.h"
 #include "arena.h"
+#include "symbol_table.h"
 
-typedef struct ParserState {
-    Arena* arena;
-    LexerState lexer;
-} ParserState;
+// Lexer
+
+typedef enum TokenType {
+    TK_ERR = -1,
+    TK_NUL = 0,
+    TK_IDENT,
+    TK_INT,
+    TK_DECL,
+    TK_ADD = '+',
+    TK_SUB = '-',
+    TK_MUL = '*',
+    TK_DIV = '/',
+    TK_ASSIGN = '=',
+    TK_LBRACK = '(',
+    TK_RBRACK = ')',
+} TokenType;
+
+typedef struct Token {
+    TokenType type;
+    union {
+        int val;
+        char* ident;
+    };
+} Token;
+
+// AST
 
 typedef enum ASTNodeType {
     NODE_ERR = -1,
     NODE_LIT,
     NODE_BINOP,
     NODE_UNARYOP,
+    NODE_VAR,
+    NODE_ASSIGN,
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -38,14 +62,34 @@ typedef struct UnaryOpNode {
     ASTNode* node;
 } UnaryOpNode;
 
+typedef struct VarNode {
+    ASTNodeType type;
+    SymbolTableEntry* ste;
+} VarNode;
+
+typedef struct AssignNode {
+    ASTNodeType type;
+    VarNode* left;
+    ASTNode* right;
+} AssignNode;
+
 typedef struct ErrorNode {
     ASTNodeType type;
-    size_t pos;
-    Token token;
     const char* msg;
 } ErrorNode;
 
-void parser_init(ParserState* parser, Arena* arena);
+typedef struct ParserState {
+    Arena* arena;
+    SymbolTable* sym;
+
+    const char* src;
+    size_t pos;
+
+    Token token;
+    size_t token_pos;
+} ParserState;
+
+void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena);
 ASTNode* parser_parse(ParserState* parser, const char* src);
 
 #endif

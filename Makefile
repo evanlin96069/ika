@@ -2,7 +2,7 @@
 
 # Compiler flags
 CC ?= gcc
-CFLAGS = -pedantic -std=c99 -Wall -Wextra
+CFLAGS = -pedantic -std=c11 -Wall -Wextra
 
 # Project files
 SRCDIR = src
