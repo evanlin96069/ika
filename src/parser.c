@@ -33,6 +33,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
         case '=':
         case '(':
         case ')':
+        case ';':
             tk.type = c;
             offset++;
             break;
@@ -225,7 +226,8 @@ static ASTNode* stmt(ParserState* parser) {
     if (tk.type == TK_ASSIGN) {
         next_token(parser);
         if (node->type != NODE_VAR) {
-            return error(parser, "lvalue required as left operand of assignment");
+            return error(parser,
+                         "lvalue required as left operand of assignment");
         }
 
         AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
@@ -272,10 +274,10 @@ static ASTNode* var_decl(ParserState* parser) {
         node = (ASTNode*)assign;
     }
 
-    tk = peek_token(parser);
-    if (tk.type != TK_NUL) {
+    tk = next_token(parser);
+    if (tk.type != TK_SEMICOLON) {
         next_token(parser);
-        return error(parser, "Expected '=' or nothing after declaration");
+        return error(parser, "Expected '=' or ';' after declaration");
     }
 
     SymbolTableEntry* ste = symbol_table_append(parser->sym, ident);
@@ -297,21 +299,32 @@ ASTNode* parser_parse(ParserState* parser, const char* src) {
     ASTNode* node;
     Token tk = peek_token(parser);
     switch (tk.type) {
-        case TK_DECL:
-            node = var_decl(parser);
-            break;
+        case TK_SEMICOLON:
+            next_token(parser);
+            // fall through
         case TK_NUL:
             node = NULL;
             break;
+
+        case TK_DECL:
+            node = var_decl(parser);
+            if (node->type == NODE_ERR)
+                return node;
+            break;
+
         default:
             node = stmt(parser);
+            if (node->type == NODE_ERR)
+                return node;
+            tk = next_token(parser);
+            if (tk.type != TK_SEMICOLON)
+                return error(parser, "expected ';'");
     }
 
-    if (node && node->type != NODE_ERR) {
-        tk = peek_token(parser);
-        if (tk.type != TK_NUL) {
-            return error(parser, "unexpected trailing token");
-        }
+    tk = peek_token(parser);
+    if (tk.type != TK_NUL) {
+        return error(parser, "unexpected trailing token");
     }
+
     return node;
 }

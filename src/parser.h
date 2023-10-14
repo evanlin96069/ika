@@ -19,6 +19,7 @@ typedef enum TokenType {
     TK_ASSIGN = '=',
     TK_LBRACK = '(',
     TK_RBRACK = ')',
+    TK_SEMICOLON = ';',
 } TokenType;
 
 typedef struct Token {
