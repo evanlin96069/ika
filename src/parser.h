@@ -4,6 +4,8 @@
 #include "arena.h"
 #include "symbol_table.h"
 
+#define ERROR_MAX_LENGTH 255
+
 // Lexer
 
 typedef enum TokenType {
@@ -76,7 +78,7 @@ typedef struct AssignNode {
 
 typedef struct ErrorNode {
     ASTNodeType type;
-    const char* msg;
+    char msg[ERROR_MAX_LENGTH];
 } ErrorNode;
 
 typedef struct ParserState {

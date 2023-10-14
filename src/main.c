@@ -86,7 +86,8 @@ int main(void) {
             printf("%d\n", eval(node));
         } else {
             ErrorNode* err = (ErrorNode*)node;
-            printf("%ld: error: %s\n", parser.token_pos, err->msg);
+            printf("%ld: \x1b[31merror:\x1b[0m %s\n", parser.token_pos,
+                   err->msg);
             printf("| %s", buf);
             printf("| %*c^\n", (int)parser.token_pos, ' ');
         }

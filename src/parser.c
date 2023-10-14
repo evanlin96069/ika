@@ -1,6 +1,8 @@
 #include "parser.h"
 
 #include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -102,12 +104,16 @@ static ASTNode* primary(ParserState* parser);
 static ASTNode* term(ParserState* parser);
 static ASTNode* stmt(ParserState* parser);
 static ASTNode* var_decl(ParserState* parser);
-static ASTNode* error(ParserState* parser, const char* msg);
 
-static ASTNode* error(ParserState* parser, const char* msg) {
+static ASTNode* error(ParserState* parser, const char* fmt, ...) {
     ErrorNode* err = arena_alloc(parser->arena, sizeof(ErrorNode));
     err->type = NODE_ERR;
-    err->msg = msg;
+
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(err->msg, sizeof(err->msg), fmt, ap);
+    va_end(ap);
+
     return (ASTNode*)err;
 }
 
@@ -129,7 +135,7 @@ static ASTNode* primary(ParserState* parser) {
                 node->ste = ste;
                 return (ASTNode*)node;
             } else {
-                return error(parser, "undeclared identifier");
+                return error(parser, "'%s' undeclared", tk.ident);
             }
         }
 
@@ -254,7 +260,7 @@ static ASTNode* var_decl(ParserState* parser) {
     }
 
     if (symbol_table_find(parser->sym, tk.ident) != NULL) {
-        return error(parser, "redefinition of identifier");
+        return error(parser, "redefinition of '%s'", tk.ident);
     }
 
     char* ident = tk.ident;
