@@ -71,6 +71,8 @@ static Token next_token_internal(ParserState* parser, int peek) {
 
                 if (strcmp(ident, "var") == 0) {
                     tk.type = TK_DECL;
+                } else if (strcmp(ident, "print") == 0) {
+                    tk.type = TK_PRINT;
                 } else {
                     tk.type = TK_IDENT;
                     tk.ident = arena_alloc(parser->arena, sizeof(ident));
@@ -105,6 +107,7 @@ static ASTNode* primary(ParserState* parser);
 static ASTNode* term(ParserState* parser);
 static ASTNode* stmt(ParserState* parser);
 static ASTNode* var_decl(ParserState* parser);
+static ASTNode* print(ParserState* parser);
 static ASTNode* stmt_list(ParserState* parser);
 
 static ASTNode* error(ParserState* parser, int pos, const char* fmt, ...) {
@@ -147,7 +150,7 @@ static ASTNode* primary(ParserState* parser) {
             if (node->type == NODE_ERR) {
                 return node;
             }
-            next_token(parser);
+            tk = next_token(parser);
             if (tk.type != TK_RBRACK) {
                 return error(parser, parser->pre_token_pos, "expected ')'");
             }
@@ -286,15 +289,21 @@ static ASTNode* var_decl(ParserState* parser) {
         return error(parser, parser->pre_token_pos, "Expected '=' or ';' after declaration");
     }
 
-    tk = next_token(parser);
-    if (tk.type != TK_SEMICOLON) {
-        return error(parser, parser->pre_token_pos, "Expected ';'");
-    }
-
     SymbolTableEntry* ste = symbol_table_append(parser->sym, ident);
     var->ste = ste;
 
     return node;
+}
+
+static ASTNode* print(ParserState* parser) {
+    Token tk = next_token(parser);
+    assert(tk.type == TK_PRINT);
+
+    PrintNode* print_node = arena_alloc(parser->arena, sizeof(PrintNode));
+    print_node->type = NODE_PRINT;
+    print_node->stmt = stmt(parser);
+
+    return (ASTNode*)print_node;
 }
 
 static ASTNode* stmt_list(ParserState* parser) {
@@ -316,13 +325,21 @@ static ASTNode* stmt_list(ParserState* parser) {
                     return node;
                 break;
 
+            case TK_PRINT:
+                node = print(parser);
+                if (node->type == NODE_ERR)
+                    return node;
+                break;
+
             default:
                 node = stmt(parser);
                 if (node->type == NODE_ERR)
                     return node;
-                tk = next_token(parser);
-                if (tk.type != TK_SEMICOLON)
-                    return error(parser, parser->pre_token_pos, "expected ';'");
+        }
+
+        tk = next_token(parser);
+        if (tk.type != TK_SEMICOLON) {
+            return error(parser, parser->pre_token_pos, "Expected ';'");
         }
 
         tk = peek_token(parser);

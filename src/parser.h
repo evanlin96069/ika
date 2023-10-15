@@ -14,6 +14,7 @@ typedef enum TokenType {
     TK_IDENT,
     TK_INT,
     TK_DECL,
+    TK_PRINT,
     TK_ADD = '+',
     TK_SUB = '-',
     TK_MUL = '*',
@@ -41,6 +42,7 @@ typedef enum ASTNodeType {
     NODE_UNARYOP,
     NODE_VAR,
     NODE_ASSIGN,
+    NODE_PRINT,
     NODE_STMTS,
 } ASTNodeType;
 
@@ -76,6 +78,11 @@ typedef struct AssignNode {
     VarNode* left;
     ASTNode* right;
 } AssignNode;
+
+typedef struct PrintNode {
+    ASTNodeType type;
+    ASTNode* stmt;
+} PrintNode;
 
 typedef struct ErrorNode {
     ASTNodeType type;

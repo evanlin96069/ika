@@ -1,5 +1,7 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "parser.h"
 #include "symbol_table.h"
@@ -64,6 +66,13 @@ static int eval(ASTNode* node) {
             return val;
         }
 
+        case NODE_PRINT: {
+            PrintNode* print_node = (PrintNode*)node;
+            int val = eval(print_node->stmt);
+            printf("%d\n", val);
+            return 0;
+        }
+
         default:
             return -1;
     }
@@ -107,8 +116,13 @@ int main(int argc, char* argv[]) {
     }
 
     FILE* fp = fopen(argv[1], "r");
-    long size;
+    if (!fp) {
+        fprintf(stderr, "cannot open file %s: %s\n", argv[1], strerror(errno));
+        return 1;
+    }
 
+
+    long size;
     fseek(fp, 0L, SEEK_END);
     size = ftell(fp);
     rewind(fp);
