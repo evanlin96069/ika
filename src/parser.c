@@ -44,30 +44,47 @@ static Token next_token_internal(ParserState* parser, int peek) {
             tk.type = TK_ADD;
             offset++;
             break;
+
         case '-':
             tk.type = TK_SUB;
             offset++;
             break;
+
         case '*':
             tk.type = TK_MUL;
             offset++;
             break;
+
         case '/':
             tk.type = TK_DIV;
             offset++;
             break;
+
         case '=':
             tk.type = TK_ASSIGN;
             offset++;
             break;
+
         case '(':
-            tk.type = TK_LBRACK;
+            tk.type = TK_LPAREN;
             offset++;
             break;
+
         case ')':
-            tk.type = TK_RBRACK;
+            tk.type = TK_RPAREN;
             offset++;
             break;
+
+        case '{':
+            tk.type = TK_LBRACE;
+            offset++;
+            break;
+
+        case '}':
+            tk.type = TK_RBRACE;
+            offset++;
+            break;
+
         case ';':
             tk.type = TK_SEMICOLON;
             offset++;
@@ -135,10 +152,8 @@ static inline Token peek_token(ParserState* parser) {
 
 // Parser
 
-static ASTNode* expr(ParserState* parser);
 static ASTNode* primary(ParserState* parser);
-static ASTNode* term(ParserState* parser);
-static ASTNode* stmt(ParserState* parser);
+static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* var_decl(ParserState* parser);
 static ASTNode* print(ParserState* parser);
 static ASTNode* stmt_list(ParserState* parser);
@@ -179,13 +194,13 @@ static ASTNode* primary(ParserState* parser) {
             }
         }
 
-        case TK_LBRACK: {
-            ASTNode* node = expr(parser);
+        case TK_LPAREN: {
+            ASTNode* node = expr(parser, 0);
             if (node->type == NODE_ERR) {
                 return node;
             }
             tk = next_token(parser);
-            if (tk.type != TK_RBRACK) {
+            if (tk.type != TK_RPAREN) {
                 return error(parser, parser->pre_token_pos, "expected ')'");
             }
             return node;
@@ -196,7 +211,7 @@ static ASTNode* primary(ParserState* parser) {
             UnaryOpNode* node = arena_alloc(parser->arena, sizeof(UnaryOpNode));
             node->type = NODE_UNARYOP;
             node->op = tk.type;
-            node->node = expr(parser);
+            node->node = primary(parser);
             if (node->node->type == NODE_ERR) {
                 return node->node;
             }
@@ -211,79 +226,79 @@ static ASTNode* primary(ParserState* parser) {
     }
 }
 
-static ASTNode* term(ParserState* parser) {
+static inline int get_precedence(TokenType type) {
+    switch (type) {
+        case TK_ASSIGN:
+            return 1;
+        case TK_ADD:
+        case TK_SUB:
+            return 2;
+        case TK_MUL:
+        case TK_DIV:
+            return 3;
+        default:
+            return -1;
+    }
+}
+
+static inline int is_left_associative(TokenType type) {
+    switch (type) {
+        case TK_ASSIGN:
+            return 0;
+        case TK_ADD:
+        case TK_SUB:
+        case TK_MUL:
+        case TK_DIV:
+            return 1;
+        default:
+            assert(0);
+    }
+}
+
+static ASTNode* expr(ParserState* parser, int min_precedence) {
     ASTNode* node = primary(parser);
     if (node->type == NODE_ERR) {
         return node;
     }
 
-    Token tk = peek_token(parser);
-    while (tk.type == TK_MUL || tk.type == TK_DIV) {
-        next_token(parser);
-        BinaryOpNode* binop = arena_alloc(parser->arena, sizeof(BinaryOpNode));
-        binop->type = NODE_BINARYOP;
-        binop->op = tk.type;
-        binop->left = node;
-        binop->right = expr(parser);
-        if (binop->right->type == NODE_ERR) {
-            return binop->right;
-        }
-        node = (ASTNode*)binop;
+    int precedence = get_precedence(peek_token(parser).type);
+    while (precedence != -1 && precedence >= min_precedence) {
+        Token tk = next_token(parser);
 
-        tk = peek_token(parser);
-    }
-
-    return node;
-}
-
-static ASTNode* expr(ParserState* parser) {
-    ASTNode* node = term(parser);
-    if (node->type == NODE_ERR) {
-        return node;
-    }
-
-    Token tk = peek_token(parser);
-    while (tk.type == TK_ADD || tk.type == TK_SUB) {
-        next_token(parser);
-        BinaryOpNode* binop = arena_alloc(parser->arena, sizeof(BinaryOpNode));
-        binop->type = NODE_BINARYOP;
-        binop->op = tk.type;
-        ;
-        binop->left = node;
-        binop->right = expr(parser);
-        if (binop->right->type == NODE_ERR) {
-            return binop->right;
-        }
-        node = (ASTNode*)binop;
-
-        tk = peek_token(parser);
-    }
-
-    return node;
-}
-
-static ASTNode* stmt(ParserState* parser) {
-    ASTNode* node = expr(parser);
-    if (node->type == NODE_ERR) {
-        return node;
-    }
-
-    Token tk = peek_token(parser);
-    if (tk.type == TK_ASSIGN) {
-        next_token(parser);
-        if (node->type != NODE_VAR) {
-            return error(parser, parser->post_token_pos,
-                         "lvalue required as left operand of assignment");
+        int next_precedence = precedence;
+        if (is_left_associative(tk.type)) {
+            next_precedence++;
         }
 
-        AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
-        assign->type = NODE_ASSIGN;
-        assign->left = (VarNode*)node;
-        assign->right = stmt(parser);
-        if (assign->right->type == NODE_ERR) {
-            return assign->right;
+        if (next_precedence < min_precedence) {
+            return node;
         }
-        node = (ASTNode*)assign;
+
+        if (tk.type == TK_ASSIGN) {
+            if (node->type != NODE_VAR) {
+                return error(parser, parser->post_token_pos,
+                             "lvalue required as left operand of assignment");
+            }
+            AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
+            assign->type = NODE_ASSIGN;
+            assign->left = (VarNode*)node;
+            assign->right = expr(parser, next_precedence);
+            if (assign->right->type == NODE_ERR) {
+                return assign->right;
+            }
+            node = (ASTNode*)assign;
+        } else {
+            BinaryOpNode* binop = arena_alloc(parser->arena, sizeof(BinaryOpNode));
+            binop->type = NODE_BINARYOP;
+            binop->op = tk.type;
+            binop->left = node;
+            binop->right = expr(parser, next_precedence);
+            if (binop->right->type == NODE_ERR) {
+                return binop->right;
+            }
+            node = (ASTNode*)binop;
+        }
+        precedence = get_precedence(peek_token(parser).type);
     }
 
     return node;
@@ -315,7 +330,7 @@ static ASTNode* var_decl(ParserState* parser) {
         AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
         assign->type = NODE_ASSIGN;
         assign->left = var;
-        assign->right = stmt(parser);
+        assign->right = expr(parser, 0);
         if (assign->right->type == NODE_ERR) {
             return assign->right;
         }
@@ -338,7 +353,7 @@ static ASTNode* print(ParserState* parser) {
 
     PrintNode* print_node = arena_alloc(parser->arena, sizeof(PrintNode));
     print_node->type = NODE_PRINT;
-    print_node->stmt = stmt(parser);
+    print_node->stmt = expr(parser, 0);
     if (print_node->stmt->type == NODE_ERR) {
         return print_node->stmt;
     }
@@ -373,7 +388,7 @@ static ASTNode* stmt_list(ParserState* parser) {
                 break;
 
             default:
-                node = stmt(parser);
+                node = expr(parser, 0);
                 if (node->type == NODE_ERR)
                     return node;
         }

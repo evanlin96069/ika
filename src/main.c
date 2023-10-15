@@ -28,13 +28,13 @@ static int eval(ASTNode* node) {
             int left = eval(binop->left);
             int right = eval(binop->right);
             switch (binop->op) {
-                case '+':
+                case TK_ADD:
                     return left + right;
-                case '-':
+                case TK_SUB:
                     return left - right;
-                case '*':
+                case TK_MUL:
                     return left * right;
-                case '/':
+                case TK_DIV:
                     return left / right;
                 default:
                     return -1;
@@ -45,9 +45,9 @@ static int eval(ASTNode* node) {
             UnaryOpNode* unaryop = (UnaryOpNode*)node;
             int val = eval(unaryop->node);
             switch (unaryop->op) {
-                case '+':
+                case TK_ADD:
                     return val;
-                case '-':
+                case TK_SUB:
                     return -val;
                 default:
                     return -1;

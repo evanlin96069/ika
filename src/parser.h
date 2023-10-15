@@ -15,14 +15,19 @@ typedef enum TokenType {
     TK_INT,
     TK_DECL,
     TK_PRINT,
-    TK_ADD = '+',
-    TK_SUB = '-',
-    TK_MUL = '*',
-    TK_DIV = '/',
-    TK_ASSIGN = '=',
-    TK_LBRACK = '(',
-    TK_RBRACK = ')',
-    TK_SEMICOLON = ';',
+
+    // Binary operators
+    TK_ADD,
+    TK_SUB,
+    TK_MUL,
+    TK_DIV,
+    TK_ASSIGN,
+
+    TK_LPAREN,
+    TK_RPAREN,
+    TK_LBRACE,
+    TK_RBRACE,
+    TK_SEMICOLON,
 } TokenType;
 
 typedef struct Token {
