@@ -36,28 +36,29 @@ typedef struct Token {
 
 typedef enum ASTNodeType {
     NODE_ERR = -1,
-    NODE_LIT,
-    NODE_BINOP,
+    NODE_INTLIT,
+    NODE_BINARYOP,
     NODE_UNARYOP,
     NODE_VAR,
     NODE_ASSIGN,
+    NODE_STMTS,
 } ASTNodeType;
 
 typedef struct ASTNode {
     ASTNodeType type;
 } ASTNode;
 
-typedef struct LitNode {
+typedef struct IntLitNode {
     ASTNodeType type;
     int val;
-} LitNode;
+} IntLitNode;
 
-typedef struct BinOpNode {
+typedef struct BinaryOpNode {
     ASTNodeType type;
     char op;
     ASTNode* left;
     ASTNode* right;
-} BinOpNode;
+} BinaryOpNode;
 
 typedef struct UnaryOpNode {
     ASTNodeType type;
@@ -78,8 +79,21 @@ typedef struct AssignNode {
 
 typedef struct ErrorNode {
     ASTNodeType type;
+    size_t pos;
     char msg[ERROR_MAX_LENGTH];
 } ErrorNode;
+
+typedef struct ASTNodeList ASTNodeList;
+struct ASTNodeList {
+    ASTNode* node;
+    ASTNodeList* next;
+};
+
+typedef struct StatementListNode {
+    ASTNodeType type;
+    ASTNodeList* stmts;
+    ASTNodeList* _tail;
+} StatementListNode;
 
 typedef struct ParserState {
     Arena* arena;
@@ -89,7 +103,8 @@ typedef struct ParserState {
     size_t pos;
 
     Token token;
-    size_t token_pos;
+    size_t pre_token_pos;
+    size_t post_token_pos;
 } ParserState;
 
 void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena);
