@@ -14,29 +14,62 @@ static inline int is_letter(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
+static inline int is_space(char c) {
+    return c == ' ' || c == '\n' || c == '\r' || c == '\t';
+}
+
 static Token next_token_internal(ParserState* parser, int peek) {
     int start = 0;
     int offset = 0;
     Token tk;
 
     char c = (parser->src + parser->pos)[offset];
-    while (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
-        offset++;
-        c = (parser->src + parser->pos)[offset];
+    while (is_space(c) || c == '/') {
+        if (c == '/') {
+            if ((parser->src + parser->pos)[offset + 1] == '/') {
+                while (c != '\n' && c != '\0') {
+                    c = (parser->src + parser->pos)[++offset];
+                }
+            } else {
+                break;
+            }
+        }
+        c = (parser->src + parser->pos)[++offset];
     }
 
     start = offset;
 
     switch (c) {
         case '+':
+            tk.type = TK_ADD;
+            offset++;
+            break;
         case '-':
+            tk.type = TK_SUB;
+            offset++;
+            break;
         case '*':
+            tk.type = TK_MUL;
+            offset++;
+            break;
         case '/':
+            tk.type = TK_DIV;
+            offset++;
+            break;
         case '=':
+            tk.type = TK_ASSIGN;
+            offset++;
+            break;
         case '(':
+            tk.type = TK_LBRACK;
+            offset++;
+            break;
         case ')':
+            tk.type = TK_RBRACK;
+            offset++;
+            break;
         case ';':
-            tk.type = c;
+            tk.type = TK_SEMICOLON;
             offset++;
             break;
 
@@ -141,7 +174,8 @@ static ASTNode* primary(ParserState* parser) {
                 node->ste = ste;
                 return (ASTNode*)node;
             } else {
-                return error(parser, parser->post_token_pos,  "'%s' undeclared", tk.ident);
+                return error(parser, parser->post_token_pos, "'%s' undeclared",
+                             tk.ident);
             }
         }
 
@@ -238,7 +272,8 @@ static ASTNode* stmt(ParserState* parser) {
     if (tk.type == TK_ASSIGN) {
         next_token(parser);
         if (node->type != NODE_VAR) {
-            return error(parser, parser->post_token_pos, "lvalue required as left operand of assignment");
+            return error(parser, parser->post_token_pos,
+                         "lvalue required as left operand of assignment");
         }
 
         AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
@@ -265,7 +300,8 @@ static ASTNode* var_decl(ParserState* parser) {
     }
 
     if (symbol_table_find(parser->sym, tk.ident) != NULL) {
-        return error(parser, parser->post_token_pos, "redefinition of '%s'", tk.ident);
+        return error(parser, parser->post_token_pos, "redefinition of '%s'",
+                     tk.ident);
     }
 
     char* ident = tk.ident;
@@ -286,7 +322,8 @@ static ASTNode* var_decl(ParserState* parser) {
         node = (ASTNode*)assign;
     } else if (tk.type != TK_SEMICOLON) {
         next_token(parser);
-        return error(parser, parser->pre_token_pos, "Expected '=' or ';' after declaration");
+        return error(parser, parser->pre_token_pos,
+                     "Expected '=' or ';' after declaration");
     }
 
     SymbolTableEntry* ste = symbol_table_append(parser->sym, ident);
@@ -302,17 +339,21 @@ static ASTNode* print(ParserState* parser) {
     PrintNode* print_node = arena_alloc(parser->arena, sizeof(PrintNode));
     print_node->type = NODE_PRINT;
     print_node->stmt = stmt(parser);
+    if (print_node->stmt->type == NODE_ERR) {
+        return print_node->stmt;
+    }
 
     return (ASTNode*)print_node;
 }
 
 static ASTNode* stmt_list(ParserState* parser) {
-    StatementListNode* stmts = arena_alloc(parser->arena, sizeof(StatementListNode));
+    StatementListNode* stmts =
+        arena_alloc(parser->arena, sizeof(StatementListNode));
     stmts->type = NODE_STMTS;
     stmts->stmts = NULL;
 
     Token tk = peek_token(parser);
-    while(tk.type != TK_NUL) {
+    while (tk.type != TK_NUL) {
         ASTNode* node;
         switch (tk.type) {
             case TK_SEMICOLON:
