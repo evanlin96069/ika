@@ -15,6 +15,8 @@ typedef enum TokenType {
     TK_INT,
     TK_DECL,
     TK_PRINT,
+    TK_IF,
+    TK_ELSE,
 
     TK_MUL,
     TK_DIV,
@@ -56,13 +58,14 @@ typedef struct Token {
 
 typedef enum ASTNodeType {
     NODE_ERR = -1,
+    NODE_STMTS,
     NODE_INTLIT,
     NODE_BINARYOP,
     NODE_UNARYOP,
     NODE_VAR,
     NODE_ASSIGN,
     NODE_PRINT,
-    NODE_STMTS,
+    NODE_IF,
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -100,8 +103,15 @@ typedef struct AssignNode {
 
 typedef struct PrintNode {
     ASTNodeType type;
-    ASTNode* stmt;
+    ASTNode* expr;
 } PrintNode;
+
+typedef struct IfStatementNode {
+    ASTNodeType type;
+    ASTNode* expr;
+    ASTNode* then_block;
+    ASTNode* else_block;
+} IfStatementNode;
 
 typedef struct ErrorNode {
     ASTNodeType type;

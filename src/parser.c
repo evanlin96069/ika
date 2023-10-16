@@ -193,6 +193,10 @@ static Token next_token_internal(ParserState* parser, int peek) {
                     tk.type = TK_DECL;
                 } else if (strcmp(ident, "print") == 0) {
                     tk.type = TK_PRINT;
+                } else if (strcmp(ident, "if") == 0) {
+                    tk.type = TK_IF;
+                } else if (strcmp(ident, "else") == 0) {
+                    tk.type = TK_ELSE;
                 } else {
                     tk.type = TK_IDENT;
                     tk.ident = arena_alloc(parser->arena, sizeof(ident));
@@ -226,6 +230,8 @@ static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* decl_stmt(ParserState* parser);
 static ASTNode* print_stmt(ParserState* parser);
+static ASTNode* if_stmt(ParserState* parser);
+static ASTNode* scope(ParserState* parser);
 static ASTNode* stmt(ParserState* parser);
 static ASTNode* stmt_list(ParserState* parser, int in_scope);
 
@@ -470,12 +476,88 @@ static ASTNode* print_stmt(ParserState* parser) {
 
     PrintNode* print_node = arena_alloc(parser->arena, sizeof(PrintNode));
     print_node->type = NODE_PRINT;
-    print_node->stmt = expr(parser, 0);
-    if (print_node->stmt->type == NODE_ERR) {
-        return print_node->stmt;
+    print_node->expr = expr(parser, 0);
+    if (print_node->expr->type == NODE_ERR) {
+        return print_node->expr;
     }
 
     return (ASTNode*)print_node;
+}
+
+static ASTNode* if_stmt(ParserState* parser) {
+    Token tk = next_token(parser);
+    assert(tk.type == TK_IF);
+
+    IfStatementNode* if_node =
+        arena_alloc(parser->arena, sizeof(IfStatementNode));
+    if_node->type = NODE_IF;
+
+    tk = next_token(parser);
+    if (tk.type != TK_LPAREN) {
+        return error(parser, parser->pre_token_pos, "Expected '('");
+    }
+
+    if_node->expr = expr(parser, 0);
+    if (if_node->expr->type == NODE_ERR) {
+        return if_node->expr;
+    }
+
+    tk = next_token(parser);
+    if (tk.type != TK_RPAREN) {
+        return error(parser, parser->pre_token_pos, "Expected ')'");
+    }
+
+    tk = peek_token(parser);
+    if (tk.type != TK_LBRACE) {
+        next_token(parser);
+        return error(parser, parser->pre_token_pos, "Expected '{'");
+    }
+
+    if_node->then_block = scope(parser);
+    if (if_node->then_block->type == NODE_ERR) {
+        return if_node->then_block;
+    }
+
+    tk = peek_token(parser);
+    if (tk.type == TK_ELSE) {
+        next_token(parser);
+
+        tk = peek_token(parser);
+        if (tk.type != TK_LBRACE) {
+            next_token(parser);
+            return error(parser, parser->pre_token_pos, "Expected '{'");
+        }
+
+        if_node->else_block = scope(parser);
+        if (if_node->else_block->type == NODE_ERR) {
+            return if_node->else_block;
+        }
+    }
+
+    return (ASTNode*)if_node;
+}
+
+static ASTNode* scope(ParserState* parser) {
+    Token tk = next_token(parser);
+    assert(tk.type == TK_LBRACE);
+
+    SymbolTable* sym = arena_alloc(parser->sym->arena, sizeof(SymbolTable));
+    symbol_table_init(sym, parser->sym->arena);
+    sym->parent = parser->sym;
+    parser->sym = sym;
+
+    ASTNode* node = stmt_list(parser, 1);
+    if (node->type == NODE_ERR)
+        return node;
+
+    tk = next_token(parser);
+    if (tk.type != TK_RBRACE) {
+        return error(parser, parser->pre_token_pos, "Expected '}'");
+    }
+
+    parser->sym = sym->parent;
+
+    return node;
 }
 
 static ASTNode* stmt(ParserState* parser) {
@@ -508,25 +590,16 @@ static ASTNode* stmt(ParserState* parser) {
             }
             break;
 
-        case TK_LBRACE:
-            next_token(parser);
-
-            SymbolTable* sym =
-                arena_alloc(parser->sym->arena, sizeof(SymbolTable));
-            symbol_table_init(sym, parser->sym->arena);
-            sym->parent = parser->sym;
-            parser->sym = sym;
-
-            node = stmt_list(parser, 1);
+        case TK_IF:
+            node = if_stmt(parser);
             if (node->type == NODE_ERR)
                 return node;
+            break;
 
-            tk = next_token(parser);
-            if (tk.type != TK_RBRACE) {
-                return error(parser, parser->pre_token_pos, "Expected '}'");
-            }
-
-            parser->sym = sym->parent;
+        case TK_LBRACE:
+            node = scope(parser);
+            if (node->type == NODE_ERR)
+                return node;
             break;
 
         default:

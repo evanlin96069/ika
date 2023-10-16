@@ -116,8 +116,19 @@ static int eval(ASTNode* node) {
 
         case NODE_PRINT: {
             PrintNode* print_node = (PrintNode*)node;
-            int val = eval(print_node->stmt);
+            int val = eval(print_node->expr);
             printf("%d\n", val);
+            return 0;
+        }
+
+        case NODE_IF: {
+            IfStatementNode* if_node = (IfStatementNode*)node;
+            int cond = eval(if_node->expr);
+            if (cond) {
+                eval(if_node->then_block);
+            } else if (if_node->else_block) {
+                eval(if_node->else_block);
+            }
             return 0;
         }
 
