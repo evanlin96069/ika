@@ -7,6 +7,10 @@
 #include "symbol_table.h"
 
 static int eval(ASTNode* node) {
+    if (!node) {
+        return 0;
+    }
+
     switch (node->type) {
         case NODE_STMTS: {
             StatementListNode* stmts = (StatementListNode*)node;
