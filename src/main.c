@@ -28,14 +28,54 @@ static int eval(ASTNode* node) {
             int left = eval(binop->left);
             int right = eval(binop->right);
             switch (binop->op) {
-                case TK_ADD:
-                    return left + right;
-                case TK_SUB:
-                    return left - right;
                 case TK_MUL:
                     return left * right;
+
                 case TK_DIV:
                     return left / right;
+
+                case TK_MOD:
+                    return left % right;
+
+                case TK_ADD:
+                    return left + right;
+
+                case TK_SUB:
+                    return left - right;
+
+                case TK_LT:
+                    return left < right;
+
+                case TK_LE:
+                    return left <= right;
+
+                case TK_GT:
+                    return left > right;
+
+                case TK_GE:
+                    return left >= right;
+
+                case TK_EQ:
+                    return left == right;
+
+                case TK_NE:
+                    return left != right;
+
+                case TK_AND:
+                    return left & right;
+
+                case TK_XOR:
+                    return left ^ right;
+
+                case TK_OR:
+                    return left | right;
+
+                case TK_LAND:
+                    return left && right;
+
+                case TK_LOR:
+                    return left || right;
+
                 default:
                     return -1;
             }
@@ -47,8 +87,16 @@ static int eval(ASTNode* node) {
             switch (unaryop->op) {
                 case TK_ADD:
                     return val;
+
                 case TK_SUB:
                     return -val;
+
+                case TK_NOT:
+                    return ~val;
+
+                case TK_LNOT:
+                    return !val;
+
                 default:
                     return -1;
             }

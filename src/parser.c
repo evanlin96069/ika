@@ -40,16 +40,6 @@ static Token next_token_internal(ParserState* parser, int peek) {
     start = offset;
 
     switch (c) {
-        case '+':
-            tk.type = TK_ADD;
-            offset++;
-            break;
-
-        case '-':
-            tk.type = TK_SUB;
-            offset++;
-            break;
-
         case '*':
             tk.type = TK_MUL;
             offset++;
@@ -60,8 +50,88 @@ static Token next_token_internal(ParserState* parser, int peek) {
             offset++;
             break;
 
+        case '%':
+            tk.type = TK_MOD;
+            offset++;
+            break;
+
+        case '+':
+            tk.type = TK_ADD;
+            offset++;
+            break;
+
+        case '-':
+            tk.type = TK_SUB;
+            offset++;
+            break;
+
+        case '<':
+            if ((parser->src + parser->pos)[offset + 1] == '=') {
+                offset++;
+                tk.type = TK_LE;
+            } else {
+                tk.type = TK_LT;
+            }
+            offset++;
+            break;
+
+        case '>':
+            if ((parser->src + parser->pos)[offset + 1] == '=') {
+                offset++;
+                tk.type = TK_GE;
+            } else {
+                tk.type = TK_GT;
+            }
+            offset++;
+            break;
+
+        case '&':
+            if ((parser->src + parser->pos)[offset + 1] == '&') {
+                offset++;
+                tk.type = TK_LAND;
+            } else {
+                tk.type = TK_AND;
+            }
+            offset++;
+            break;
+
+        case '|':
+            if ((parser->src + parser->pos)[offset + 1] == '|') {
+                offset++;
+                tk.type = TK_LOR;
+            } else {
+                tk.type = TK_OR;
+            }
+            offset++;
+            break;
+
+        case '^':
+            tk.type = TK_XOR;
+            offset++;
+            break;
+
+        case '~':
+            tk.type = TK_LNOT;
+            offset++;
+            break;
+
+        case '!':
+            if ((parser->src + parser->pos)[offset + 1] == '=') {
+                offset++;
+                tk.type = TK_NE;
+            } else {
+                tk.type = TK_NOT;
+            }
+            offset++;
+            break;
+
         case '=':
-            tk.type = TK_ASSIGN;
+            if ((parser->src + parser->pos)[offset + 1] == '=') {
+                offset++;
+                tk.type = TK_EQ;
+            } else {
+                tk.type = TK_ASSIGN;
+            }
             offset++;
             break;
 
@@ -154,8 +224,8 @@ static inline Token peek_token(ParserState* parser) {
 
 static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
-static ASTNode* var_decl(ParserState* parser);
-static ASTNode* print(ParserState* parser);
+static ASTNode* decl_stmt(ParserState* parser);
+static ASTNode* print_stmt(ParserState* parser);
 static ASTNode* stmt(ParserState* parser);
 static ASTNode* stmt_list(ParserState* parser, int in_scope);
 
@@ -208,7 +278,9 @@ static ASTNode* primary(ParserState* parser) {
         }
 
         case TK_ADD:
-        case TK_SUB: {
+        case TK_SUB:
+        case TK_NOT:
+        case TK_LNOT: {
             UnaryOpNode* node = arena_alloc(parser->arena, sizeof(UnaryOpNode));
             node->type = NODE_UNARYOP;
             node->op = tk.type;
@@ -231,12 +303,41 @@ static inline int get_precedence(TokenType type) {
     switch (type) {
         case TK_ASSIGN:
             return 1;
+
+        case TK_LOR:
+            return 2;
+
+        case TK_LAND:
+            return 3;
+
+        case TK_OR:
+            return 4;
+
+        case TK_XOR:
+            return 5;
+
+        case TK_AND:
+            return 6;
+
+        case TK_EQ:
+        case TK_NE:
+            return 7;
+
+        case TK_LT:
+        case TK_LE:
+        case TK_GT:
+        case TK_GE:
+            return 5;
+
         case TK_ADD:
         case TK_SUB:
-            return 2;
+            return 6;
+
         case TK_MUL:
         case TK_DIV:
-            return 3;
+        case TK_MOD:
+            return 7;
+
         default:
             return -1;
     }
@@ -246,11 +347,25 @@ static inline int is_left_associative(TokenType type) {
     switch (type) {
         case TK_ASSIGN:
             return 0;
-        case TK_ADD:
-        case TK_SUB:
+
         case TK_MUL:
         case TK_DIV:
+        case TK_MOD:
+        case TK_ADD:
+        case TK_SUB:
+        case TK_LT:
+        case TK_LE:
+        case TK_GT:
+        case TK_GE:
+        case TK_EQ:
+        case TK_NE:
+        case TK_AND:
+        case TK_XOR:
+        case TK_OR:
+        case TK_LAND:
+        case TK_LOR:
             return 1;
+
         default:
             assert(0);
     }
@@ -306,7 +421,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
     return node;
 }
 
-static ASTNode* var_decl(ParserState* parser) {
+static ASTNode* decl_stmt(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_DECL);
 
@@ -349,7 +464,7 @@ static ASTNode* var_decl(ParserState* parser) {
     return node;
 }
 
-static ASTNode* print(ParserState* parser) {
+static ASTNode* print_stmt(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_PRINT);
 
@@ -372,7 +487,7 @@ static ASTNode* stmt(ParserState* parser) {
             return NULL;
 
         case TK_DECL:
-            node = var_decl(parser);
+            node = decl_stmt(parser);
             if (node->type == NODE_ERR)
                 return node;
 
@@ -383,7 +498,7 @@ static ASTNode* stmt(ParserState* parser) {
             break;
 
         case TK_PRINT:
-            node = print(parser);
+            node = print_stmt(parser);
             if (node->type == NODE_ERR)
                 return node;
 
