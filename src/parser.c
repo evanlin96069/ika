@@ -156,7 +156,8 @@ static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* var_decl(ParserState* parser);
 static ASTNode* print(ParserState* parser);
-static ASTNode* stmt_list(ParserState* parser);
+static ASTNode* stmt(ParserState* parser);
+static ASTNode* stmt_list(ParserState* parser, int in_scope);
 
 static ASTNode* error(ParserState* parser, int pos, const char* fmt, ...) {
     ErrorNode* err = arena_alloc(parser->arena, sizeof(ErrorNode));
@@ -182,7 +183,7 @@ static ASTNode* primary(ParserState* parser) {
         }
 
         case TK_IDENT: {
-            SymbolTableEntry* ste = symbol_table_find(parser->sym, tk.ident);
+            SymbolTableEntry* ste = symbol_table_find(parser->sym, tk.ident, 0);
             if (ste) {
                 VarNode* node = arena_alloc(parser->arena, sizeof(VarNode));
                 node->type = NODE_VAR;
@@ -288,7 +289,8 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
             }
             node = (ASTNode*)assign;
         } else {
-            BinaryOpNode* binop = arena_alloc(parser->arena, sizeof(BinaryOpNode));
+            BinaryOpNode* binop =
+                arena_alloc(parser->arena, sizeof(BinaryOpNode));
             binop->type = NODE_BINARYOP;
             binop->op = tk.type;
             binop->left = node;
@@ -314,7 +316,7 @@ static ASTNode* var_decl(ParserState* parser) {
         return error(parser, parser->post_token_pos, "expected an identifier");
     }
 
-    if (symbol_table_find(parser->sym, tk.ident) != NULL) {
+    if (symbol_table_find(parser->sym, tk.ident, 1) != NULL) {
         return error(parser, parser->post_token_pos, "redefinition of '%s'",
                      tk.ident);
     }
@@ -361,44 +363,85 @@ static ASTNode* print(ParserState* parser) {
     return (ASTNode*)print_node;
 }
 
-static ASTNode* stmt_list(ParserState* parser) {
+static ASTNode* stmt(ParserState* parser) {
+    ASTNode* node;
+    Token tk = peek_token(parser);
+    switch (tk.type) {
+        case TK_SEMICOLON:
+            tk = next_token(parser);
+            return NULL;
+
+        case TK_DECL:
+            node = var_decl(parser);
+            if (node->type == NODE_ERR)
+                return node;
+
+            tk = next_token(parser);
+            if (tk.type != TK_SEMICOLON) {
+                return error(parser, parser->pre_token_pos, "Expected ';'");
+            }
+            break;
+
+        case TK_PRINT:
+            node = print(parser);
+            if (node->type == NODE_ERR)
+                return node;
+
+            tk = next_token(parser);
+            if (tk.type != TK_SEMICOLON) {
+                return error(parser, parser->pre_token_pos, "Expected ';'");
+            }
+            break;
+
+        case TK_LBRACE:
+            next_token(parser);
+
+            SymbolTable* sym =
+                arena_alloc(parser->sym->arena, sizeof(SymbolTable));
+            symbol_table_init(sym, parser->sym->arena);
+            sym->parent = parser->sym;
+            parser->sym = sym;
+
+            node = stmt_list(parser, 1);
+            if (node->type == NODE_ERR)
+                return node;
+
+            tk = next_token(parser);
+            if (tk.type != TK_RBRACE) {
+                return error(parser, parser->pre_token_pos, "Expected '}'");
+            }
+
+            parser->sym = sym->parent;
+            break;
+
+        default:
+            node = expr(parser, 0);
+            if (node->type == NODE_ERR)
+                return node;
+
+            tk = next_token(parser);
+            if (tk.type != TK_SEMICOLON) {
+                return error(parser, parser->pre_token_pos, "Expected ';'");
+            }
+    }
+    return node;
+}
+
+static ASTNode* stmt_list(ParserState* parser, int in_scope) {
     StatementListNode* stmts =
         arena_alloc(parser->arena, sizeof(StatementListNode));
     stmts->type = NODE_STMTS;
     stmts->stmts = NULL;
 
-    Token tk = peek_token(parser);
-    while (tk.type != TK_NUL) {
-        ASTNode* node;
-        switch (tk.type) {
-            case TK_SEMICOLON:
-                tk = next_token(parser);
-                continue;
+    for (Token tk = peek_token(parser);
+         tk.type != TK_NUL && (!in_scope || tk.type != TK_RBRACE);
+         tk = peek_token(parser)) {
+        ASTNode* node = stmt(parser);
+        if (node == NULL)
+            continue;
 
-            case TK_DECL:
-                node = var_decl(parser);
-                if (node->type == NODE_ERR)
-                    return node;
-                break;
-
-            case TK_PRINT:
-                node = print(parser);
-                if (node->type == NODE_ERR)
-                    return node;
-                break;
-
-            default:
-                node = expr(parser, 0);
-                if (node->type == NODE_ERR)
-                    return node;
-        }
-
-        tk = next_token(parser);
-        if (tk.type != TK_SEMICOLON) {
-            return error(parser, parser->pre_token_pos, "Expected ';'");
-        }
-
-        tk = peek_token(parser);
+        if (node->type == NODE_ERR)
+            return node;
 
         ASTNodeList* list = arena_alloc(parser->arena, sizeof(ASTNodeList));
         list->node = node;
@@ -424,5 +467,5 @@ ASTNode* parser_parse(ParserState* parser, const char* src) {
     parser->src = src;
     parser->pos = 0;
 
-    return stmt_list(parser);
+    return stmt_list(parser, 0);
 }

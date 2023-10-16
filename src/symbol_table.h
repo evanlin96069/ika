@@ -13,13 +13,16 @@ struct SymbolTableEntry {
     SymbolTableEntry* next;
 };
 
-typedef struct SymbolTable {
-    SymbolTableEntry* ste;
+typedef struct SymbolTable SymbolTable;
+struct SymbolTable {
+    SymbolTable* parent;
     Arena* arena;
-} SymbolTable;
+    SymbolTableEntry* ste;
+};
 
 void symbol_table_init(SymbolTable* table, Arena* arena);
 SymbolTableEntry* symbol_table_append(SymbolTable* table, char* ident);
-SymbolTableEntry* symbol_table_find(SymbolTable* table, char* ident);
+SymbolTableEntry* symbol_table_find(SymbolTable* table, char* ident,
+                                    int in_current_scope);
 
 #endif

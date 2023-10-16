@@ -13,8 +13,9 @@ static inline int djb2_hash(char* str) {
 }
 
 void symbol_table_init(SymbolTable* table, Arena* arena) {
-    table->ste = NULL;
+    table->parent = NULL;
     table->arena = arena;
+    table->ste = NULL;
 }
 
 SymbolTableEntry* symbol_table_append(SymbolTable* table, char* ident) {
@@ -27,7 +28,11 @@ SymbolTableEntry* symbol_table_append(SymbolTable* table, char* ident) {
     return ste;
 }
 
-SymbolTableEntry* symbol_table_find(SymbolTable* table, char* ident) {
+SymbolTableEntry* symbol_table_find(SymbolTable* table, char* ident,
+                                    int in_current_scope) {
+    if (!table)
+        return NULL;
+
     SymbolTableEntry* ste = table->ste;
 
     int hash = djb2_hash(ident);
@@ -39,5 +44,7 @@ SymbolTableEntry* symbol_table_find(SymbolTable* table, char* ident) {
         ste = ste->next;
     }
 
+    if (!in_current_scope)
+        return symbol_table_find(table->parent, ident, 0);
     return NULL;
 }
