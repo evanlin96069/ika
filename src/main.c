@@ -132,6 +132,14 @@ static int eval(ASTNode* node) {
             return 0;
         }
 
+        case NODE_WHILE: {
+            WhileNode* while_node = (WhileNode*)node;
+            while (eval(while_node->expr)) {
+                eval(while_node->block);
+            }
+            return 0;
+        }
+
         default:
             return -1;
     }

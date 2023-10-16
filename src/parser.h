@@ -17,6 +17,7 @@ typedef enum TokenType {
     TK_PRINT,
     TK_IF,
     TK_ELSE,
+    TK_WHILE,
 
     TK_MUL,
     TK_DIV,
@@ -66,6 +67,7 @@ typedef enum ASTNodeType {
     NODE_ASSIGN,
     NODE_PRINT,
     NODE_IF,
+    NODE_WHILE,
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -112,6 +114,12 @@ typedef struct IfStatementNode {
     ASTNode* then_block;
     ASTNode* else_block;
 } IfStatementNode;
+
+typedef struct WhileNode {
+    ASTNodeType type;
+    ASTNode* expr;
+    ASTNode* block;
+} WhileNode;
 
 typedef struct ErrorNode {
     ASTNodeType type;

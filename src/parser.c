@@ -197,6 +197,8 @@ static Token next_token_internal(ParserState* parser, int peek) {
                     tk.type = TK_IF;
                 } else if (strcmp(ident, "else") == 0) {
                     tk.type = TK_ELSE;
+                } else if (strcmp(ident, "while") == 0) {
+                    tk.type = TK_WHILE;
                 } else {
                     tk.type = TK_IDENT;
                     tk.ident = arena_alloc(parser->arena, sizeof(ident));
@@ -231,6 +233,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* decl_stmt(ParserState* parser);
 static ASTNode* print_stmt(ParserState* parser);
 static ASTNode* if_stmt(ParserState* parser);
+static ASTNode* while_stmt(ParserState* parser);
 static ASTNode* scope(ParserState* parser);
 static ASTNode* stmt(ParserState* parser);
 static ASTNode* stmt_list(ParserState* parser, int in_scope);
@@ -537,6 +540,42 @@ static ASTNode* if_stmt(ParserState* parser) {
     return (ASTNode*)if_node;
 }
 
+static ASTNode* while_stmt(ParserState* parser) {
+    Token tk = next_token(parser);
+    assert(tk.type == TK_WHILE);
+
+    WhileNode* while_node = arena_alloc(parser->arena, sizeof(WhileNode));
+    while_node->type = NODE_WHILE;
+
+    tk = next_token(parser);
+    if (tk.type != TK_LPAREN) {
+        return error(parser, parser->pre_token_pos, "Expected '('");
+    }
+
+    while_node->expr = expr(parser, 0);
+    if (while_node->expr->type == NODE_ERR) {
+        return while_node->expr;
+    }
+
+    tk = next_token(parser);
+    if (tk.type != TK_RPAREN) {
+        return error(parser, parser->pre_token_pos, "Expected ')'");
+    }
+
+    tk = peek_token(parser);
+    if (tk.type != TK_LBRACE) {
+        next_token(parser);
+        return error(parser, parser->pre_token_pos, "Expected '{'");
+    }
+
+    while_node->block = scope(parser);
+    if (while_node->block->type == NODE_ERR) {
+        return while_node->block;
+    }
+
+    return (ASTNode*)while_node;
+}
+
 static ASTNode* scope(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_LBRACE);
@@ -592,6 +631,12 @@ static ASTNode* stmt(ParserState* parser) {
 
         case TK_IF:
             node = if_stmt(parser);
+            if (node->type == NODE_ERR)
+                return node;
+            break;
+
+        case TK_WHILE:
+            node = while_stmt(parser);
             if (node->type == NODE_ERR)
                 return node;
             break;
