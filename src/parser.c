@@ -4,7 +4,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 // Lexer
 
@@ -164,6 +163,23 @@ static Token next_token_internal(ParserState* parser, int peek) {
             tk.type = TK_NUL;
             break;
 
+        case '"': {
+            c = (parser->src + parser->pos)[++offset];
+            Str s = {
+                .ptr = parser->src + parser->pos + offset,
+                .len = 0,
+            };
+
+            while (c != '"') {
+                s.len++;
+                c = (parser->src + parser->pos)[++offset];
+            }
+            offset++;
+
+            tk.type = TK_STR;
+            tk.str = s;
+        } break;
+
         default:
             if (is_digit(c)) {
                 tk.type = TK_INT;
@@ -171,38 +187,33 @@ static Token next_token_internal(ParserState* parser, int peek) {
                 while (is_digit(c)) {
                     tk.val *= 10;
                     tk.val += (parser->src + parser->pos)[offset] - '0';
-                    offset++;
-                    c = (parser->src + parser->pos)[offset];
+                    c = (parser->src + parser->pos)[++offset];
                 }
             } else if (is_letter(c) || c == '_') {
-                int i = 0;
-                char ident[IDENT_MAX_LENGTH + 1] = {0};
+                Str ident = {
+                    .ptr = parser->src + parser->pos + offset,
+                    .len = 1,
+                };
 
-                ident[i++] = c;
-                offset++;
-                c = (parser->src + parser->pos)[offset];
-
-                while ((is_letter(c) || is_digit(c) || c == '_') &&
-                       i < IDENT_MAX_LENGTH) {
-                    ident[i++] = c;
-                    offset++;
-                    c = (parser->src + parser->pos)[offset];
+                c = (parser->src + parser->pos)[++offset];
+                while (is_letter(c) || is_digit(c) || c == '_') {
+                    ident.len++;
+                    c = (parser->src + parser->pos)[++offset];
                 }
 
-                if (strcmp(ident, "var") == 0) {
+                if (str_eql(str("var"), ident)) {
                     tk.type = TK_DECL;
-                } else if (strcmp(ident, "print") == 0) {
+                } else if (str_eql(str("print"), ident)) {
                     tk.type = TK_PRINT;
-                } else if (strcmp(ident, "if") == 0) {
+                } else if (str_eql(str("if"), ident)) {
                     tk.type = TK_IF;
-                } else if (strcmp(ident, "else") == 0) {
+                } else if (str_eql(str("else"), ident)) {
                     tk.type = TK_ELSE;
-                } else if (strcmp(ident, "while") == 0) {
+                } else if (str_eql(str("while"), ident)) {
                     tk.type = TK_WHILE;
                 } else {
                     tk.type = TK_IDENT;
-                    tk.ident = arena_alloc(parser->arena, sizeof(ident));
-                    memcpy(tk.ident, ident, sizeof(ident));
+                    tk.str = ident;
                 }
             } else {
                 tk.type = TK_ERR;
@@ -262,15 +273,15 @@ static ASTNode* primary(ParserState* parser) {
         }
 
         case TK_IDENT: {
-            SymbolTableEntry* ste = symbol_table_find(parser->sym, tk.ident, 0);
+            SymbolTableEntry* ste = symbol_table_find(parser->sym, tk.str, 0);
             if (ste) {
                 VarNode* node = arena_alloc(parser->arena, sizeof(VarNode));
                 node->type = NODE_VAR;
                 node->ste = ste;
                 return (ASTNode*)node;
             } else {
-                return error(parser, parser->post_token_pos, "'%s' undeclared",
-                             tk.ident);
+                return error(parser, parser->post_token_pos,
+                             "'%.*s' undeclared", tk.str.len, tk.str.ptr);
             }
         }
 
@@ -440,12 +451,12 @@ static ASTNode* var_decl(ParserState* parser) {
         return error(parser, parser->post_token_pos, "expected an identifier");
     }
 
-    if (symbol_table_find(parser->sym, tk.ident, 1) != NULL) {
-        return error(parser, parser->post_token_pos, "redefinition of '%s'",
-                     tk.ident);
+    Str ident = tk.str;
+    if (symbol_table_find(parser->sym, ident, 1) != NULL) {
+        return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
+                     tk.str.len, tk.str.ptr);
     }
 
-    char* ident = tk.ident;
     VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
     var->type = NODE_VAR;
     ASTNode* node = (ASTNode*)var;
@@ -617,6 +628,20 @@ static ASTNode* stmt(ParserState* parser) {
             if (node->type == NODE_ERR)
                 return node;
             break;
+
+        case TK_STR: {
+            next_token(parser);
+            StrLitNode* str_node =
+                arena_alloc(parser->arena, sizeof(StrLitNode));
+            str_node->type = NODE_STRLIT;
+            str_node->str = tk.str;
+            node = (ASTNode*)str_node;
+
+            tk = next_token(parser);
+            if (tk.type != TK_SEMICOLON) {
+                return error(parser, parser->pre_token_pos, "Expected ';'");
+            }
+        } break;
 
         default:
             node = expr(parser, 0);

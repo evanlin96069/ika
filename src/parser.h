@@ -13,6 +13,7 @@ typedef enum TokenType {
     TK_NUL = 0,
     TK_IDENT,
     TK_INT,
+    TK_STR,
     TK_DECL,
     TK_PRINT,
     TK_IF,
@@ -51,7 +52,7 @@ typedef struct Token {
     TokenType type;
     union {
         int val;
-        char* ident;
+        Str str;
     };
 } Token;
 
@@ -61,6 +62,7 @@ typedef enum ASTNodeType {
     NODE_ERR = -1,
     NODE_STMTS,
     NODE_INTLIT,
+    NODE_STRLIT,
     NODE_BINARYOP,
     NODE_UNARYOP,
     NODE_VAR,
@@ -78,6 +80,11 @@ typedef struct IntLitNode {
     ASTNodeType type;
     int val;
 } IntLitNode;
+
+typedef struct StrLitNode {
+    ASTNodeType type;
+    Str str;
+} StrLitNode;
 
 typedef struct BinaryOpNode {
     ASTNodeType type;

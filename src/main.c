@@ -27,6 +27,12 @@ static int eval(ASTNode* node) {
             return lit->val;
         }
 
+        case NODE_STRLIT: {
+            StrLitNode* str_node = (StrLitNode*)node;
+            printf("%.*s\n", (int)str_node->str.len, str_node->str.ptr);
+            return 0;
+        }
+
         case NODE_BINARYOP: {
             BinaryOpNode* binop = (BinaryOpNode*)node;
             int left = eval(binop->left);
@@ -152,7 +158,7 @@ static int eval(ASTNode* node) {
 static void print_err(ParserState* parser, const char* file_name,
                       ErrorNode* err) {
     const char* line = parser->src;
-    int line_num = 0;
+    int line_num = 1;
     int line_pos = 0;
 
     size_t pos = 0;
