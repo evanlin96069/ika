@@ -9,7 +9,8 @@ static inline int djb2_hash(Str s) {
     return hash;
 }
 
-void symbol_table_init(SymbolTable* table, Arena* arena) {
+void symbol_table_init(SymbolTable* table, int offset, Arena* arena) {
+    table->offset = offset;
     table->parent = NULL;
     table->arena = arena;
     table->ste = NULL;
@@ -20,7 +21,8 @@ SymbolTableEntry* symbol_table_append(SymbolTable* table, Str ident) {
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
     ste->next = table->ste;
-    ste->val = 0;
+    ste->offset = table->offset;
+    table->offset += 4;
     table->ste = ste;
     return ste;
 }
@@ -35,8 +37,7 @@ SymbolTableEntry* symbol_table_find(SymbolTable* table, Str ident,
     int hash = djb2_hash(ident);
 
     while (ste) {
-        if (ste->hash == hash && ste->ident.len == ident.len &&
-            str_eql(ste->ident, ident)) {
+        if (ste->hash == hash && str_eql(ste->ident, ident)) {
             return ste;
         }
         ste = ste->next;

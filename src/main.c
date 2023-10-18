@@ -5,155 +5,7 @@
 
 #include "parser.h"
 #include "symbol_table.h"
-
-static int eval(ASTNode* node) {
-    if (!node) {
-        return 0;
-    }
-
-    switch (node->type) {
-        case NODE_STMTS: {
-            StatementListNode* stmts = (StatementListNode*)node;
-            ASTNodeList* iter = stmts->stmts;
-            while (iter) {
-                eval(iter->node);
-                iter = iter->next;
-            }
-            return 0;
-        }
-
-        case NODE_INTLIT: {
-            IntLitNode* lit = (IntLitNode*)node;
-            return lit->val;
-        }
-
-        case NODE_STRLIT: {
-            StrLitNode* str_node = (StrLitNode*)node;
-            printf("%.*s\n", (int)str_node->str.len, str_node->str.ptr);
-            return 0;
-        }
-
-        case NODE_BINARYOP: {
-            BinaryOpNode* binop = (BinaryOpNode*)node;
-            int left = eval(binop->left);
-            int right = eval(binop->right);
-            switch (binop->op) {
-                case TK_MUL:
-                    return left * right;
-
-                case TK_DIV:
-                    return left / right;
-
-                case TK_MOD:
-                    return left % right;
-
-                case TK_ADD:
-                    return left + right;
-
-                case TK_SUB:
-                    return left - right;
-
-                case TK_LT:
-                    return left < right;
-
-                case TK_LE:
-                    return left <= right;
-
-                case TK_GT:
-                    return left > right;
-
-                case TK_GE:
-                    return left >= right;
-
-                case TK_EQ:
-                    return left == right;
-
-                case TK_NE:
-                    return left != right;
-
-                case TK_AND:
-                    return left & right;
-
-                case TK_XOR:
-                    return left ^ right;
-
-                case TK_OR:
-                    return left | right;
-
-                case TK_LAND:
-                    return left && right;
-
-                case TK_LOR:
-                    return left || right;
-
-                default:
-                    return -1;
-            }
-        }
-
-        case NODE_UNARYOP: {
-            UnaryOpNode* unaryop = (UnaryOpNode*)node;
-            int val = eval(unaryop->node);
-            switch (unaryop->op) {
-                case TK_ADD:
-                    return val;
-
-                case TK_SUB:
-                    return -val;
-
-                case TK_NOT:
-                    return ~val;
-
-                case TK_LNOT:
-                    return !val;
-
-                default:
-                    return -1;
-            }
-        }
-
-        case NODE_VAR: {
-            VarNode* var = (VarNode*)node;
-            return var->ste->val;
-        }
-
-        case NODE_ASSIGN: {
-            AssignNode* assign = (AssignNode*)node;
-            int val = eval(assign->right);
-            assign->left->ste->val = val;
-            return val;
-        }
-
-        case NODE_PRINT: {
-            PrintNode* print_node = (PrintNode*)node;
-            int val = eval(print_node->expr);
-            printf("%d\n", val);
-            return 0;
-        }
-
-        case NODE_IF: {
-            IfStatementNode* if_node = (IfStatementNode*)node;
-            int cond = eval(if_node->expr);
-            if (cond) {
-                eval(if_node->then_block);
-            } else if (if_node->else_block) {
-                eval(if_node->else_block);
-            }
-            return 0;
-        }
-
-        case NODE_WHILE: {
-            WhileNode* while_node = (WhileNode*)node;
-            while (eval(while_node->expr)) {
-                eval(while_node->block);
-            }
-            return 0;
-        }
-
-        default:
-            return -1;
-    }
-}
+#include "vm.h"
 
 static void print_err(ParserState* parser, const char* file_name,
                       ErrorNode* err) {
@@ -216,7 +68,7 @@ int main(int argc, char* argv[]) {
     Arena sym_arena;
     arena_init(&sym_arena, 1 << 10, NULL);
     SymbolTable sym;
-    symbol_table_init(&sym, &sym_arena);
+    symbol_table_init(&sym, 0, &sym_arena);
 
     Arena arena;
     arena_init(&arena, 1 << 10, NULL);
@@ -234,11 +86,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    eval(node);
+    int result = vm_run(node);
 
     arena_deinit(&arena);
     arena_deinit(&sym_arena);
     free(buf);
 
-    return 0;
+    return result;
 }
