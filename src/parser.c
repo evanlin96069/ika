@@ -574,7 +574,8 @@ static ASTNode* scope(ParserState* parser) {
     assert(tk.type == TK_LBRACE);
 
     SymbolTable* sym = arena_alloc(parser->sym->arena, sizeof(SymbolTable));
-    symbol_table_init(sym, parser->sym->offset, parser->sym->arena);
+    symbol_table_init(sym, parser->sym->offset, parser->sym->stack_size,
+                      parser->sym->arena);
     sym->parent = parser->sym;
     parser->sym = sym;
 

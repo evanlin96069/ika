@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
     Arena sym_arena;
     arena_init(&sym_arena, 1 << 10, NULL);
     SymbolTable sym;
-    symbol_table_init(&sym, 0, &sym_arena);
+    symbol_table_init(&sym, 0, NULL, &sym_arena);
 
     Arena arena;
     arena_init(&arena, 1 << 10, NULL);
@@ -86,7 +86,17 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    int result = vm_run(node);
+    codegen(node);
+
+#if 0
+    int result = 0;
+    print_code();
+#else
+    pc = 0;
+    sp = *sym.stack_size;
+    bp = 0;
+    int result = vm_run();
+#endif
 
     arena_deinit(&arena);
     arena_deinit(&sym_arena);

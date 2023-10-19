@@ -9,11 +9,16 @@ static inline int djb2_hash(Str s) {
     return hash;
 }
 
-void symbol_table_init(SymbolTable* table, int offset, Arena* arena) {
+void symbol_table_init(SymbolTable* table, int offset, int* stack_size,
+                       Arena* arena) {
     table->offset = offset;
     table->parent = NULL;
     table->arena = arena;
     table->ste = NULL;
+    if (!stack_size) {
+        stack_size = arena_alloc(arena, sizeof(int));
+    }
+    table->stack_size = stack_size;
 }
 
 SymbolTableEntry* symbol_table_append(SymbolTable* table, Str ident) {
@@ -24,6 +29,9 @@ SymbolTableEntry* symbol_table_append(SymbolTable* table, Str ident) {
     ste->offset = table->offset;
     table->offset += 4;
     table->ste = ste;
+    if (*table->stack_size < table->offset) {
+        *table->stack_size = table->offset;
+    }
     return ste;
 }
 
