@@ -17,14 +17,22 @@ int pc, sp, bp;
 static int ax;
 static uint8_t stack[STACK_SIZE];
 
+typedef enum RegisterType {
+    IMM,  // immediate value, not a register
+    AX,
+    BP,
+    SP,
+    PC,
+} RegisterType;
+
 enum Instruction {
-    IMM = 0,
-    LI,
-    SI,
-    JMP,
-    JZ,
-    JNZ,
-    PUSH,
+    MOV,   // MOV dst IMM
+    LDR,   // LDR dst REG[offset]
+    STR,   // STR src REG[offset]
+    JMP,   // JMP addr
+    JZ,    // JZ addr
+    JNZ,   // JNZ addr
+    PUSH,  // PUSH REG
     OR,
     XOR,
     AND,
@@ -39,7 +47,7 @@ enum Instruction {
     MUL,
     DIV,
     MOD,
-    WRITE,
+    WRITE,  // WRITE DATA LEN
     PRINT,
     EXIT,
 };
@@ -61,7 +69,8 @@ static void _codegen(ASTNode* node) {
 
         case NODE_INTLIT: {
             IntLitNode* lit = (IntLitNode*)node;
-            *tp++ = IMM;
+            *tp++ = MOV;
+            *tp++ = AX;
             *((int*)tp) = lit->val;
             tp += sizeof(int);
         } break;
@@ -99,6 +108,7 @@ static void _codegen(ASTNode* node) {
                 *label = (int)(tp - text);
             } else {
                 *tp++ = PUSH;
+                *tp++ = AX;
                 _codegen(binop->right);
 
                 switch (binop->op) {
@@ -173,7 +183,9 @@ static void _codegen(ASTNode* node) {
 
                 case TK_SUB:
                     *tp++ = PUSH;
-                    *tp++ = IMM;
+                    *tp++ = AX;
+                    *tp++ = MOV;
+                    *tp++ = AX;
                     *((int*)tp) = -1;
                     tp += sizeof(int);
                     *tp++ = MUL;
@@ -181,7 +193,9 @@ static void _codegen(ASTNode* node) {
 
                 case TK_NOT:
                     *tp++ = PUSH;
-                    *tp++ = IMM;
+                    *tp++ = AX;
+                    *tp++ = MOV;
+                    *tp++ = AX;
                     *((int*)tp) = -1;
                     tp += sizeof(int);
                     *tp++ = XOR;
@@ -189,7 +203,9 @@ static void _codegen(ASTNode* node) {
 
                 case TK_LNOT:
                     *tp++ = PUSH;
-                    *tp++ = IMM;
+                    *tp++ = AX;
+                    *tp++ = MOV;
+                    *tp++ = AX;
                     *((int*)tp) = 0;
                     tp += sizeof(int);
                     *tp++ = EQ;
@@ -202,7 +218,9 @@ static void _codegen(ASTNode* node) {
 
         case NODE_VAR: {
             VarNode* var = (VarNode*)node;
-            *tp++ = LI;
+            *tp++ = LDR;
+            *tp++ = AX;
+            *tp++ = BP;
             *((int*)tp) = var->ste->offset;
             tp += sizeof(int);
         } break;
@@ -210,7 +228,9 @@ static void _codegen(ASTNode* node) {
         case NODE_ASSIGN: {
             AssignNode* assign = (AssignNode*)node;
             _codegen(assign->right);
-            *tp++ = SI;
+            *tp++ = STR;
+            *tp++ = AX;
+            *tp++ = BP;
             *((int*)tp) = assign->left->ste->offset;
             tp += sizeof(int);
         } break;
@@ -277,26 +297,50 @@ void codegen(ASTNode* node) {
     *tp++ = EXIT;
 }
 
+static inline const char* get_register_name(RegisterType reg) {
+    switch (reg) {
+        case AX:
+            return "AX";
+        case BP:
+            return "BP";
+        case SP:
+            return "SP";
+        case PC:
+            return "PC";
+        case IMM:
+            return "IMM";
+        default:
+            assert(0);
+    }
+}
+
 static int print_inst(const uint8_t* s) {
     int i = 0;
     int inst = s[i++];
     switch (inst) {
-        case IMM: {
+        case MOV: {
+            int dst = s[i++];
             int val = *((int*)(s + i));
             i += sizeof(int);
-            printf("IMM\t%d\n", val);
+            printf("MOV\t%s,\t%d\n", get_register_name(dst), val);
         } break;
 
-        case LI: {
-            int val = *((int*)(s + i));
+        case LDR: {
+            int dst = s[i++];
+            int reg = s[i++];
+            int offset = *((int*)(s + i));
             i += sizeof(int);
-            printf("LI\t%d\n", val);
+            printf("LDR\t%s,\t%s[%d]\n", get_register_name(dst),
+                   get_register_name(reg), offset);
         } break;
 
-        case SI: {
-            int val = *((int*)(s + i));
+        case STR: {
+            int src = s[i++];
+            int reg = s[i++];
+            int offset = *((int*)(s + i));
             i += sizeof(int);
-            printf("SI\t%d\n", val);
+            printf("STR\t%s,\t%s[%d]\n", get_register_name(src),
+                   get_register_name(reg), offset);
         } break;
 
         case JMP: {
@@ -317,9 +361,10 @@ static int print_inst(const uint8_t* s) {
             printf("JNZ\t%d\n", val);
         } break;
 
-        case PUSH:
-            printf("PUSH\n");
-            break;
+        case PUSH: {
+            int reg = s[i++];
+            printf("PUSH\t%s\n", get_register_name(reg));
+        } break;
 
         case OR:
             printf("OR\n");
@@ -409,27 +454,48 @@ void print_code(void) {
     }
 }
 
+static inline int* get_register(RegisterType reg) {
+    switch (reg) {
+        case AX:
+            return &ax;
+        case BP:
+            return &bp;
+        case SP:
+            return &sp;
+        case PC:
+            return &pc;
+        default:
+            assert(0);
+    }
+}
+
 int vm_run(void) {
     while (1) {
         // printf("%d:\t", pc);
         // print_inst(text + pc);
         int inst = text[pc++];
         switch (inst) {
-            case IMM:
-                ax = *((int*)(text + pc));
+            case MOV: {
+                int* dst = get_register(text[pc++]);
+                int val = *((int*)(text + pc));
                 pc += sizeof(int);
-                break;
-
-            case LI: {
-                int offset = *((int*)(text + pc));
-                pc += sizeof(int);
-                ax = stack[bp + offset];
+                *dst = val;
             } break;
 
-            case SI: {
+            case LDR: {
+                int* dst = get_register(text[pc++]);
+                int* reg = get_register(text[pc++]);
                 int offset = *((int*)(text + pc));
                 pc += sizeof(int);
-                stack[bp + offset] = ax;
+                *dst = stack[*reg + offset];
+            } break;
+
+            case STR: {
+                int* src = get_register(text[pc++]);
+                int* reg = get_register(text[pc++]);
+                int offset = *((int*)(text + pc));
+                pc += sizeof(int);
+                stack[*reg + offset] = *src;
             } break;
 
             case JMP:
@@ -452,10 +518,11 @@ int vm_run(void) {
                 }
                 break;
 
-            case PUSH:
-                *((int*)(stack + sp)) = ax;
+            case PUSH: {
+                int* reg = get_register(text[pc++]);
+                *((int*)(stack + sp)) = *reg;
                 sp += sizeof(int);
-                break;
+            } break;
 
             case OR:
                 sp -= sizeof(int);
