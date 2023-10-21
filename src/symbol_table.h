@@ -4,27 +4,59 @@
 #include "arena.h"
 #include "str.h"
 
+struct ASTNode;
+
+typedef enum SymbolType {
+    SYM_VAR,
+    SYM_FUNC,
+} SymbolType;
+
+typedef struct SymbolTable SymbolTable;
 typedef struct SymbolTableEntry SymbolTableEntry;
+
 struct SymbolTableEntry {
     Str ident;
     int hash;
-    int offset;
     SymbolTableEntry* next;
+    SymbolType type;
 };
 
-typedef struct SymbolTable SymbolTable;
+typedef struct VarSymbolTableEntry {
+    Str ident;
+    int hash;
+    SymbolTableEntry* next;
+    SymbolType type;
+
+    int is_global;
+    int offset;
+} VarSymbolTableEntry;
+
+typedef struct FuncSymbolTableEntry {
+    Str ident;
+    int hash;
+    SymbolTableEntry* next;
+    SymbolType type;
+
+    int offset;
+    struct ASTNode* node;
+    SymbolTable* sym;
+} FuncSymbolTableEntry;
+
 struct SymbolTable {
     SymbolTable* parent;
     Arena* arena;
     SymbolTableEntry* ste;
+    SymbolTableEntry* _tail;
     int* stack_size;
+    int is_global;
     int offset;
 };
 
-void symbol_table_init(SymbolTable* table, int offset, int* stack_size,
-                       Arena* arena);
-SymbolTableEntry* symbol_table_append(SymbolTable* table, Str ident);
-SymbolTableEntry* symbol_table_find(SymbolTable* table, Str ident,
+void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
+                       int is_global, Arena* arena);
+VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident);
+FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident);
+SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope);
 
 #endif

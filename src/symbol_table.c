@@ -1,5 +1,7 @@
 #include "symbol_table.h"
 
+#include "parser.h"
+
 static inline int djb2_hash(Str s) {
     int hash = 5381;
     for (size_t i = 0; i < s.len; i++) {
@@ -9,38 +11,75 @@ static inline int djb2_hash(Str s) {
     return hash;
 }
 
-void symbol_table_init(SymbolTable* table, int offset, int* stack_size,
-                       Arena* arena) {
-    table->offset = offset;
-    table->parent = NULL;
-    table->arena = arena;
-    table->ste = NULL;
+void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
+                       int is_global, Arena* arena) {
+    sym->offset = offset;
+    sym->is_global = is_global;
+    sym->parent = NULL;
+    sym->arena = arena;
+    sym->ste = NULL;
     if (!stack_size) {
         stack_size = arena_alloc(arena, sizeof(int));
     }
-    table->stack_size = stack_size;
+    sym->stack_size = stack_size;
 }
 
-SymbolTableEntry* symbol_table_append(SymbolTable* table, Str ident) {
-    SymbolTableEntry* ste = arena_alloc(table->arena, sizeof(SymbolTableEntry));
+VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident) {
+    VarSymbolTableEntry* ste =
+        arena_alloc(sym->arena, sizeof(VarSymbolTableEntry));
+    ste->type = SYM_VAR;
+
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
-    ste->next = table->ste;
-    ste->offset = table->offset;
-    table->offset += 4;
-    table->ste = ste;
-    if (*table->stack_size < table->offset) {
-        *table->stack_size = table->offset;
+
+    ste->offset = sym->offset;
+    sym->offset += 4;
+    if (*sym->stack_size < sym->offset) {
+        *sym->stack_size = sym->offset;
     }
+
+    ste->is_global = sym->is_global;
+
+    ste->next = NULL;
+    if (!sym->ste) {
+        sym->ste = sym->_tail = (SymbolTableEntry*)ste;
+    } else {
+        sym->_tail->next = (SymbolTableEntry*)ste;
+        sym->_tail = sym->_tail->next;
+    }
+
     return ste;
 }
 
-SymbolTableEntry* symbol_table_find(SymbolTable* table, Str ident,
+FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident) {
+    FuncSymbolTableEntry* ste =
+        arena_alloc(sym->arena, sizeof(FuncSymbolTableEntry));
+    ste->type = SYM_FUNC;
+
+    ste->ident = ident;
+    ste->hash = djb2_hash(ident);
+
+    ste->offset = 0;   // fill in during codegen
+    ste->node = NULL;  // fill in during parsing
+    ste->sym = NULL;   // fill in during parsing
+
+    ste->next = NULL;
+    if (!sym->ste) {
+        sym->ste = sym->_tail = (SymbolTableEntry*)ste;
+    } else {
+        sym->_tail->next = (SymbolTableEntry*)ste;
+        sym->_tail = sym->_tail->next;
+    }
+
+    return ste;
+}
+
+SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope) {
-    if (!table)
+    if (!sym)
         return NULL;
 
-    SymbolTableEntry* ste = table->ste;
+    SymbolTableEntry* ste = sym->ste;
 
     int hash = djb2_hash(ident);
 
@@ -52,6 +91,6 @@ SymbolTableEntry* symbol_table_find(SymbolTable* table, Str ident,
     }
 
     if (!in_current_scope)
-        return symbol_table_find(table->parent, ident, 0);
+        return symbol_table_find(sym->parent, ident, 0);
     return NULL;
 }

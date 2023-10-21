@@ -5,7 +5,7 @@
 
 extern int pc, sp, bp;
 
-void codegen(ASTNode* node);
+int codegen(ASTNode* node, SymbolTable* sym);
 void print_code(void);
 int vm_run(void);
 

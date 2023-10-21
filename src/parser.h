@@ -15,6 +15,8 @@ typedef enum TokenType {
     TK_INT,
     TK_STR,
     TK_DECL,
+    TK_FUNC,
+    TK_RET,
     TK_PRINT,
     TK_IF,
     TK_ELSE,
@@ -46,6 +48,7 @@ typedef enum TokenType {
     TK_LBRACE,
     TK_RBRACE,
     TK_SEMICOLON,
+    TK_COMMA,
 } TokenType;
 
 typedef struct Token {
@@ -66,6 +69,8 @@ typedef enum ASTNodeType {
     NODE_BINARYOP,
     NODE_UNARYOP,
     NODE_VAR,
+    NODE_CALL,
+    NODE_RET,
     NODE_ASSIGN,
     NODE_PRINT,
     NODE_IF,
@@ -101,7 +106,7 @@ typedef struct UnaryOpNode {
 
 typedef struct VarNode {
     ASTNodeType type;
-    SymbolTableEntry* ste;
+    VarSymbolTableEntry* ste;
 } VarNode;
 
 typedef struct AssignNode {
@@ -146,9 +151,21 @@ typedef struct StatementListNode {
     ASTNodeList* _tail;
 } StatementListNode;
 
+typedef struct CallNode {
+    ASTNodeType type;
+    FuncSymbolTableEntry* ste;
+    ASTNodeList* args;
+} CallNode;
+
+typedef struct ReturnNode {
+    ASTNodeType type;
+    ASTNode* expr;
+} ReturnNode;
+
 typedef struct ParserState {
     Arena* arena;
     SymbolTable* sym;
+    SymbolTable* global_sym;
 
     const char* src;
     size_t pos;

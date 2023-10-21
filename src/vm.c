@@ -26,13 +26,14 @@ typedef enum RegisterType {
 } RegisterType;
 
 enum Instruction {
-    MOV,   // MOV dst IMM
-    LDR,   // LDR dst REG[offset]
-    STR,   // STR src REG[offset]
+    MOV,   // MOV dst IMM[val]|REG
+    LDR,   // LDR dst IMM[val]|REG[offset]
+    STR,   // STR src IMM[val]|REG[offset]
     JMP,   // JMP addr
     JZ,    // JZ addr
     JNZ,   // JNZ addr
-    PUSH,  // PUSH REG
+    PUSH,  // PUSH IMM[val]|REG
+    LEV,
     OR,
     XOR,
     AND,
@@ -52,7 +53,7 @@ enum Instruction {
     EXIT,
 };
 
-static void _codegen(ASTNode* node) {
+static void _codegen(ASTNode* node, int in_func) {
     if (!node) {
         return;
     }
@@ -62,7 +63,7 @@ static void _codegen(ASTNode* node) {
             StatementListNode* stmts = (StatementListNode*)node;
             ASTNodeList* iter = stmts->stmts;
             while (iter) {
-                _codegen(iter->node);
+                _codegen(iter->node, in_func);
                 iter = iter->next;
             }
         } break;
@@ -71,6 +72,7 @@ static void _codegen(ASTNode* node) {
             IntLitNode* lit = (IntLitNode*)node;
             *tp++ = MOV;
             *tp++ = AX;
+            *tp++ = IMM;
             *((int*)tp) = lit->val;
             tp += sizeof(int);
         } break;
@@ -91,25 +93,25 @@ static void _codegen(ASTNode* node) {
 
         case NODE_BINARYOP: {
             BinaryOpNode* binop = (BinaryOpNode*)node;
-            _codegen(binop->left);
+            _codegen(binop->left, in_func);
 
             if (binop->op == TK_LOR) {
                 *tp++ = JNZ;
                 int* label = (int*)tp;
                 tp += sizeof(int);
-                _codegen(binop->right);
+                _codegen(binop->right, in_func);
                 *label = (int)(tp - text);
             }
             if (binop->op == TK_LAND) {
                 *tp++ = JZ;
                 int* label = (int*)tp;
                 tp += sizeof(int);
-                _codegen(binop->right);
+                _codegen(binop->right, in_func);
                 *label = (int)(tp - text);
             } else {
                 *tp++ = PUSH;
                 *tp++ = AX;
-                _codegen(binop->right);
+                _codegen(binop->right, in_func);
 
                 switch (binop->op) {
                     case TK_MUL:
@@ -176,7 +178,7 @@ static void _codegen(ASTNode* node) {
 
         case NODE_UNARYOP: {
             UnaryOpNode* unaryop = (UnaryOpNode*)node;
-            _codegen(unaryop->node);
+            _codegen(unaryop->node, in_func);
             switch (unaryop->op) {
                 case TK_ADD:
                     break;
@@ -186,6 +188,7 @@ static void _codegen(ASTNode* node) {
                     *tp++ = AX;
                     *tp++ = MOV;
                     *tp++ = AX;
+                    *tp++ = IMM;
                     *((int*)tp) = -1;
                     tp += sizeof(int);
                     *tp++ = MUL;
@@ -196,6 +199,7 @@ static void _codegen(ASTNode* node) {
                     *tp++ = AX;
                     *tp++ = MOV;
                     *tp++ = AX;
+                    *tp++ = IMM;
                     *((int*)tp) = -1;
                     tp += sizeof(int);
                     *tp++ = XOR;
@@ -206,6 +210,7 @@ static void _codegen(ASTNode* node) {
                     *tp++ = AX;
                     *tp++ = MOV;
                     *tp++ = AX;
+                    *tp++ = IMM;
                     *((int*)tp) = 0;
                     tp += sizeof(int);
                     *tp++ = EQ;
@@ -220,37 +225,45 @@ static void _codegen(ASTNode* node) {
             VarNode* var = (VarNode*)node;
             *tp++ = LDR;
             *tp++ = AX;
-            *tp++ = BP;
+            if (var->ste->is_global) {
+                *tp++ = IMM;
+            } else {
+                *tp++ = BP;
+            }
             *((int*)tp) = var->ste->offset;
             tp += sizeof(int);
         } break;
 
         case NODE_ASSIGN: {
             AssignNode* assign = (AssignNode*)node;
-            _codegen(assign->right);
+            _codegen(assign->right, in_func);
             *tp++ = STR;
             *tp++ = AX;
-            *tp++ = BP;
+            if (assign->left->ste->is_global) {
+                *tp++ = IMM;
+            } else {
+                *tp++ = BP;
+            }
             *((int*)tp) = assign->left->ste->offset;
             tp += sizeof(int);
         } break;
 
         case NODE_PRINT: {
             PrintNode* print_node = (PrintNode*)node;
-            _codegen(print_node->expr);
+            _codegen(print_node->expr, in_func);
             *tp++ = PRINT;
         } break;
 
         case NODE_IF: {
             IfStatementNode* if_node = (IfStatementNode*)node;
 
-            _codegen(if_node->expr);
+            _codegen(if_node->expr, in_func);
 
             *tp++ = JZ;
             int* else_label = (int*)tp;
             tp += sizeof(int);
 
-            _codegen(if_node->then_block);
+            _codegen(if_node->then_block, in_func);
 
             *tp++ = JMP;
             int* end_label = (int*)tp;
@@ -259,7 +272,7 @@ static void _codegen(ASTNode* node) {
             *else_label = (int)(tp - text);
 
             if (if_node->else_block) {
-                _codegen(if_node->else_block);
+                _codegen(if_node->else_block, in_func);
             }
 
             *end_label = (int)(tp - text);
@@ -270,13 +283,13 @@ static void _codegen(ASTNode* node) {
 
             int loop_label = (int)(tp - text);
 
-            _codegen(while_node->expr);
+            _codegen(while_node->expr, in_func);
 
             *tp++ = JZ;
             int* end_label = (int*)tp;
             tp += sizeof(int);
 
-            _codegen(while_node->block);
+            _codegen(while_node->block, in_func);
 
             *tp++ = JMP;
             *((int*)tp) = loop_label;
@@ -285,16 +298,124 @@ static void _codegen(ASTNode* node) {
             *end_label = (int)(tp - text);
         } break;
 
+        case NODE_CALL: {
+            CallNode* call = (CallNode*)node;
+
+            /*
+             *  |-----------|
+             *  |return addr|
+             *  |-----------|
+             *  |  prev bp  |
+             *  |-----------| <-- new bp
+             *  |    args   |
+             *  |-----------|
+             */
+
+            *tp++ = PUSH;
+            *tp++ = IMM;
+            int* ret_addr = (int*)tp;
+            tp += sizeof(int);
+
+            *tp++ = PUSH;
+            *tp++ = BP;
+
+            int arg_count = 0;
+            ASTNodeList* curr = call->args;
+            while (curr) {
+                arg_count++;
+                _codegen(curr->node, in_func);
+                *tp++ = PUSH;
+                *tp++ = AX;
+                curr = curr->next;
+            }
+
+            // TODO: Improve function call
+            *tp++ = PUSH;
+            *tp++ = SP;
+
+            *tp++ = MOV;
+            *tp++ = AX;
+            *tp++ = IMM;
+            *((int*)tp) = arg_count * 4;
+            tp += sizeof(int);
+
+            *tp++ = SUB;
+
+            *tp++ = MOV;
+            *tp++ = BP;
+            *tp++ = AX;
+
+            *tp++ = JMP;
+            *((int*)tp) = call->ste->offset;
+            tp += sizeof(int);
+
+            *ret_addr = (int)(tp - text);
+        } break;
+
+        case NODE_RET: {
+            ReturnNode* ret = (ReturnNode*)node;
+            _codegen(ret->expr, in_func);
+            if (in_func) {
+                *tp++ = LEV;
+            } else {
+                *tp++ = EXIT;
+            }
+        } break;
+
         default:
             assert(0);
     }
 }
 
-void codegen(ASTNode* node) {
+int codegen(ASTNode* node, SymbolTable* sym) {
     tp = text;
     dp = data;
-    _codegen(node);
+
+    SymbolTableEntry* curr = sym->ste;
+    while (curr) {
+        if (curr->type == SYM_FUNC) {
+            FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;
+            func->offset = (int)(tp - text);
+
+            *tp++ = PUSH;
+            *tp++ = BP;
+
+            *tp++ = MOV;
+            *tp++ = AX;
+            *tp++ = IMM;
+            *((int*)tp) = *func->sym->stack_size;
+            tp += sizeof(int);
+
+            *tp++ = ADD;
+
+            *tp++ = MOV;
+            *tp++ = SP;
+            *tp++ = AX;
+
+            _codegen(func->node, 1);
+
+            *tp++ = MOV;
+            *tp++ = AX;
+            *tp++ = IMM;
+            *((int*)tp) = 0;
+            tp += sizeof(int);
+
+            *tp++ = LEV;
+        }
+        curr = curr->next;
+    }
+
+    int entry = (int)(tp - text);
+
+    _codegen(node, 0);
+    *tp++ = MOV;
+    *tp++ = AX;
+    *tp++ = IMM;
+    *((int*)tp) = 0;
+    tp += sizeof(int);
     *tp++ = EXIT;
+
+    return entry;
 }
 
 static inline const char* get_register_name(RegisterType reg) {
@@ -320,9 +441,15 @@ static int print_inst(const uint8_t* s) {
     switch (inst) {
         case MOV: {
             int dst = s[i++];
-            int val = *((int*)(s + i));
-            i += sizeof(int);
-            printf("MOV\t%s,\t%d\n", get_register_name(dst), val);
+            int reg = s[i++];
+            if (reg != IMM) {
+                printf("MOV\t%s,\t%s\n", get_register_name(dst),
+                       get_register_name(reg));
+            } else {
+                int val = *((int*)(s + i));
+                i += sizeof(int);
+                printf("MOV\t%s,\t%d\n", get_register_name(dst), val);
+            }
         } break;
 
         case LDR: {
@@ -330,8 +457,12 @@ static int print_inst(const uint8_t* s) {
             int reg = s[i++];
             int offset = *((int*)(s + i));
             i += sizeof(int);
-            printf("LDR\t%s,\t%s[%d]\n", get_register_name(dst),
-                   get_register_name(reg), offset);
+            if (reg != IMM) {
+                printf("LDR\t%s,\t%s[%d]\n", get_register_name(dst),
+                       get_register_name(reg), offset);
+            } else {
+                printf("LDR\t%s,\t%d\n", get_register_name(dst), offset);
+            }
         } break;
 
         case STR: {
@@ -339,8 +470,12 @@ static int print_inst(const uint8_t* s) {
             int reg = s[i++];
             int offset = *((int*)(s + i));
             i += sizeof(int);
-            printf("STR\t%s,\t%s[%d]\n", get_register_name(src),
-                   get_register_name(reg), offset);
+            if (reg != IMM) {
+                printf("STR\t%s,\t%s[%d]\n", get_register_name(src),
+                       get_register_name(reg), offset);
+            } else {
+                printf("STR\t%s,\t%d\n", get_register_name(src), offset);
+            }
         } break;
 
         case JMP: {
@@ -363,8 +498,18 @@ static int print_inst(const uint8_t* s) {
 
         case PUSH: {
             int reg = s[i++];
-            printf("PUSH\t%s\n", get_register_name(reg));
+            if (reg != IMM) {
+                printf("PUSH\t%s\n", get_register_name(reg));
+            } else {
+                int val = *((int*)(s + i));
+                i += sizeof(int);
+                printf("PUSH\t%d\n", val);
+            }
         } break;
+
+        case LEV:
+            printf("LEV\n");
+            break;
 
         case OR:
             printf("OR\n");
@@ -464,6 +609,8 @@ static inline int* get_register(RegisterType reg) {
             return &sp;
         case PC:
             return &pc;
+        case IMM:
+            return NULL;
         default:
             assert(0);
     }
@@ -471,31 +618,41 @@ static inline int* get_register(RegisterType reg) {
 
 int vm_run(void) {
     while (1) {
-        // printf("%d:\t", pc);
-        // print_inst(text + pc);
+#if 0
+        printf("bp: %d sp: %d ax: %d\n", bp, sp, ax);
+        printf("%d:\t", pc);
+        print_inst(text + pc);
+#endif
         int inst = text[pc++];
         switch (inst) {
             case MOV: {
                 int* dst = get_register(text[pc++]);
-                int val = *((int*)(text + pc));
-                pc += sizeof(int);
-                *dst = val;
+                int* src = get_register(text[pc++]);
+                if (!src) {  // IMM
+                    int val = *((int*)(text + pc));
+                    pc += sizeof(int);
+                    *dst = val;
+                } else {
+                    *dst = *src;
+                }
             } break;
 
             case LDR: {
                 int* dst = get_register(text[pc++]);
                 int* reg = get_register(text[pc++]);
+                int base = reg ? *reg : 0;
                 int offset = *((int*)(text + pc));
                 pc += sizeof(int);
-                *dst = stack[*reg + offset];
+                *dst = *((int*)(stack + base + offset));
             } break;
 
             case STR: {
                 int* src = get_register(text[pc++]);
                 int* reg = get_register(text[pc++]);
+                int base = reg ? *reg : 0;
                 int offset = *((int*)(text + pc));
                 pc += sizeof(int);
-                stack[*reg + offset] = *src;
+                *((int*)(stack + base + offset)) = *src;
             } break;
 
             case JMP:
@@ -520,9 +677,21 @@ int vm_run(void) {
 
             case PUSH: {
                 int* reg = get_register(text[pc++]);
-                *((int*)(stack + sp)) = *reg;
+                if (!reg) {  // IMM
+                    int val = *((int*)(text + pc));
+                    pc += sizeof(int);
+                    *((int*)(stack + sp)) = val;
+                } else {
+                    *((int*)(stack + sp)) = *reg;
+                }
                 sp += sizeof(int);
             } break;
+
+            case LEV:
+                pc = *((int*)(stack + (bp - sizeof(int) * 2)));
+                sp = bp - sizeof(int) * 2;
+                bp = *((int*)(stack + (bp - sizeof(int))));
+                break;
 
             case OR:
                 sp -= sizeof(int);
@@ -576,7 +745,7 @@ int vm_run(void) {
 
             case SUB:
                 sp -= sizeof(int);
-                ax = (*((int*)(stack + sp))) + ax;
+                ax = (*((int*)(stack + sp))) - ax;
                 break;
 
             case MUL:
@@ -608,7 +777,7 @@ int vm_run(void) {
                 break;
 
             case EXIT:
-                return 0;
+                return ax;
 
             default:
                 assert(0);
