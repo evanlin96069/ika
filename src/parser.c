@@ -110,7 +110,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
             break;
 
         case '~':
-            tk.type = TK_LNOT;
+            tk.type = TK_NOT;
             offset++;
             break;
 
@@ -119,7 +119,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
                 offset++;
                 tk.type = TK_NE;
             } else {
-                tk.type = TK_NOT;
+                tk.type = TK_LNOT;
             }
             offset++;
             break;
@@ -401,16 +401,16 @@ static inline int get_precedence(TokenType type) {
         case TK_LE:
         case TK_GT:
         case TK_GE:
-            return 5;
+            return 8;
 
         case TK_ADD:
         case TK_SUB:
-            return 6;
+            return 9;
 
         case TK_MUL:
         case TK_DIV:
         case TK_MOD:
-            return 7;
+            return 10;
 
         default:
             return -1;

@@ -5,9 +5,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define TEXT_SIZE 1 << 10
 #define DATA_SIZE 1 << 10
-#define STACK_SIZE 1 << 10
+#define TEXT_SIZE 1 << 16
+#define STACK_SIZE 1 << 16
 
 static uint8_t *tp, *dp;
 static uint8_t data[DATA_SIZE];
@@ -80,15 +80,14 @@ static void _codegen(ASTNode* node, int in_func) {
         case NODE_STRLIT: {
             StrLitNode* str_node = (StrLitNode*)node;
 
-            uint8_t* start = dp;
-            memcpy(dp, str_node->str.ptr, str_node->str.len);
-            dp += str_node->str.len;
-
             *tp++ = WRITE;
-            *((int*)tp) = (int)(start - data);
+            *((int*)tp) = (int)(dp - data);
             tp += sizeof(int);
             *((int*)tp) = (int)str_node->str.len;
             tp += sizeof(int);
+
+            memcpy(dp, str_node->str.ptr, str_node->str.len);
+            dp += str_node->str.len;
         } break;
 
         case NODE_BINARYOP: {
@@ -101,8 +100,7 @@ static void _codegen(ASTNode* node, int in_func) {
                 tp += sizeof(int);
                 _codegen(binop->right, in_func);
                 *label = (int)(tp - text);
-            }
-            if (binop->op == TK_LAND) {
+            } else if (binop->op == TK_LAND) {
                 *tp++ = JZ;
                 int* label = (int*)tp;
                 tp += sizeof(int);
@@ -270,11 +268,9 @@ static void _codegen(ASTNode* node, int in_func) {
             tp += sizeof(int);
 
             *else_label = (int)(tp - text);
-
             if (if_node->else_block) {
                 _codegen(if_node->else_block, in_func);
             }
-
             *end_label = (int)(tp - text);
         } break;
 
