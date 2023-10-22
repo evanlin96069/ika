@@ -586,13 +586,16 @@ static ASTNode* var_decl(ParserState* parser) {
                      tk.str.len, tk.str.ptr);
     }
 
-    VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
-    var->type = NODE_VAR;
-    ASTNode* node = (ASTNode*)var;
+    VarSymbolTableEntry* ste = symbol_table_append_var(parser->sym, ident);
 
     tk = peek_token(parser);
     if (tk.type == TK_ASSIGN) {
+        VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
+        var->type = NODE_VAR;
+        var->ste = ste;
+
         next_token(parser);
+
         AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
         assign->op = TK_ASSIGN;
         assign->type = NODE_ASSIGN;
@@ -601,17 +604,14 @@ static ASTNode* var_decl(ParserState* parser) {
         if (assign->right->type == NODE_ERR) {
             return assign->right;
         }
-        node = (ASTNode*)assign;
+        return (ASTNode*)assign;
     } else if (tk.type != TK_SEMICOLON) {
         next_token(parser);
         return error(parser, parser->pre_token_pos,
                      "Expected '=' or ';' after declaration");
     }
 
-    VarSymbolTableEntry* ste = symbol_table_append_var(parser->sym, ident);
-    var->ste = ste;
-
-    return node;
+    return NULL;
 }
 
 static ASTNode* func_decl(ParserState* parser) {
@@ -915,10 +915,9 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
             node = func_decl(parser);
             if (node && node->type == NODE_ERR)
                 return node;
-            continue;
         } else if (tk.type == TK_DECL) {
             node = var_decl(parser);
-            if (node->type == NODE_ERR)
+            if (node && node->type == NODE_ERR)
                 return node;
 
             tk = next_token(parser);
