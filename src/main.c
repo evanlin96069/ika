@@ -57,12 +57,27 @@ int main(int argc, char* argv[]) {
     size = ftell(fp);
     rewind(fp);
 
-    char* buf = malloc(size + 1);
-    if (!buf)
-        return 1;
+    if (size == 0) {
+        fclose(fp);
+        return 0;
+    }
 
-    if (fread(buf, size, 1, fp) != 1)
+    char* buf = malloc(size + 1);
+    if (!buf) {
+        fprintf(stderr, "Failed to allocate memory\n");
+        fclose(fp);
         return 1;
+    }
+
+    int n_read = fread(buf, size, 1, fp);
+    fclose(fp);
+
+    if (n_read != 1) {
+        fprintf(stderr, "Failed to read file\n");
+        free(buf);
+        return 1;
+    }
+
     buf[size] = '\0';
 
     Arena sym_arena;

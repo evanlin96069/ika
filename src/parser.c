@@ -939,11 +939,10 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
         list->next = NULL;
         if (!stmts->stmts) {
             stmts->stmts = list;
-            stmts->_tail = list;
         } else {
             stmts->_tail->next = list;
-            stmts->_tail = list;
         }
+        stmts->_tail = list;
     }
     return (ASTNode*)stmts;
 }

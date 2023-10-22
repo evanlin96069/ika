@@ -20,6 +20,7 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
     sym->ste = NULL;
     if (!stack_size) {
         stack_size = arena_alloc(arena, sizeof(int));
+        *stack_size = 0;
     }
     sym->stack_size = stack_size;
 }

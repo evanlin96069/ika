@@ -76,10 +76,10 @@ static void alloc_new_block(Arena* arena, size_t requested_size) {
 
     if (!arena->blocks) {
         arena->blocks = blk;
-        arena->last_block = blk;
     } else {
         arena->last_block->next = blk;
     }
+    arena->last_block = blk;
     arena->current_block = blk;
 }
 
