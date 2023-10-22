@@ -1,3 +1,3 @@
 # calc
 
-A simple calculator REPL
+A simple interpreted language. Originally made as a calculator.

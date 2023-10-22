@@ -1,0 +1,38 @@
+// Finding Narcissistic numbers
+
+fn digit_num(n) {
+    var sum = 0;
+    while (n != 0) {
+        n /= 10;
+        sum += 1;
+    }
+    return sum;
+}
+
+fn is_narcissistic(n) {
+    var digit = digit_num(n);
+    var sum = 0;
+
+    var i = n;
+    while (i != 0) : (i /= 10) {
+        var num = i % 10;
+        var product = 1;
+        var j = 0;
+        while (j < digit) : (j += 1) {
+            product *= num;
+        }
+        sum += product;
+    }
+    return sum == n;
+}
+
+fn main() {
+    var i = 0;
+    while (i < 10000) : (i += 1) {
+        if (is_narcissistic(i)) {
+            print(i);
+        }
+    }
+}
+
+main();
