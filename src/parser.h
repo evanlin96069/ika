@@ -39,6 +39,14 @@ typedef enum TokenType {
     TK_LAND,
     TK_LOR,
     TK_ASSIGN,
+    TK_AADD,
+    TK_ASUB,
+    TK_AMUL,
+    TK_ADIV,
+    TK_AMOD,
+    TK_AAND,
+    TK_AXOR,
+    TK_AOR,
 
     TK_NOT,
     TK_LNOT,
@@ -112,6 +120,7 @@ typedef struct VarNode {
 
 typedef struct AssignNode {
     ASTNodeType type;
+    char op;
     VarNode* left;
     ASTNode* right;
 } AssignNode;

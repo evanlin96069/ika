@@ -230,7 +230,61 @@ static void _codegen(ASTNode* node, int in_func) {
 
         case NODE_ASSIGN: {
             AssignNode* assign = (AssignNode*)node;
-            _codegen(assign->right, in_func);
+            if (assign->op != TK_ASSIGN) {
+                *tp++ = LDR;
+                *tp++ = AX;
+                if (assign->left->ste->is_global) {
+                    *tp++ = IMM;
+                } else {
+                    *tp++ = BP;
+                }
+                *((int*)tp) = assign->left->ste->offset;
+                tp += sizeof(int);
+
+                *tp++ = PUSH;
+                *tp++ = AX;
+
+                _codegen(assign->right, in_func);
+
+                switch (assign->op) {
+                    case TK_AADD:
+                        *tp++ = ADD;
+                        break;
+
+                    case TK_ASUB:
+                        *tp++ = SUB;
+                        break;
+
+                    case TK_AMUL:
+                        *tp++ = MUL;
+                        break;
+
+                    case TK_ADIV:
+                        *tp++ = DIV;
+                        break;
+
+                    case TK_AMOD:
+                        *tp++ = MOD;
+                        break;
+
+                    case TK_AAND:
+                        *tp++ = AND;
+                        break;
+
+                    case TK_AXOR:
+                        *tp++ = XOR;
+                        break;
+
+                    case TK_AOR:
+                        *tp++ = OR;
+                        break;
+
+                    default:
+                        assert(0);
+                }
+            } else {
+                _codegen(assign->right, in_func);
+            }
             *tp++ = STR;
             *tp++ = AX;
             if (assign->left->ste->is_global) {
