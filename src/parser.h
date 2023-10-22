@@ -49,6 +49,7 @@ typedef enum TokenType {
     TK_RBRACE,
     TK_SEMICOLON,
     TK_COMMA,
+    TK_COLON,
 } TokenType;
 
 typedef struct Token {
@@ -130,6 +131,7 @@ typedef struct IfStatementNode {
 typedef struct WhileNode {
     ASTNodeType type;
     ASTNode* expr;
+    ASTNode* inc;
     ASTNode* block;
 } WhileNode;
 

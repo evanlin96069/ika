@@ -164,6 +164,11 @@ static Token next_token_internal(ParserState* parser, int peek) {
             offset++;
             break;
 
+        case ':':
+            tk.type = TK_COLON;
+            offset++;
+            break;
+
         case '\0':
             tk.type = TK_NUL;
             break;
@@ -655,7 +660,12 @@ static ASTNode* if_stmt(ParserState* parser) {
         return error(parser, parser->pre_token_pos, "Expected ')'");
     }
 
-    if_node->then_block = stmt(parser);
+    tk = peek_token(parser);
+    if (tk.type != TK_LBRACE) {
+        return error(parser, parser->pre_token_pos, "Expected '{'");
+    }
+
+    if_node->then_block = scope(parser);
     if (if_node->then_block && if_node->then_block->type == NODE_ERR) {
         return if_node->then_block;
     }
@@ -664,7 +674,12 @@ static ASTNode* if_stmt(ParserState* parser) {
     if (tk.type == TK_ELSE) {
         next_token(parser);
 
-        if_node->else_block = stmt(parser);
+        tk = peek_token(parser);
+        if (tk.type != TK_LBRACE) {
+            return error(parser, parser->pre_token_pos, "Expected '{'");
+        }
+
+        if_node->else_block = scope(parser);
         if (if_node->else_block && if_node->else_block->type == NODE_ERR) {
             return if_node->else_block;
         }
@@ -695,7 +710,20 @@ static ASTNode* while_stmt(ParserState* parser) {
         return error(parser, parser->pre_token_pos, "Expected ')'");
     }
 
-    while_node->block = stmt(parser);
+    tk = peek_token(parser);
+    if (tk.type == TK_COLON) {
+        next_token(parser);
+        while_node->inc = expr(parser, 0);
+    } else {
+        while_node->inc = NULL;
+    }
+
+    tk = peek_token(parser);
+    if (tk.type != TK_LBRACE) {
+        return error(parser, parser->pre_token_pos, "Expected '{'");
+    }
+
+    while_node->block = scope(parser);
     if (while_node->block && while_node->block->type == NODE_ERR) {
         return while_node->block;
     }

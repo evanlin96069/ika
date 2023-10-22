@@ -54,10 +54,6 @@ enum Instruction {
 };
 
 static void _codegen(ASTNode* node, int in_func) {
-    if (!node) {
-        return;
-    }
-
     switch (node->type) {
         case NODE_STMTS: {
             StatementListNode* stmts = (StatementListNode*)node;
@@ -255,6 +251,16 @@ static void _codegen(ASTNode* node, int in_func) {
         case NODE_IF: {
             IfStatementNode* if_node = (IfStatementNode*)node;
 
+            /*
+             *      <cond>
+             *      JZ else_label
+             *      <then_block>
+             *      JMP end_label
+             *  else_label:
+             *      <else_block>
+             *  end_label:
+             */
+
             _codegen(if_node->expr, in_func);
 
             *tp++ = JZ;
@@ -277,6 +283,16 @@ static void _codegen(ASTNode* node, int in_func) {
         case NODE_WHILE: {
             WhileNode* while_node = (WhileNode*)node;
 
+            /*
+             *  loop_label:
+             *      <cond>
+             *      JZ end_label
+             *      <block>
+             *      <inc>
+             *      JMP loop_label
+             *  end_lable:
+             */
+
             int loop_label = (int)(tp - text);
 
             _codegen(while_node->expr, in_func);
@@ -286,6 +302,9 @@ static void _codegen(ASTNode* node, int in_func) {
             tp += sizeof(int);
 
             _codegen(while_node->block, in_func);
+            if (while_node->inc) {
+                _codegen(while_node->inc, in_func);
+            }
 
             *tp++ = JMP;
             *((int*)tp) = loop_label;
