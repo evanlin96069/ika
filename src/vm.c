@@ -48,7 +48,9 @@ enum Instruction {
     MUL,
     DIV,
     MOD,
-    WRITE,  // WRITE DATA LEN
+    SHL,
+    SHR,
+    WRITE,  // WRITE data len
     PRINT,
     EXIT,
 };
@@ -126,6 +128,14 @@ static void _codegen(ASTNode* node, int in_func) {
 
                     case TK_SUB:
                         *tp++ = SUB;
+                        break;
+
+                    case TK_SHL:
+                        *tp++ = SHL;
+                        break;
+
+                    case TK_SHR:
+                        *tp++ = SHR;
                         break;
 
                     case TK_LT:
@@ -265,6 +275,14 @@ static void _codegen(ASTNode* node, int in_func) {
 
                     case TK_AMOD:
                         *tp++ = MOD;
+                        break;
+
+                    case TK_ASHL:
+                        *tp++ = SHL;
+                        break;
+
+                    case TK_ASHR:
+                        *tp++ = SHR;
                         break;
 
                     case TK_AAND:
@@ -636,6 +654,14 @@ static int print_inst(const uint8_t* s) {
             printf("MOD\n");
             break;
 
+        case SHL:
+            printf("SHL\n");
+            break;
+
+        case SHR:
+            printf("SHR\n");
+            break;
+
         case WRITE: {
             int offset = *((int*)(s + i));
             i += sizeof(int);
@@ -830,6 +856,16 @@ int vm_run(void) {
             case MOD:
                 sp -= sizeof(int);
                 ax = (*((int*)(stack + sp))) % ax;
+                break;
+
+            case SHL:
+                sp -= sizeof(int);
+                ax = (*((int*)(stack + sp))) << ax;
+                break;
+
+            case SHR:
+                sp -= sizeof(int);
+                ax = (*((int*)(stack + sp))) >> ax;
                 break;
 
             case WRITE: {

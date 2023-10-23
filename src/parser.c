@@ -89,25 +89,45 @@ static Token next_token_internal(ParserState* parser, int peek) {
             offset++;
             break;
 
-        case '<':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
+        case '<': {
+            char next = (parser->src + parser->pos)[offset + 1];
+            if (next == '=') {
                 offset++;
                 tk.type = TK_LE;
+            } else if (next == '<') {
+                offset++;
+                next = (parser->src + parser->pos)[offset + 1];
+                if (next == '=') {
+                    offset++;
+                    tk.type = TK_ASHL;
+                } else {
+                    tk.type = TK_SHL;
+                }
             } else {
                 tk.type = TK_LT;
             }
             offset++;
-            break;
+        } break;
 
-        case '>':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
+        case '>': {
+            char next = (parser->src + parser->pos)[offset + 1];
+            if (next == '=') {
                 offset++;
                 tk.type = TK_GE;
+            } else if (next == '>') {
+                offset++;
+                next = (parser->src + parser->pos)[offset + 1];
+                if (next == '=') {
+                    offset++;
+                    tk.type = TK_ASHR;
+                } else {
+                    tk.type = TK_SHR;
+                }
             } else {
                 tk.type = TK_GT;
             }
             offset++;
-            break;
+        } break;
 
         case '&': {
             char next = (parser->src + parser->pos)[offset + 1];
@@ -424,6 +444,8 @@ static inline int get_precedence(TokenType type) {
         case TK_AMUL:
         case TK_ADIV:
         case TK_AMOD:
+        case TK_ASHL:
+        case TK_ASHR:
         case TK_AAND:
         case TK_AXOR:
         case TK_AOR:
@@ -454,14 +476,18 @@ static inline int get_precedence(TokenType type) {
         case TK_GE:
             return 8;
 
+        case TK_SHL:
+        case TK_SHR:
+            return 9;
+
         case TK_ADD:
         case TK_SUB:
-            return 9;
+            return 10;
 
         case TK_MUL:
         case TK_DIV:
         case TK_MOD:
-            return 10;
+            return 11;
 
         default:
             return -1;
@@ -476,6 +502,8 @@ static inline int is_left_associative(TokenType type) {
         case TK_AMUL:
         case TK_ADIV:
         case TK_AMOD:
+        case TK_ASHL:
+        case TK_ASHR:
         case TK_AAND:
         case TK_AXOR:
         case TK_AOR:
@@ -486,6 +514,8 @@ static inline int is_left_associative(TokenType type) {
         case TK_MOD:
         case TK_ADD:
         case TK_SUB:
+        case TK_SHL:
+        case TK_SHR:
         case TK_LT:
         case TK_LE:
         case TK_GT:
@@ -530,6 +560,8 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
             case TK_AMUL:
             case TK_ADIV:
             case TK_AMOD:
+            case TK_ASHL:
+            case TK_ASHR:
             case TK_AAND:
             case TK_AXOR:
             case TK_AOR: {
