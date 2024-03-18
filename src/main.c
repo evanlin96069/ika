@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "codegen.h"
 #include "parser.h"
 #include "symbol_table.h"
-#include "vm.h"
 
 static void print_err(ParserState* parser, const char* file_name,
                       ErrorNode* err) {
@@ -49,6 +49,13 @@ int main(int argc, char* argv[]) {
     FILE* fp = fopen(argv[1], "r");
     if (!fp) {
         fprintf(stderr, "cannot open file %s: %s\n", argv[1], strerror(errno));
+        return 1;
+    }
+
+    // TODO: out file name
+    FILE* out = fopen("out.s", "w");
+    if (!out) {
+        fprintf(stderr, "cannot open file %s: %s\n", "out.s", strerror(errno));
         return 1;
     }
 
@@ -101,21 +108,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    int entry = codegen(node, &sym);
-
-#if 0
-    int result = 0;
-    print_code();
-#else
-    pc = entry;
-    sp = *sym.stack_size;
-    bp = 0;
-    int result = vm_run();
-#endif
+    codegen(out, node, &sym);
 
     arena_deinit(&arena);
     arena_deinit(&sym_arena);
     free(buf);
 
-    return result;
+    return 0;
 }
