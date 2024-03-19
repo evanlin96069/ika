@@ -1,3 +1,3 @@
-# calc
+# ika
 
-A simple interpreted language. Originally made as a calculator.
+A simple programming language.

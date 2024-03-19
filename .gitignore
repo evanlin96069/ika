@@ -1,6 +1,5 @@
 release/
 debug/
-*.txt
 
-out.s
+*.s
 a.out

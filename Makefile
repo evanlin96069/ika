@@ -9,7 +9,7 @@ SRCDIR = src
 SOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c, %.o, $(SOURCES))
 DEPS = $(patsubst $(SRCDIR)/%.c, %.d, $(SOURCES))
-EXE = calc
+EXE = ikac
 
 # Release build settings
 RELDIR = release
