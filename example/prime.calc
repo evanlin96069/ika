@@ -75,7 +75,7 @@ fn main() {
     var i = 0;
     while (i < 10000) : (i += 1) {
         if (is_prime(i, k)) {
-            print(i);
+            "%d", i;
         }
     }
 }

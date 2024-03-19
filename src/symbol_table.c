@@ -23,23 +23,34 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
         *stack_size = 0;
     }
     sym->stack_size = stack_size;
+    sym->arg_size = 0;  // fill in during parsing
 }
 
-VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident) {
+VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
+                                             int is_arg) {
     VarSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(VarSymbolTableEntry));
     ste->type = SYM_VAR;
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+    ste->is_global = sym->is_global;
 
-    ste->offset = sym->offset;
-    sym->offset += 4;
+    if (is_arg) {
+        ste->offset = sym->arg_size + 8;
+        sym->arg_size += 4;
+    } else {
+        if (ste->is_global) {
+            ste->offset = sym->offset;
+        } else {
+            ste->offset = -sym->offset - 4;
+        }
+        sym->offset += 4;
+    }
+
     if (*sym->stack_size < sym->offset) {
         *sym->stack_size = sym->offset;
     }
-
-    ste->is_global = sym->is_global;
 
     ste->next = NULL;
     if (!sym->ste) {
@@ -60,7 +71,7 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident) {
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
 
-    ste->offset = 0;   // fill in during codegen
+    ste->label = 0;    // fill in during codegen
     ste->node = NULL;  // fill in during parsing
     ste->sym = NULL;   // fill in during parsing
 

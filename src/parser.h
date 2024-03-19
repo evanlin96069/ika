@@ -78,14 +78,13 @@ typedef enum ASTNodeType {
     NODE_ERR = -1,
     NODE_STMTS,
     NODE_INTLIT,
-    NODE_STRLIT,
     NODE_BINARYOP,
     NODE_UNARYOP,
     NODE_VAR,
     NODE_CALL,
+    NODE_PRINT,
     NODE_RET,
     NODE_ASSIGN,
-    NODE_PRINT,
     NODE_IF,
     NODE_WHILE,
 } ASTNodeType;
@@ -98,11 +97,6 @@ typedef struct IntLitNode {
     ASTNodeType type;
     int val;
 } IntLitNode;
-
-typedef struct StrLitNode {
-    ASTNodeType type;
-    Str str;
-} StrLitNode;
 
 typedef struct BinaryOpNode {
     ASTNodeType type;
@@ -128,11 +122,6 @@ typedef struct AssignNode {
     VarNode* left;
     ASTNode* right;
 } AssignNode;
-
-typedef struct PrintNode {
-    ASTNodeType type;
-    ASTNode* expr;
-} PrintNode;
 
 typedef struct IfStatementNode {
     ASTNodeType type;
@@ -171,6 +160,12 @@ typedef struct CallNode {
     FuncSymbolTableEntry* ste;
     ASTNodeList* args;
 } CallNode;
+
+typedef struct PrintNode {
+    ASTNodeType type;
+    Str fmt;
+    ASTNodeList* args;
+} PrintNode;
 
 typedef struct ReturnNode {
     ASTNodeType type;

@@ -271,8 +271,6 @@ static Token next_token_internal(ParserState* parser, int peek) {
 
                 if (str_eql(str("var"), ident)) {
                     tk.type = TK_DECL;
-                } else if (str_eql(str("print"), ident)) {
-                    tk.type = TK_PRINT;
                 } else if (str_eql(str("if"), ident)) {
                     tk.type = TK_IF;
                 } else if (str_eql(str("else"), ident)) {
@@ -316,7 +314,6 @@ static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* var_decl(ParserState* parser);
 static ASTNode* func_decl(ParserState* parser);
 static ASTNode* return_stmt(ParserState* parser);
-static ASTNode* print_stmt(ParserState* parser);
 static ASTNode* if_stmt(ParserState* parser);
 static ASTNode* while_stmt(ParserState* parser);
 static ASTNode* scope(ParserState* parser);
@@ -364,7 +361,6 @@ static ASTNode* primary(ParserState* parser) {
                 node->type = NODE_CALL;
                 node->ste = (FuncSymbolTableEntry*)ste;
                 node->args = NULL;
-                ASTNodeList* curr = NULL;
 
                 tk = next_token(parser);
                 if (tk.type != TK_LPAREN) {
@@ -383,13 +379,8 @@ static ASTNode* primary(ParserState* parser) {
                         ASTNodeList* arg =
                             arena_alloc(parser->arena, sizeof(ASTNodeList));
                         arg->node = arg_node;
-                        arg->next = NULL;
-                        if (!node->args) {
-                            node->args = curr = arg;
-                        } else {
-                            curr->next = arg;
-                            curr = arg;
-                        }
+                        arg->next = node->args;
+                        node->args = arg;
 
                         tk = next_token(parser);
                         if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
@@ -618,7 +609,7 @@ static ASTNode* var_decl(ParserState* parser) {
                      tk.str.len, tk.str.ptr);
     }
 
-    VarSymbolTableEntry* ste = symbol_table_append_var(parser->sym, ident);
+    VarSymbolTableEntry* ste = symbol_table_append_var(parser->sym, ident, 0);
 
     tk = peek_token(parser);
     if (tk.type == TK_ASSIGN) {
@@ -691,7 +682,7 @@ static ASTNode* func_decl(ParserState* parser) {
                 return error(parser, parser->post_token_pos,
                              "redefinition of '%.*s'", tk.str.len, tk.str.ptr);
             }
-            symbol_table_append_var(parser->sym, ident);
+            symbol_table_append_var(parser->sym, ident, 1);
 
             tk = next_token(parser);
             if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
@@ -724,20 +715,6 @@ static ASTNode* return_stmt(ParserState* parser) {
     }
 
     return (ASTNode*)ret_node;
-}
-
-static ASTNode* print_stmt(ParserState* parser) {
-    Token tk = next_token(parser);
-    assert(tk.type == TK_PRINT);
-
-    PrintNode* print_node = arena_alloc(parser->arena, sizeof(PrintNode));
-    print_node->type = NODE_PRINT;
-    print_node->expr = expr(parser, 0);
-    if (print_node->expr->type == NODE_ERR) {
-        return print_node->expr;
-    }
-
-    return (ASTNode*)print_node;
 }
 
 static ASTNode* if_stmt(ParserState* parser) {
@@ -877,17 +854,6 @@ static ASTNode* stmt(ParserState* parser) {
             }
             break;
 
-        case TK_PRINT:
-            node = print_stmt(parser);
-            if (node->type == NODE_ERR)
-                return node;
-
-            tk = next_token(parser);
-            if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos, "Expected ';'");
-            }
-            break;
-
         case TK_IF:
             node = if_stmt(parser);
             if (node->type == NODE_ERR)
@@ -908,15 +874,32 @@ static ASTNode* stmt(ParserState* parser) {
 
         case TK_STR: {
             next_token(parser);
-            StrLitNode* str_node =
-                arena_alloc(parser->arena, sizeof(StrLitNode));
-            str_node->type = NODE_STRLIT;
-            str_node->str = tk.str;
-            node = (ASTNode*)str_node;
+            PrintNode* print_node =
+                arena_alloc(parser->arena, sizeof(PrintNode));
+            node = (ASTNode*)print_node;
+
+            print_node->type = NODE_PRINT;
+            print_node->fmt = tk.str;
+            print_node->args = NULL;
 
             tk = next_token(parser);
-            if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos, "Expected ';'");
+            while (tk.type == TK_COMMA) {
+                ASTNode* arg_node = expr(parser, 0);
+                if (arg_node->type == NODE_ERR)
+                    return arg_node;
+
+                ASTNodeList* arg =
+                    arena_alloc(parser->arena, sizeof(ASTNodeList));
+                arg->node = arg_node;
+                arg->next = print_node->args;
+                print_node->args = arg;
+
+                tk = next_token(parser);
+            }
+
+            if (tk.type != TK_COMMA && tk.type != TK_SEMICOLON) {
+                return error(parser, parser->pre_token_pos,
+                             "expected ',' or ';'");
             }
         } break;
 

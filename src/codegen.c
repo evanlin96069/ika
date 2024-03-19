@@ -35,17 +35,22 @@ static Str* data[MAX_DATA_COUNT];
 static int data_count = 0;
 
 static int add_data(Str* str) {
+    for (int i = 0; i < data_count; i++) {
+        if (str_eql(*str, *data[i])) {
+            return i;
+        }
+    }
     data[data_count] = str;
     return data_count++;
 }
 
-static void _codegen(FILE* out, ASTNode* node, int stack_size) {
+static void _codegen(FILE* out, ASTNode* node, int out_label) {
     switch (node->type) {
         case NODE_STMTS: {
             StatementListNode* stmts = (StatementListNode*)node;
             ASTNodeList* iter = stmts->stmts;
             while (iter) {
-                _codegen(out, iter->node, stack_size);
+                _codegen(out, iter->node, out_label);
                 iter = iter->next;
             }
         } break;
@@ -55,42 +60,29 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
             genf(out, "    movl $%d, %%eax", lit->val);
         } break;
 
-        case NODE_STRLIT: {
-            StrLitNode* str_node = (StrLitNode*)node;
-
-            int index = add_data(&str_node->str);
-
-            genf(out, "    movl $DAT_%d, (%%esp)", index);
-            genf(out, "    calll puts");
-        } break;
-
         case NODE_BINARYOP: {
             BinaryOpNode* binop = (BinaryOpNode*)node;
-            _codegen(out, binop->left, stack_size);
+            _codegen(out, binop->left, out_label);
 
             if (binop->op == TK_LOR) {
                 int label = add_label();
                 genf(out, "    testl %%eax, %%eax");
                 genf(out, "    jnz LAB_%d", label);
-                _codegen(out, binop->right, stack_size);
+                _codegen(out, binop->right, out_label);
                 genf(out, "LAB_%d:", label);
             } else if (binop->op == TK_LAND) {
                 int label = add_label();
                 genf(out, "    testl %%eax, %%eax");
                 genf(out, "    jz LAB_%d", label);
-                _codegen(out, binop->right, stack_size);
+                _codegen(out, binop->right, out_label);
                 genf(out, "LAB_%d:", label);
             } else {
-                // Something might be wrong here, but it works
-                genf(out, "    movl %%eax, (%%esp)");
-                genf(out, "    subl $4, %%esp");
+                genf(out, "    pushl %%eax");
 
-                _codegen(out, binop->right, stack_size);
+                _codegen(out, binop->right, out_label);
                 genf(out, "    movl %%eax, %%ebx");
 
-                genf(out, "    addl $4, %%esp");
-                genf(out, "    movl (%%esp), %%eax");
-
+                genf(out, "    popl %%eax");
 
                 switch (binop->op) {
                     case TK_ADD:
@@ -182,7 +174,7 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
 
         case NODE_UNARYOP: {
             UnaryOpNode* unaryop = (UnaryOpNode*)node;
-            _codegen(out, unaryop->node, stack_size);
+            _codegen(out, unaryop->node, out_label);
             switch (unaryop->op) {
                 case TK_ADD:
                     break;
@@ -208,27 +200,25 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
 
         case NODE_VAR: {
             VarNode* var = (VarNode*)node;
-            ;
             if (var->ste->is_global) {
-                genf(out, "    movl VAR_%ld, %%eax",
-                     var->ste->offset / sizeof(int));
+                genf(out, "    movl VAR_%d, %%eax", var->ste->offset / 4);
             } else {
-                genf(out, "    movl %d(%%ebp), %%eax", var->ste->offset + 8);
+                genf(out, "    movl %d(%%ebp), %%eax", var->ste->offset);
             }
         } break;
 
         case NODE_ASSIGN: {
             AssignNode* assign = (AssignNode*)node;
             if (assign->op != TK_ASSIGN) {
-                _codegen(out, assign->right, stack_size);
+                _codegen(out, assign->right, out_label);
                 genf(out, "    movl %%eax, %%ebx");
 
                 if (assign->left->ste->is_global) {
-                    genf(out, "    movl VAR_%ld, %%eax",
-                         assign->left->ste->offset / sizeof(int));
+                    genf(out, "    movl VAR_%d, %%eax",
+                         assign->left->ste->offset / 4);
                 } else {
                     genf(out, "    movl %d(%%ebp), %%eax",
-                         assign->left->ste->offset + 8);
+                         assign->left->ste->offset);
                 }
 
                 switch (assign->op) {
@@ -281,23 +271,15 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
                         assert(0);
                 }
             } else {
-                _codegen(out, assign->right, stack_size);
+                _codegen(out, assign->right, out_label);
             }
             if (assign->left->ste->is_global) {
-                genf(out, "    movl %%eax, VAR_%ld",
-                     assign->left->ste->offset / sizeof(int));
+                genf(out, "    movl %%eax, VAR_%d",
+                     assign->left->ste->offset / 4);
             } else {
                 genf(out, "    movl %%eax, %d(%%ebp)",
-                     assign->left->ste->offset + 8);
+                     assign->left->ste->offset);
             }
-        } break;
-
-        case NODE_PRINT: {
-            PrintNode* print_node = (PrintNode*)node;
-            _codegen(out, print_node->expr, stack_size);
-            genf(out, "    movl $FMT, (%%esp)");
-            genf(out, "    movl %%eax, 4(%%esp)");
-            genf(out, "    calll printf");
         } break;
 
         case NODE_IF: {
@@ -316,19 +298,19 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
             int end_label = add_label();
             int else_label = add_label();
 
-            _codegen(out, if_node->expr, stack_size);
+            _codegen(out, if_node->expr, out_label);
 
             genf(out, "    testl %%eax, %%eax");
             genf(out, "    jz LAB_%d", else_label);
 
-            _codegen(out, if_node->then_block, stack_size);
+            _codegen(out, if_node->then_block, out_label);
 
             genf(out, "    jmp LAB_%d", end_label);
 
             genf(out, "LAB_%d:", else_label);
 
             if (if_node->else_block) {
-                _codegen(out, if_node->else_block, stack_size);
+                _codegen(out, if_node->else_block, out_label);
             }
 
             genf(out, "LAB_%d:", end_label);
@@ -352,14 +334,14 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
 
             genf(out, "LAB_%d:", loop_label);
 
-            _codegen(out, while_node->expr, stack_size);
+            _codegen(out, while_node->expr, out_label);
 
             genf(out, "    testl %%eax, %%eax");
             genf(out, "    jz LAB_%d", end_label);
 
-            _codegen(out, while_node->block, stack_size);
+            _codegen(out, while_node->block, out_label);
             if (while_node->inc) {
-                _codegen(out, while_node->inc, stack_size);
+                _codegen(out, while_node->inc, out_label);
             }
 
             genf(out, "    jmp LAB_%d", loop_label);
@@ -370,24 +352,54 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
         case NODE_CALL: {
             CallNode* call = (CallNode*)node;
 
+            /*
+             *  local 3         [ebp]-16 <-ESP
+             *  local 2         [ebp]-8
+             *  local 1         [ebp]-4
+             *  saved EBP       <-EBP
+             *  return addr
+             *  arg 1           [ebp]+8
+             *  arg 2           [ebp]+12
+             *  arg 3           [ebp]+16
+             */
+
             int arg_count = 0;
             ASTNodeList* curr = call->args;
             while (curr) {
-                _codegen(out, curr->node, stack_size);
-                genf(out, "    movl %%eax, %ld(%%esp)",
-                     arg_count * sizeof(int));
+                _codegen(out, curr->node, out_label);
+                genf(out, "    pushl %%eax");
                 arg_count++;
                 curr = curr->next;
             }
-            genf(out, "    calll FUN_%d", call->ste->offset);
+            genf(out, "    call FUN_%d", call->ste->label);
+            if (arg_count > 0) {
+                genf(out, "    addl $%d, %%esp", arg_count * 4);
+            }
+        } break;
+
+        case NODE_PRINT: {
+            PrintNode* print_node = (PrintNode*)node;
+
+            int arg_count = 0;
+            ASTNodeList* curr = print_node->args;
+            while (curr) {
+                _codegen(out, curr->node, out_label);
+                genf(out, "    pushl %%eax");
+                arg_count++;
+                curr = curr->next;
+            }
+
+            genf(out, "    pushl $DAT_%d", add_data(&print_node->fmt));
+            arg_count++;
+
+            genf(out, "    call printf");
+            genf(out, "    addl $%d, %%esp", arg_count * 4);
         } break;
 
         case NODE_RET: {
             ReturnNode* ret = (ReturnNode*)node;
-            _codegen(out, ret->expr, stack_size);
-            genf(out, "    addl $%d, %%esp", stack_size);
-            genf(out, "    popl %%ebp");
-            genf(out, "    retl");
+            _codegen(out, ret->expr, out_label);
+            genf(out, "    jmp LAB_%d", out_label);
         } break;
 
         default:
@@ -398,59 +410,61 @@ static void _codegen(FILE* out, ASTNode* node, int stack_size) {
 void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
     SymbolTableEntry* curr = sym->ste;
 
-    int var_count = *sym->stack_size;
-    if (var_count > 0) {
-        genf(out, ".data");
-        for (int i = 0; i < var_count; i++) {
+    SymbolTableEntry* ste = sym->ste;
+    for (int i = 0; ste; ste = ste->next, i++) {
+        if (ste->type == SYM_VAR) {
+            if (i == 0) {
+                genf(out, ".data");
+            }
             genf(out, "VAR_%d:", i);
             genf(out, "    .int 0");
         }
     }
 
     genf(out, ".text");
-
     while (curr) {
         if (curr->type == SYM_FUNC) {
             FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;
-            int stack_size = *func->sym->stack_size + 4;
+            int out_label = add_label();
 
-            func->offset = add_func();
-            genf(out, ".global FUN_%d", func->offset);
-            genf(out, "FUN_%d:", func->offset);
+            func->label = add_func();
+            genf(out, ".global FUN_%d", func->label);
+            genf(out, "FUN_%d:", func->label);
 
             genf(out, "    pushl %%ebp");
             genf(out, "    movl %%esp, %%ebp");
-            genf(out, "    subl $%d, %%esp", stack_size);
+            genf(out, "    subl $%d, %%esp", *func->sym->stack_size);
 
-            _codegen(out, func->node, stack_size);
-            genf(out, "    addl $%d, %%esp", stack_size);
-            genf(out, "    popl %%ebp");
-            genf(out, "    retl");
-            genf(out, ".type FUN_%d, @function", func->offset);
+            _codegen(out, func->node, out_label);
+
+            genf(out, "LAB_%d:", out_label);
+            genf(out, "    leave");
+            genf(out, "    ret");
+            genf(out, ".type FUN_%d, @function", func->label);
             fprintf(out, "\n");
         }
         curr = curr->next;
     }
 
+    int main_out_label = add_label();
+
     genf(out, ".global main");
     genf(out, "main:");
     genf(out, "    pushl %%ebp");
     genf(out, "    movl %%esp, %%ebp");
-    genf(out, "    subl $4, %%esp");
-    _codegen(out, node, 4);
-    genf(out, "    addl $4, %%esp");
+
+    _codegen(out, node, main_out_label);
+
     genf(out, "    movl $0, %%eax");
-    genf(out, "    popl %%ebp");
-    genf(out, "    retl");
+    genf(out, "LAB_%d:", main_out_label);
+    genf(out, "    leave");
+    genf(out, "    ret");
     genf(out, ".type main, @function");
     fprintf(out, "\n");
 
     genf(out, ".data");
-
     for (int i = 0; i < data_count; i++) {
         genf(out, "DAT_%d:", i);
-        genf(out, "    .asciz \"%.*s\"", (int)data[i]->len, data[i]->ptr);
+        genf(out, "    .asciz \"%.*s\\n\"", (int)data[i]->len, data[i]->ptr);
     }
-    genf(out, "FMT:");
-    genf(out, "    .asciz \"%%d\\n\"");
 }
