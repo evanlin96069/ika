@@ -238,9 +238,16 @@ static Token next_token_internal(ParserState* parser, int peek) {
                 .len = 0,
             };
 
+            // TODO: Parse string properly
             while (c != '"') {
                 s.len++;
                 c = (parser->src + parser->pos)[++offset];
+                if (c == '\\') {
+                    s.len++;
+                    c = (parser->src + parser->pos)[++offset];
+                    s.len++;
+                    c = (parser->src + parser->pos)[++offset];
+                }
             }
             offset++;
 

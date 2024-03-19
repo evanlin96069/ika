@@ -467,6 +467,6 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
     genf(out, ".data");
     for (int i = 0; i < data_count; i++) {
         genf(out, "DAT_%d:", i);
-        genf(out, "    .asciz \"%.*s\\n\"", (int)data[i]->len, data[i]->ptr);
+        genf(out, "    .asciz \"%.*s\"", (int)data[i]->len, data[i]->ptr);
     }
 }
