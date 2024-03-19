@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "codegen.h"
+#include "opt.h"
 #include "parser.h"
 #include "symbol_table.h"
 
@@ -41,21 +42,33 @@ static void print_err(ParserState* parser, const char* file_name,
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
+    const char* src_path;
+    const char* out_path = "out.s";
+
+    FOR_OPTS(argc, argv, {
+        case 'o':
+            out_path = OPTARG(argc, argv);
+            break;
+    });
+
+    if (*argv == NULL) {
         fprintf(stderr, "\x1b[31merror:\x1b[0m no input file\n");
         return 1;
     }
 
-    FILE* fp = fopen(argv[1], "r");
+    src_path = *argv;
+
+    FILE* fp = fopen(src_path, "r");
     if (!fp) {
-        fprintf(stderr, "cannot open file %s: %s\n", argv[1], strerror(errno));
+        fprintf(stderr, "\x1b[31merror:\x1b[0m cannot open file %s: %s\n",
+                src_path, strerror(errno));
         return 1;
     }
 
-    // TODO: out file name
-    FILE* out = fopen("out.s", "w");
+    FILE* out = fopen(out_path, "w");
     if (!out) {
-        fprintf(stderr, "cannot open file %s: %s\n", "out.s", strerror(errno));
+        fprintf(stderr, "\x1b[31merror:\x1b[0m cannot open file %s: %s\n",
+                out_path, strerror(errno));
         return 1;
     }
 
@@ -71,7 +84,7 @@ int main(int argc, char* argv[]) {
 
     char* buf = malloc(size + 1);
     if (!buf) {
-        fprintf(stderr, "Failed to allocate memory\n");
+        fprintf(stderr, "\x1b[31merror:\x1b[0m Failed to allocate memory\n");
         fclose(fp);
         return 1;
     }
@@ -80,7 +93,7 @@ int main(int argc, char* argv[]) {
     fclose(fp);
 
     if (n_read != 1) {
-        fprintf(stderr, "Failed to read file\n");
+        fprintf(stderr, "\x1b[31merror:\x1b[0m Failed to read file\n");
         free(buf);
         return 1;
     }
