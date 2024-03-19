@@ -398,7 +398,9 @@ static void _codegen(FILE* out, ASTNode* node, int out_label) {
 
         case NODE_RET: {
             ReturnNode* ret = (ReturnNode*)node;
-            _codegen(out, ret->expr, out_label);
+            if (ret->expr) {
+                _codegen(out, ret->expr, out_label);
+            }
             genf(out, "    jmp LAB_%d", out_label);
         } break;
 

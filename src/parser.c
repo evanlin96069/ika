@@ -707,11 +707,16 @@ static ASTNode* return_stmt(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_RET);
 
+    tk = peek_token(parser);
     ReturnNode* ret_node = arena_alloc(parser->arena, sizeof(ReturnNode));
     ret_node->type = NODE_RET;
-    ret_node->expr = expr(parser, 0);
-    if (ret_node->expr->type == NODE_ERR) {
-        return ret_node->expr;
+    if (tk.type == TK_SEMICOLON) {
+        ret_node->expr = NULL;
+    } else {
+        ret_node->expr = expr(parser, 0);
+        if (ret_node->expr->type == NODE_ERR) {
+            return ret_node->expr;
+        }
     }
 
     return (ASTNode*)ret_node;
