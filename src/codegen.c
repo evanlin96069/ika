@@ -20,11 +20,6 @@
 
 #endif
 
-static int add_func(void) {
-    static int func_count = 0;
-    return func_count++;
-}
-
 static int add_label(void) {
     static int label_count = 0;
     return label_count++;
@@ -201,7 +196,8 @@ static void _codegen(FILE* out, ASTNode* node, int out_label) {
         case NODE_VAR: {
             VarNode* var = (VarNode*)node;
             if (var->ste->is_global) {
-                genf(out, "    movl VAR_%d, %%eax", var->ste->offset / 4);
+                genf(out, "    movl _%.*s, %%eax", var->ste->ident.len,
+                     var->ste->ident.ptr);
             } else {
                 genf(out, "    movl %d(%%ebp), %%eax", var->ste->offset);
             }
@@ -214,8 +210,9 @@ static void _codegen(FILE* out, ASTNode* node, int out_label) {
                 genf(out, "    movl %%eax, %%ebx");
 
                 if (assign->left->ste->is_global) {
-                    genf(out, "    movl VAR_%d, %%eax",
-                         assign->left->ste->offset / 4);
+                    genf(out, "    movl _%.*s, %%eax",
+                         assign->left->ste->ident.len,
+                         assign->left->ste->ident.ptr);
                 } else {
                     genf(out, "    movl %d(%%ebp), %%eax",
                          assign->left->ste->offset);
@@ -274,8 +271,8 @@ static void _codegen(FILE* out, ASTNode* node, int out_label) {
                 _codegen(out, assign->right, out_label);
             }
             if (assign->left->ste->is_global) {
-                genf(out, "    movl %%eax, VAR_%d",
-                     assign->left->ste->offset / 4);
+                genf(out, "    movl %%eax, _%.*s", assign->left->ste->ident.len,
+                     assign->left->ste->ident.ptr);
             } else {
                 genf(out, "    movl %%eax, %d(%%ebp)",
                      assign->left->ste->offset);
@@ -371,7 +368,8 @@ static void _codegen(FILE* out, ASTNode* node, int out_label) {
                 arg_count++;
                 curr = curr->next;
             }
-            genf(out, "    call FUN_%d", call->ste->label);
+            genf(out, "    call _%.*s", call->ste->ident.len,
+                 call->ste->ident.ptr);
             if (arg_count > 0) {
                 genf(out, "    addl $%d, %%esp", arg_count * 4);
             }
@@ -418,7 +416,7 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
             if (i == 0) {
                 genf(out, ".data");
             }
-            genf(out, "VAR_%d:", i);
+            genf(out, "_%.*s:", ste->ident.len, ste->ident.ptr);
             genf(out, "    .int 0");
         }
     }
@@ -429,9 +427,7 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
             FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;
             int out_label = add_label();
 
-            func->label = add_func();
-            genf(out, ".global FUN_%d", func->label);
-            genf(out, "FUN_%d:", func->label);
+            genf(out, "_%.*s:", func->ident.len, func->ident.ptr);
 
             genf(out, "    pushl %%ebp");
             genf(out, "    movl %%esp, %%ebp");
@@ -442,7 +438,6 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
             genf(out, "LAB_%d:", out_label);
             genf(out, "    leave");
             genf(out, "    ret");
-            genf(out, ".type FUN_%d, @function", func->label);
             fprintf(out, "\n");
         }
         curr = curr->next;
@@ -467,6 +462,6 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
     genf(out, ".data");
     for (int i = 0; i < data_count; i++) {
         genf(out, "DAT_%d:", i);
-        genf(out, "    .asciz \"%.*s\"", (int)data[i]->len, data[i]->ptr);
+        genf(out, "    .asciz \"%.*s\"", data[i]->len, data[i]->ptr);
     }
 }

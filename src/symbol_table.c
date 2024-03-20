@@ -4,7 +4,7 @@
 
 static inline int djb2_hash(Str s) {
     int hash = 5381;
-    for (size_t i = 0; i < s.len; i++) {
+    for (int i = 0; i < s.len; i++) {
         hash = ((hash << 5) + hash) + s.ptr[i];
     }
 
@@ -71,7 +71,6 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident) {
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
 
-    ste->label = 0;    // fill in during codegen
     ste->node = NULL;  // fill in during parsing
     ste->sym = NULL;   // fill in during parsing
 

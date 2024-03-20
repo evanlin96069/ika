@@ -37,7 +37,6 @@ typedef struct FuncSymbolTableEntry {
     SymbolTableEntry* next;
     SymbolType type;
 
-    int label;
     struct ASTNode* node;
     SymbolTable* sym;
 } FuncSymbolTableEntry;
