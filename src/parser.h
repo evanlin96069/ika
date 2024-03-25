@@ -78,6 +78,7 @@ typedef enum ASTNodeType {
     NODE_ERR = -1,
     NODE_STMTS,
     NODE_INTLIT,
+    NODE_STRLIT,
     NODE_BINARYOP,
     NODE_UNARYOP,
     NODE_VAR,
@@ -98,8 +99,14 @@ typedef struct IntLitNode {
     int val;
 } IntLitNode;
 
+typedef struct StrLitNode {
+    ASTNodeType type;
+    Str val;
+} StrLitNode;
+
 typedef struct BinaryOpNode {
     ASTNodeType type;
+    int pos;
     char op;
     ASTNode* left;
     ASTNode* right;
@@ -107,6 +114,7 @@ typedef struct BinaryOpNode {
 
 typedef struct UnaryOpNode {
     ASTNodeType type;
+    int pos;
     char op;
     ASTNode* node;
 } UnaryOpNode;
@@ -118,8 +126,9 @@ typedef struct VarNode {
 
 typedef struct AssignNode {
     ASTNodeType type;
+    int pos;
     char op;
-    VarNode* left;
+    ASTNode* left;
     ASTNode* right;
 } AssignNode;
 

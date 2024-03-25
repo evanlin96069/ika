@@ -56,6 +56,10 @@ static void emit_intlit(FILE* out, IntLitNode* lit) {
     genf(out, "    movl $%d, %%eax", lit->val);
 }
 
+static void emit_strlit(FILE* out, StrLitNode* lit) {
+    genf(out, "    movl $DAT_%d, %%eax", add_data(lit->val));
+}
+
 static void emit_binop(FILE* out, BinaryOpNode* binop) {
     emit_node(out, binop->left);
 
@@ -194,7 +198,7 @@ static void emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
 
 static void emit_var(FILE* out, VarNode* var) {
     if (var->ste->is_global) {
-        genf(out, "    movl _%.*s, %%eax", var->ste->ident.len,
+        genf(out, "    movl VAR_%.*s, %%eax", var->ste->ident.len,
              var->ste->ident.ptr);
     } else {
         genf(out, "    movl %d(%%ebp), %%eax", var->ste->offset);
@@ -202,15 +206,20 @@ static void emit_var(FILE* out, VarNode* var) {
 }
 
 static void emit_assign(FILE* out, AssignNode* assign) {
+    // TODO: Error handling
+    assert(assign->left->type == NODE_VAR);
+
+    VarNode* lvalue = (VarNode*)assign->left;
+
     if (assign->op != TK_ASSIGN) {
         emit_node(out, assign->right);
         genf(out, "    movl %%eax, %%ebx");
 
-        if (assign->left->ste->is_global) {
-            genf(out, "    movl _%.*s, %%eax", assign->left->ste->ident.len,
-                 assign->left->ste->ident.ptr);
+        if (lvalue->ste->is_global) {
+            genf(out, "    movl VAR_%.*s, %%eax", lvalue->ste->ident.len,
+                 lvalue->ste->ident.ptr);
         } else {
-            genf(out, "    movl %d(%%ebp), %%eax", assign->left->ste->offset);
+            genf(out, "    movl %d(%%ebp), %%eax", lvalue->ste->offset);
         }
 
         switch (assign->op) {
@@ -265,11 +274,12 @@ static void emit_assign(FILE* out, AssignNode* assign) {
     } else {
         emit_node(out, assign->right);
     }
-    if (assign->left->ste->is_global) {
-        genf(out, "    movl %%eax, _%.*s", assign->left->ste->ident.len,
-             assign->left->ste->ident.ptr);
+
+    if (lvalue->ste->is_global) {
+        genf(out, "    movl %%eax, VAR_%.*s", lvalue->ste->ident.len,
+             lvalue->ste->ident.ptr);
     } else {
-        genf(out, "    movl %%eax, %d(%%ebp)", assign->left->ste->offset);
+        genf(out, "    movl %%eax, %d(%%ebp)", lvalue->ste->offset);
     }
 }
 
@@ -358,7 +368,8 @@ static void emit_call(FILE* out, CallNode* call) {
     }
 
     if (call->ste->node) {
-        genf(out, "    call _%.*s", call->ste->ident.len, call->ste->ident.ptr);
+        genf(out, "    call FUNC_%.*s", call->ste->ident.len,
+             call->ste->ident.ptr);
     } else {
         // extern
         genf(out, "    call %.*s", call->ste->ident.len, call->ste->ident.ptr);
@@ -401,6 +412,10 @@ static void emit_node(FILE* out, ASTNode* node) {
 
         case NODE_INTLIT:
             emit_intlit(out, (IntLitNode*)node);
+            break;
+
+        case NODE_STRLIT:
+            emit_strlit(out, (StrLitNode*)node);
             break;
 
         case NODE_BINARYOP:
@@ -447,7 +462,7 @@ static void emit_node(FILE* out, ASTNode* node) {
 static void emit_func(FILE* out, FuncSymbolTableEntry* func) {
     out_label = add_label();
 
-    genf(out, "_%.*s:", func->ident.len, func->ident.ptr);
+    genf(out, "FUNC_%.*s:", func->ident.len, func->ident.ptr);
 
     genf(out, "    pushl %%ebp");
     genf(out, "    movl %%esp, %%ebp");
@@ -465,14 +480,13 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
 
     // Global variables
     SymbolTableEntry* ste = sym->ste;
-    for (int i = 0; ste; ste = ste->next, i++) {
+    genf(out, ".data");
+    while (ste) {
         if (ste->type == SYM_VAR) {
-            if (i == 0) {
-                genf(out, ".data");
-            }
-            genf(out, "_%.*s:", ste->ident.len, ste->ident.ptr);
-            genf(out, "    .int 0");
+            genf(out, "VAR_%.*s:", ste->ident.len, ste->ident.ptr);
+            genf(out, "    .zero 4");
         }
+        ste = ste->next;
     }
 
     // Functions

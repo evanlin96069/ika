@@ -350,6 +350,13 @@ static ASTNode* primary(ParserState* parser) {
             return (ASTNode*)node;
         }
 
+        case TK_STR: {
+            StrLitNode* node = arena_alloc(parser->arena, sizeof(StrLitNode));
+            node->type = NODE_STRLIT;
+            node->val = tk.str;
+            return (ASTNode*)node;
+        }
+
         case TK_IDENT: {
             SymbolTableEntry* ste = symbol_table_find(parser->sym, tk.str, 0);
             if (!ste) {
@@ -418,6 +425,7 @@ static ASTNode* primary(ParserState* parser) {
         case TK_LNOT: {
             UnaryOpNode* node = arena_alloc(parser->arena, sizeof(UnaryOpNode));
             node->type = NODE_UNARYOP;
+            node->pos = parser->post_token_pos;
             node->op = tk.type;
             node->node = primary(parser);
             if (node->node->type == NODE_ERR) {
@@ -563,16 +571,12 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
             case TK_AAND:
             case TK_AXOR:
             case TK_AOR: {
-                if (node->type != NODE_VAR) {
-                    return error(
-                        parser, parser->post_token_pos,
-                        "lvalue required as left operand of assignment");
-                }
                 AssignNode* assign =
                     arena_alloc(parser->arena, sizeof(AssignNode));
                 assign->type = NODE_ASSIGN;
+                assign->pos = parser->post_token_pos;
                 assign->op = tk.type;
-                assign->left = (VarNode*)node;
+                assign->left = node;
                 assign->right = expr(parser, next_precedence);
                 if (assign->right->type == NODE_ERR) {
                     return assign->right;
@@ -584,6 +588,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                 BinaryOpNode* binop =
                     arena_alloc(parser->arena, sizeof(BinaryOpNode));
                 binop->type = NODE_BINARYOP;
+                binop->pos = parser->post_token_pos;
                 binop->op = tk.type;
                 binop->left = node;
                 binop->right = expr(parser, next_precedence);
@@ -629,7 +634,7 @@ static ASTNode* var_decl(ParserState* parser) {
         AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
         assign->op = TK_ASSIGN;
         assign->type = NODE_ASSIGN;
-        assign->left = var;
+        assign->left = (ASTNode*)var;
         assign->right = expr(parser, 0);
         if (assign->right->type == NODE_ERR) {
             return assign->right;
