@@ -349,14 +349,23 @@ static void emit_call(FILE* out, CallNode* call) {
      */
 
     ASTNodeList* curr = call->args;
+    int arg_size = 0;
     while (curr) {
         emit_node(out, curr->node);
         genf(out, "    pushl %%eax");
+        arg_size += 4;
         curr = curr->next;
     }
-    genf(out, "    call _%.*s", call->ste->ident.len, call->ste->ident.ptr);
+
+    if (call->ste->node) {
+        genf(out, "    call _%.*s", call->ste->ident.len, call->ste->ident.ptr);
+    } else {
+        // extern
+        genf(out, "    call %.*s", call->ste->ident.len, call->ste->ident.ptr);
+    }
+
     if (call->ste->sym->arg_size) {
-        genf(out, "    addl $%d, %%esp", call->ste->sym->arg_size);
+        genf(out, "    addl $%d, %%esp", arg_size);
     }
 }
 
@@ -470,8 +479,11 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
     genf(out, ".text");
     while (curr) {
         if (curr->type == SYM_FUNC) {
-            emit_func(out, (FuncSymbolTableEntry*)curr);
-            fprintf(out, "\n");
+            FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;
+            if (func->node) {
+                emit_func(out, func);
+                fprintf(out, "\n");
+            }
         }
         curr = curr->next;
     }

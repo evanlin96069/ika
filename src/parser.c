@@ -655,7 +655,16 @@ static ASTNode* func_decl(ParserState* parser) {
     }
 
     Str ident = tk.str;
-    if (symbol_table_find(parser->global_sym, ident, 1) != NULL) {
+    SymbolTableEntry* ste = symbol_table_find(parser->global_sym, ident, 1);
+
+    FuncSymbolTableEntry* func;
+    if (ste == NULL) {
+        func = symbol_table_append_func(parser->sym, ident);
+    } else if (ste->type == SYM_FUNC &&
+               ((FuncSymbolTableEntry*)ste)->node == NULL) {
+        // extern
+        func = (FuncSymbolTableEntry*)ste;
+    } else {
         return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
                      tk.str.len, tk.str.ptr);
     }
@@ -665,7 +674,6 @@ static ASTNode* func_decl(ParserState* parser) {
         return error(parser, parser->pre_token_pos, "expected '('");
     }
 
-    FuncSymbolTableEntry* ste = symbol_table_append_func(parser->sym, ident);
     SymbolTable* sym =
         arena_alloc(parser->global_sym->arena, sizeof(SymbolTable));
     symbol_table_init(sym, 0, NULL, 0, parser->global_sym->arena);
@@ -699,14 +707,22 @@ static ASTNode* func_decl(ParserState* parser) {
         }
     }
 
-    ASTNode* node = scope(parser);
-    if (node->type == NODE_ERR) {
-        return node;
+    tk = peek_token(parser);
+    if (tk.type == TK_LBRACE) {
+        ASTNode* node = scope(parser);
+        if (node->type == NODE_ERR) {
+            return node;
+        }
+        func->node = node;
+    } else if (tk.type != TK_SEMICOLON) {
+        next_token(parser);
+        return error(parser, parser->pre_token_pos, "expected '{' or ';'");
     }
+
     parser->sym = parser->global_sym;
 
-    ste->sym = sym;
-    ste->node = node;
+    func->sym = sym;
+
     return NULL;
 }
 
