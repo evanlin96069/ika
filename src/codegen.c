@@ -79,88 +79,88 @@ static void emit_binop(FILE* out, BinaryOpNode* binop) {
         genf(out, "    pushl %%eax");
 
         emit_node(out, binop->right);
-        genf(out, "    movl %%eax, %%ebx");
+        genf(out, "    movl %%eax, %%ecx");
 
         genf(out, "    popl %%eax");
 
         switch (binop->op) {
             case TK_ADD:
-                genf(out, "    addl %%ebx, %%eax");
+                genf(out, "    addl %%ecx, %%eax");
                 break;
 
             case TK_SUB:
-                genf(out, "    subl %%ebx, %%eax");
+                genf(out, "    subl %%ecx, %%eax");
                 break;
 
             case TK_MUL:
-                genf(out, "    imull %%ebx, %%eax");
+                genf(out, "    imull %%ecx, %%eax");
                 break;
 
             case TK_DIV:
                 genf(out, "    cdq");
-                genf(out, "    idivl %%ebx");
+                genf(out, "    idivl %%ecx");
                 break;
 
             case TK_MOD:
                 genf(out, "    cdq");
-                genf(out, "    idivl %%ebx");
+                genf(out, "    idivl %%ecx");
                 genf(out, "    movl %%edx, %%eax");
                 break;
 
             case TK_SHL:
-                genf(out, "    movl %%ebx, %%ecx");
+                genf(out, "    movl %%ecx, %%edx");
                 genf(out, "    shll %%cl, %%eax");
                 break;
 
             case TK_SHR:
-                genf(out, "    movl %%ebx, %%ecx");
+                genf(out, "    movl %%ecx, %%edx");
                 genf(out, "    sarl %%cl, %%eax");
                 break;
 
             case TK_AND:
-                genf(out, "    andl %%ebx, %%eax");
+                genf(out, "    andl %%ecx, %%eax");
                 break;
 
             case TK_XOR:
-                genf(out, "    xorl %%ebx, %%eax");
+                genf(out, "    xorl %%ecx, %%eax");
                 break;
 
             case TK_OR:
-                genf(out, "    orl %%ebx, %%eax");
+                genf(out, "    orl %%ecx, %%eax");
                 break;
 
             case TK_EQ:
-                genf(out, "    cmpl %%ebx, %%eax");
+                genf(out, "    cmpl %%ecx, %%eax");
                 genf(out, "    sete %%al");
                 genf(out, "    movzbl %%al, %%eax");
                 break;
 
             case TK_NE:
-                genf(out, "    cmpl %%ebx, %%eax");
+                genf(out, "    cmpl %%ecx, %%eax");
                 genf(out, "    setne %%al");
                 genf(out, "    movzbl %%al, %%eax");
                 break;
 
             case TK_LT:
-                genf(out, "    cmpl %%ebx, %%eax");
+                genf(out, "    cmpl %%ecx, %%eax");
                 genf(out, "    setl %%al");
                 genf(out, "    movzbl %%al, %%eax");
                 break;
 
             case TK_LE:
-                genf(out, "    cmpl %%ebx, %%eax");
+                genf(out, "    cmpl %%ecx, %%eax");
                 genf(out, "    setle %%al");
                 genf(out, "    movzbl %%al, %%eax");
                 break;
 
             case TK_GT:
-                genf(out, "    cmpl %%ebx, %%eax");
+                genf(out, "    cmpl %%ecx, %%eax");
                 genf(out, "    setg %%al");
                 genf(out, "    movzbl %%al, %%eax");
                 break;
 
             case TK_GE:
-                genf(out, "    cmpl %%ebx, %%eax");
+                genf(out, "    cmpl %%ecx, %%eax");
                 genf(out, "    setge %%al");
                 genf(out, "    movzbl %%al, %%eax");
                 break;
@@ -213,7 +213,7 @@ static void emit_assign(FILE* out, AssignNode* assign) {
 
     if (assign->op != TK_ASSIGN) {
         emit_node(out, assign->right);
-        genf(out, "    movl %%eax, %%ebx");
+        genf(out, "    movl %%eax, %%ecx");
 
         if (lvalue->ste->is_global) {
             genf(out, "    movl VAR_%.*s, %%eax", lvalue->ste->ident.len,
@@ -224,48 +224,48 @@ static void emit_assign(FILE* out, AssignNode* assign) {
 
         switch (assign->op) {
             case TK_AADD:
-                genf(out, "    addl %%ebx, %%eax");
+                genf(out, "    addl %%ecx, %%eax");
                 break;
 
             case TK_ASUB:
-                genf(out, "    subl %%ebx, %%eax");
+                genf(out, "    subl %%ecx, %%eax");
                 break;
 
             case TK_AMUL:
-                genf(out, "    imull %%ebx, %%eax");
+                genf(out, "    imull %%ecx, %%eax");
                 break;
 
             case TK_ADIV:
                 genf(out, "    cdq");
-                genf(out, "    idivl %%ebx");
+                genf(out, "    idivl %%ecx");
                 break;
 
             case TK_AMOD:
                 genf(out, "    cdq");
-                genf(out, "    idivl %%ebx");
+                genf(out, "    idivl %%ecx");
                 genf(out, "    movl %%edx, %%eax");
                 break;
 
             case TK_ASHL:
-                genf(out, "    movl %%ebx, %%ecx");
+                genf(out, "    movl %%ecx, %%edx");
                 genf(out, "    shll %%cl, %%eax");
                 break;
 
             case TK_ASHR:
-                genf(out, "    movl %%ebx, %%ecx");
+                genf(out, "    movl %%ecx, %%edx");
                 genf(out, "    sarl %%cl, %%eax");
                 break;
 
             case TK_AAND:
-                genf(out, "    andl %%ebx, %%eax");
+                genf(out, "    andl %%ecx, %%eax");
                 break;
 
             case TK_AXOR:
-                genf(out, "    xorl %%ebx, %%eax");
+                genf(out, "    xorl %%ecx, %%eax");
                 break;
 
             case TK_AOR:
-                genf(out, "    orl %%ebx, %%eax");
+                genf(out, "    orl %%ecx, %%eax");
                 break;
 
             default:
