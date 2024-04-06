@@ -330,11 +330,13 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope);
 static ASTNode* error(ParserState* parser, int pos, const char* fmt, ...) {
     ErrorNode* err = arena_alloc(parser->arena, sizeof(ErrorNode));
     err->type = NODE_ERR;
-    err->pos = pos;
+
+    err->val = malloc(sizeof(Error));
+    err->val->pos = pos;
 
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(err->msg, sizeof(err->msg), fmt, ap);
+    vsnprintf(err->val->msg, ERROR_MAX_LENGTH, fmt, ap);
     va_end(ap);
 
     return (ASTNode*)err;
@@ -422,7 +424,9 @@ static ASTNode* primary(ParserState* parser) {
         case TK_ADD:
         case TK_SUB:
         case TK_NOT:
-        case TK_LNOT: {
+        case TK_LNOT:
+        case TK_MUL:
+        case TK_AND: {
             UnaryOpNode* node = arena_alloc(parser->arena, sizeof(UnaryOpNode));
             node->type = NODE_UNARYOP;
             node->pos = parser->post_token_pos;

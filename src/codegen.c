@@ -1,6 +1,8 @@
 #include "codegen.h"
 
 #include <assert.h>
+#include <stdarg.h>
+#include <stdlib.h>
 
 #ifdef _DEBUG
 
@@ -42,45 +44,115 @@ static int add_data(Str str) {
 // out label for current function
 static int out_label;
 
-static void emit_node(FILE* out, ASTNode* node);
+static EmitResult error(int pos, const char* fmt, ...) {
+    EmitResult result;
+    result.type = RESULT_ERROR;
+    result.error = malloc(sizeof(Error));
+    result.error->pos = pos;
 
-static void emit_stmts(FILE* out, StatementListNode* stmts) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(result.error->msg, ERROR_MAX_LENGTH, fmt, ap);
+    va_end(ap);
+
+    return result;
+}
+
+static EmitResult emit_node(FILE* out, ASTNode* node);
+
+static EmitResult emit_stmts(FILE* out, StatementListNode* stmts) {
+    EmitResult result;
+
     ASTNodeList* iter = stmts->stmts;
     while (iter) {
-        emit_node(out, iter->node);
+        result = emit_node(out, iter->node);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
+
         iter = iter->next;
     }
+
+    result.type = RESULT_OK;
+    return result;
 }
 
-static void emit_intlit(FILE* out, IntLitNode* lit) {
+static EmitResult emit_intlit(FILE* out, IntLitNode* lit) {
+    EmitResult result = {RESULT_OK};
     genf(out, "    movl $%d, %%eax", lit->val);
+    result.info.is_lvalue = 0;
+    return result;
 }
 
-static void emit_strlit(FILE* out, StrLitNode* lit) {
+static EmitResult emit_strlit(FILE* out, StrLitNode* lit) {
+    EmitResult result = {RESULT_OK};
     genf(out, "    movl $DAT_%d, %%eax", add_data(lit->val));
+    result.info.is_lvalue = 0;
+    return result;
 }
 
-static void emit_binop(FILE* out, BinaryOpNode* binop) {
-    emit_node(out, binop->left);
+static EmitResult emit_rvalify(FILE* out) {
+    EmitResult result = {RESULT_OK};
+    genf(out, "    movl (%%eax), %%eax");
+    result.info.is_lvalue = 0;
+    return result;
+}
+
+static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
+    EmitResult result;
+
+    result = emit_node(out, binop->left);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
+    if (result.info.is_lvalue) {
+        emit_rvalify(out);
+    }
 
     if (binop->op == TK_LOR) {
         int label = add_label();
         genf(out, "    testl %%eax, %%eax");
         genf(out, "    jnz LAB_%d", label);
-        emit_node(out, binop->right);
+
+        result = emit_node(out, binop->right);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
+
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
+
         genf(out, "LAB_%d:", label);
     } else if (binop->op == TK_LAND) {
         int label = add_label();
         genf(out, "    testl %%eax, %%eax");
         genf(out, "    jz LAB_%d", label);
-        emit_node(out, binop->right);
+
+        result = emit_node(out, binop->right);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
+
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
+
         genf(out, "LAB_%d:", label);
     } else {
         genf(out, "    pushl %%eax");
 
-        emit_node(out, binop->right);
-        genf(out, "    movl %%eax, %%ecx");
+        result = emit_node(out, binop->right);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
 
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
+
+        genf(out, "    movl %%eax, %%ecx");
         genf(out, "    popl %%eax");
 
         switch (binop->op) {
@@ -169,58 +241,128 @@ static void emit_binop(FILE* out, BinaryOpNode* binop) {
                 assert(0);
         }
     }
+
+    result.type = RESULT_OK;
+    result.info.is_lvalue = 0;
+    return result;
 }
 
-static void emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
-    emit_node(out, unaryop->node);
+static EmitResult emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
+    EmitResult result;
+
+    result = emit_node(out, unaryop->node);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
     switch (unaryop->op) {
         case TK_ADD:
+            if (result.info.is_lvalue) {
+                emit_rvalify(out);
+            }
+
+            result.info.is_lvalue = 0;
             break;
 
         case TK_SUB:
+            if (result.info.is_lvalue) {
+                emit_rvalify(out);
+            }
+
             genf(out, "    negl %%eax");
+
+            result.info.is_lvalue = 0;
             break;
 
         case TK_NOT:
+            if (result.info.is_lvalue) {
+                emit_rvalify(out);
+            }
+
             genf(out, "    notl %%eax");
+
+            result.info.is_lvalue = 0;
             break;
 
         case TK_LNOT:
+            if (result.info.is_lvalue) {
+                emit_rvalify(out);
+            }
+
             genf(out, "    testl %%eax, %%eax");
             genf(out, "    sete %%al");
             genf(out, "    movzbl %%al, %%eax");
+
+            result.info.is_lvalue = 0;
+            break;
+
+        case TK_MUL:
+            if (result.info.is_lvalue) {
+                emit_rvalify(out);
+            }
+            result.info.is_lvalue = 1;
+            break;
+
+        case TK_AND:
+            if (result.info.is_lvalue == 0) {
+                return error(unaryop->pos,
+                             "lvalue required as unary '&' operand");
+            }
+            result.info.is_lvalue = 0;
             break;
 
         default:
             assert(0);
     }
+
+    result.type = RESULT_OK;
+    return result;
 }
 
-static void emit_var(FILE* out, VarNode* var) {
+static EmitResult emit_var(FILE* out, VarNode* var) {
+    EmitResult result;
     if (var->ste->is_global) {
-        genf(out, "    movl VAR_%.*s, %%eax", var->ste->ident.len,
+        genf(out, "    movl $VAR_%.*s, %%eax", var->ste->ident.len,
              var->ste->ident.ptr);
     } else {
-        genf(out, "    movl %d(%%ebp), %%eax", var->ste->offset);
+        genf(out, "    leal %d(%%ebp), %%eax", var->ste->offset);
     }
+
+    result.type = RESULT_OK;
+    result.info.is_lvalue = 1;
+    return result;
 }
 
-static void emit_assign(FILE* out, AssignNode* assign) {
-    // TODO: Error handling
-    assert(assign->left->type == NODE_VAR);
+static EmitResult emit_assign(FILE* out, AssignNode* assign) {
+    EmitResult result;
 
-    VarNode* lvalue = (VarNode*)assign->left;
+    result = emit_node(out, assign->left);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
+    if (result.info.is_lvalue == 0) {
+        return error(assign->pos,
+                     "lvalue required as left operand of assignment");
+    }
+
+    genf(out, "    pushl %%eax");
 
     if (assign->op != TK_ASSIGN) {
-        emit_node(out, assign->right);
-        genf(out, "    movl %%eax, %%ecx");
+        emit_rvalify(out);
+        genf(out, "    pushl %%eax");
 
-        if (lvalue->ste->is_global) {
-            genf(out, "    movl VAR_%.*s, %%eax", lvalue->ste->ident.len,
-                 lvalue->ste->ident.ptr);
-        } else {
-            genf(out, "    movl %d(%%ebp), %%eax", lvalue->ste->offset);
+        result = emit_node(out, assign->right);
+        if (result.type == RESULT_ERROR) {
+            return result;
         }
+
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
+
+        genf(out, "    movl %%eax, %%ecx");
+        genf(out, "    popl %%eax");
 
         switch (assign->op) {
             case TK_AADD:
@@ -272,18 +414,28 @@ static void emit_assign(FILE* out, AssignNode* assign) {
                 assert(0);
         }
     } else {
-        emit_node(out, assign->right);
+        result = emit_node(out, assign->right);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
+
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
     }
 
-    if (lvalue->ste->is_global) {
-        genf(out, "    movl %%eax, VAR_%.*s", lvalue->ste->ident.len,
-             lvalue->ste->ident.ptr);
-    } else {
-        genf(out, "    movl %%eax, %d(%%ebp)", lvalue->ste->offset);
-    }
+    genf(out, "    movl %%eax, %%ecx");
+    genf(out, "    popl %%eax");
+
+    genf(out, "    movl %%ecx, (%%eax)");
+    genf(out, "    movl %%ecx, %%eax");
+
+    result.type = RESULT_OK;
+    result.info.is_lvalue = 0;
+    return result;
 }
 
-static void emit_if(FILE* out, IfStatementNode* if_node) {
+static EmitResult emit_if(FILE* out, IfStatementNode* if_node) {
     /*
      *      <cond>
      *      JZ else_label
@@ -294,28 +446,46 @@ static void emit_if(FILE* out, IfStatementNode* if_node) {
      *  end_label:
      */
 
+    EmitResult result;
+
     int end_label = add_label();
     int else_label = add_label();
 
-    emit_node(out, if_node->expr);
+    result = emit_node(out, if_node->expr);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
+    if (result.info.is_lvalue) {
+        emit_rvalify(out);
+    }
 
     genf(out, "    testl %%eax, %%eax");
     genf(out, "    jz LAB_%d", else_label);
 
-    emit_node(out, if_node->then_block);
+    result = emit_node(out, if_node->then_block);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
 
     genf(out, "    jmp LAB_%d", end_label);
 
     genf(out, "LAB_%d:", else_label);
 
     if (if_node->else_block) {
-        emit_node(out, if_node->else_block);
+        result = emit_node(out, if_node->else_block);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
     }
 
     genf(out, "LAB_%d:", end_label);
+
+    result.type = RESULT_OK;
+    return result;
 }
 
-static void emit_while(FILE* out, WhileNode* while_node) {
+static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     /*
      *  loop_label:
      *      <cond>
@@ -326,27 +496,46 @@ static void emit_while(FILE* out, WhileNode* while_node) {
      *  end_lable:
      */
 
+    EmitResult result;
+
     int loop_label = add_label();
     int end_label = add_label();
 
     genf(out, "LAB_%d:", loop_label);
 
-    emit_node(out, while_node->expr);
+    result = emit_node(out, while_node->expr);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
+    if (result.info.is_lvalue) {
+        emit_rvalify(out);
+    }
 
     genf(out, "    testl %%eax, %%eax");
     genf(out, "    jz LAB_%d", end_label);
 
-    emit_node(out, while_node->block);
+    result = emit_node(out, while_node->block);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
     if (while_node->inc) {
-        emit_node(out, while_node->inc);
+        result = emit_node(out, while_node->inc);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
     }
 
     genf(out, "    jmp LAB_%d", loop_label);
 
     genf(out, "LAB_%d:", end_label);
+
+    result.type = RESULT_OK;
+    return result;
 }
 
-static void emit_call(FILE* out, CallNode* call) {
+static EmitResult emit_call(FILE* out, CallNode* call) {
     /*
      *  local 3         [ebp]-16 <-ESP
      *  local 2         [ebp]-8
@@ -358,10 +547,20 @@ static void emit_call(FILE* out, CallNode* call) {
      *  arg 3           [ebp]+16
      */
 
+    EmitResult result;
+
     ASTNodeList* curr = call->args;
     int arg_size = 0;
     while (curr) {
-        emit_node(out, curr->node);
+        result = emit_node(out, curr->node);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
+
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
+
         genf(out, "    pushl %%eax");
         arg_size += 4;
         curr = curr->next;
@@ -378,13 +577,27 @@ static void emit_call(FILE* out, CallNode* call) {
     if (call->ste->sym->arg_size) {
         genf(out, "    addl $%d, %%esp", arg_size);
     }
+
+    result.type = RESULT_OK;
+    result.info.is_lvalue = 0;
+    return result;
 }
 
-static void emit_print(FILE* out, PrintNode* print_node) {
+static EmitResult emit_print(FILE* out, PrintNode* print_node) {
+    EmitResult result;
+
     int arg_count = 0;
     ASTNodeList* curr = print_node->args;
     while (curr) {
-        emit_node(out, curr->node);
+        result = emit_node(out, curr->node);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
+
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
+
         genf(out, "    pushl %%eax");
         arg_count++;
         curr = curr->next;
@@ -395,71 +608,93 @@ static void emit_print(FILE* out, PrintNode* print_node) {
 
     genf(out, "    call printf");
     genf(out, "    addl $%d, %%esp", arg_count * 4);
+
+    result.type = RESULT_OK;
+    result.info.is_lvalue = 0;
+    return result;
 }
 
-static void emit_ret(FILE* out, ReturnNode* ret) {
+static EmitResult emit_ret(FILE* out, ReturnNode* ret) {
+    EmitResult result;
+
     if (ret->expr) {
-        emit_node(out, ret->expr);
+        result = emit_node(out, ret->expr);
+        if (result.type == RESULT_ERROR) {
+            return result;
+        }
+
+        if (result.info.is_lvalue) {
+            emit_rvalify(out);
+        }
     }
     genf(out, "    jmp LAB_%d", out_label);
+
+    result.type = RESULT_OK;
+    return result;
 }
 
-static void emit_node(FILE* out, ASTNode* node) {
+static EmitResult emit_node(FILE* out, ASTNode* node) {
+    EmitResult result;
+
     switch (node->type) {
         case NODE_STMTS:
-            emit_stmts(out, (StatementListNode*)node);
+            result = emit_stmts(out, (StatementListNode*)node);
             break;
 
         case NODE_INTLIT:
-            emit_intlit(out, (IntLitNode*)node);
+            result = emit_intlit(out, (IntLitNode*)node);
             break;
 
         case NODE_STRLIT:
-            emit_strlit(out, (StrLitNode*)node);
+            result = emit_strlit(out, (StrLitNode*)node);
             break;
 
         case NODE_BINARYOP:
-            emit_binop(out, (BinaryOpNode*)node);
+            result = emit_binop(out, (BinaryOpNode*)node);
             break;
 
         case NODE_UNARYOP:
-            emit_unaryop(out, (UnaryOpNode*)node);
+            result = emit_unaryop(out, (UnaryOpNode*)node);
             break;
 
         case NODE_VAR:
-            emit_var(out, (VarNode*)node);
+            result = emit_var(out, (VarNode*)node);
             break;
 
         case NODE_ASSIGN:
-            emit_assign(out, (AssignNode*)node);
+            result = emit_assign(out, (AssignNode*)node);
             break;
 
         case NODE_IF:
-            emit_if(out, (IfStatementNode*)node);
+            result = emit_if(out, (IfStatementNode*)node);
             break;
 
         case NODE_WHILE:
-            emit_while(out, (WhileNode*)node);
+            result = emit_while(out, (WhileNode*)node);
             break;
 
         case NODE_CALL:
-            emit_call(out, (CallNode*)node);
+            result = emit_call(out, (CallNode*)node);
             break;
 
         case NODE_PRINT:
-            emit_print(out, (PrintNode*)node);
+            result = emit_print(out, (PrintNode*)node);
             break;
 
         case NODE_RET:
-            emit_ret(out, (ReturnNode*)node);
+            result = emit_ret(out, (ReturnNode*)node);
             break;
 
         default:
             assert(0);
     }
+
+    return result;
 }
 
-static void emit_func(FILE* out, FuncSymbolTableEntry* func) {
+static EmitResult emit_func(FILE* out, FuncSymbolTableEntry* func) {
+    EmitResult result;
+
     out_label = add_label();
 
     genf(out, "FUNC_%.*s:", func->ident.len, func->ident.ptr);
@@ -468,14 +703,22 @@ static void emit_func(FILE* out, FuncSymbolTableEntry* func) {
     genf(out, "    movl %%esp, %%ebp");
     genf(out, "    subl $%d, %%esp", *func->sym->stack_size);
 
-    emit_node(out, func->node);
+    result = emit_node(out, func->node);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
 
     genf(out, "LAB_%d:", out_label);
     genf(out, "    leave");
     genf(out, "    ret");
+
+    result.type = RESULT_OK;
+    return result;
 }
 
-void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
+Error* codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
+    EmitResult result;
+
     SymbolTableEntry* curr = sym->ste;
 
     // Global variables
@@ -495,7 +738,10 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
         if (curr->type == SYM_FUNC) {
             FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;
             if (func->node) {
-                emit_func(out, func);
+                result = emit_func(out, func);
+                if (result.type == RESULT_ERROR) {
+                    return result.error;
+                }
                 fprintf(out, "\n");
             }
         }
@@ -510,7 +756,10 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
     genf(out, "    pushl %%ebp");
     genf(out, "    movl %%esp, %%ebp");
 
-    emit_node(out, node);
+    result = emit_node(out, node);
+    if (result.type == RESULT_ERROR) {
+        return result.error;
+    }
 
     genf(out, "    movl $0, %%eax");
     genf(out, "LAB_%d:", out_label);
@@ -525,4 +774,6 @@ void codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
         genf(out, "DAT_%d:", i);
         genf(out, "    .asciz \"%.*s\"", data[i].len, data[i].ptr);
     }
+
+    return NULL;
 }

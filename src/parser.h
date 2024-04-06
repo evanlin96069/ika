@@ -4,7 +4,14 @@
 #include "arena.h"
 #include "symbol_table.h"
 
+// Error
+
 #define ERROR_MAX_LENGTH 255
+
+typedef struct Error {
+    size_t pos;
+    char msg[ERROR_MAX_LENGTH];
+} Error;
 
 // Lexer
 
@@ -148,8 +155,7 @@ typedef struct WhileNode {
 
 typedef struct ErrorNode {
     ASTNodeType type;
-    size_t pos;
-    char msg[ERROR_MAX_LENGTH];
+    Error* val;
 } ErrorNode;
 
 typedef struct ASTNodeList ASTNodeList;

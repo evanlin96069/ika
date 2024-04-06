@@ -8,16 +8,15 @@
 #include "parser.h"
 #include "symbol_table.h"
 
-static void print_err(ParserState* parser, const char* file_name,
-                      ErrorNode* err) {
-    const char* line = parser->src;
+static void print_err(const char* src, const char* file_name, Error* err) {
+    const char* line = src;
     int line_num = 1;
     int line_pos = 0;
 
     size_t pos = 0;
     while (pos < err->pos) {
-        if (parser->src[pos] == '\n') {
-            line = parser->src + pos + 1;
+        if (src[pos] == '\n') {
+            line = src + pos + 1;
             line_num++;
             line_pos = 0;
         } else {
@@ -110,9 +109,13 @@ int main(int argc, char* argv[]) {
     ParserState parser;
     parser_init(&parser, &sym, &arena);
 
+    Error* err = NULL;
+
     ASTNode* node = parser_parse(&parser, buf);
     if (node->type == NODE_ERR) {
-        print_err(&parser, argv[1], (ErrorNode*)node);
+        err = ((ErrorNode*)node)->val;
+        print_err(buf, src_path, err);
+        free(err);
 
         arena_deinit(&arena);
         arena_deinit(&sym_arena);
@@ -121,7 +124,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    codegen(out, node, &sym);
+    err = codegen(out, node, &sym);
+    if (err != NULL) {
+        print_err(buf, src_path, err);
+        free(err);
+    }
 
     arena_deinit(&arena);
     arena_deinit(&sym_arena);
