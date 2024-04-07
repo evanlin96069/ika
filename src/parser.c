@@ -17,6 +17,18 @@ static inline int is_space(char c) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t';
 }
 
+typedef struct StrToken {
+    const char* s;
+    TokenType token_type;
+} StrToken;
+
+StrToken str_tk[] = {
+    {"var", TK_DECL},    {"if", TK_IF},
+    {"else", TK_ELSE},   {"while", TK_WHILE},
+    {"fn", TK_FUNC},     {"return", TK_RET},
+    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
+};
+
 static Token next_token_internal(ParserState* parser, int peek) {
     int start = 0;
     int offset = 0;
@@ -276,22 +288,17 @@ static Token next_token_internal(ParserState* parser, int peek) {
                     c = (parser->src + parser->pos)[++offset];
                 }
 
-                if (str_eql(str("var"), ident)) {
-                    tk.type = TK_DECL;
-                } else if (str_eql(str("if"), ident)) {
-                    tk.type = TK_IF;
-                } else if (str_eql(str("else"), ident)) {
-                    tk.type = TK_ELSE;
-                } else if (str_eql(str("while"), ident)) {
-                    tk.type = TK_WHILE;
-                } else if (str_eql(str("fn"), ident)) {
-                    tk.type = TK_FUNC;
-                } else if (str_eql(str("return"), ident)) {
-                    tk.type = TK_RET;
-                } else {
-                    tk.type = TK_IDENT;
-                    tk.str = ident;
+                tk.type = TK_IDENT;
+                tk.str = ident;
+
+                for (unsigned int i = 0; i < sizeof(str_tk) / sizeof(str_tk[0]);
+                     i++) {
+                    if (str_eql(str(str_tk[i].s), ident)) {
+                        tk.type = str_tk[i].token_type;
+                        break;
+                    }
                 }
+
             } else {
                 tk.type = TK_ERR;
             }
@@ -831,6 +838,9 @@ static ASTNode* while_stmt(ParserState* parser) {
     if (tk.type == TK_COLON) {
         next_token(parser);
         while_node->inc = expr(parser, 0);
+        if (while_node->inc->type == NODE_ERR) {
+            return while_node->inc;
+        }
     } else {
         while_node->inc = NULL;
     }
@@ -937,6 +947,22 @@ static ASTNode* stmt(ParserState* parser) {
             if (tk.type != TK_COMMA && tk.type != TK_SEMICOLON) {
                 return error(parser, parser->pre_token_pos,
                              "expected ',' or ';'");
+            }
+        } break;
+
+        case TK_BREAK:
+        case TK_CONTINUE: {
+            next_token(parser);
+
+            GotoNode* goto_node = arena_alloc(parser->arena, sizeof(GotoNode));
+            node = (ASTNode*)goto_node;
+            goto_node->type = NODE_GOTO;
+            goto_node->pos = parser->post_token_pos;
+            goto_node->op = tk.type;
+
+            tk = next_token(parser);
+            if (tk.type != TK_SEMICOLON) {
+                return error(parser, parser->pre_token_pos, "Expected ';'");
             }
         } break;
 

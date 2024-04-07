@@ -28,6 +28,8 @@ typedef enum TokenType {
     TK_IF,
     TK_ELSE,
     TK_WHILE,
+    TK_BREAK,
+    TK_CONTINUE,
 
     TK_MUL,
     TK_DIV,
@@ -95,6 +97,7 @@ typedef enum ASTNodeType {
     NODE_ASSIGN,
     NODE_IF,
     NODE_WHILE,
+    NODE_GOTO,
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -114,7 +117,7 @@ typedef struct StrLitNode {
 typedef struct BinaryOpNode {
     ASTNodeType type;
     int pos;
-    char op;
+    TokenType op;
     ASTNode* left;
     ASTNode* right;
 } BinaryOpNode;
@@ -122,7 +125,7 @@ typedef struct BinaryOpNode {
 typedef struct UnaryOpNode {
     ASTNodeType type;
     int pos;
-    char op;
+    TokenType op;
     ASTNode* node;
 } UnaryOpNode;
 
@@ -134,7 +137,7 @@ typedef struct VarNode {
 typedef struct AssignNode {
     ASTNodeType type;
     int pos;
-    char op;
+    TokenType op;
     ASTNode* left;
     ASTNode* right;
 } AssignNode;
@@ -152,6 +155,12 @@ typedef struct WhileNode {
     ASTNode* inc;
     ASTNode* block;
 } WhileNode;
+
+typedef struct GotoNode {
+    ASTNodeType type;
+    int pos;
+    TokenType op;
+} GotoNode;
 
 typedef struct ErrorNode {
     ASTNodeType type;

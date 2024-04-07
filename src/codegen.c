@@ -44,6 +44,10 @@ static int add_data(Str str) {
 // out label for current function
 static int out_label;
 
+static int in_loop = 0;
+static int break_label;
+static int continue_label;
+
 static EmitResult error(int pos, const char* fmt, ...) {
     EmitResult result;
     result.type = RESULT_ERROR;
@@ -491,6 +495,7 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
      *      <cond>
      *      JZ end_label
      *      <block>
+     *   inc_label:
      *      <inc>
      *      JMP loop_label
      *  end_lable:
@@ -499,6 +504,7 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     EmitResult result;
 
     int loop_label = add_label();
+    int inc_label = add_label();
     int end_label = add_label();
 
     genf(out, "LAB_%d:", loop_label);
@@ -515,11 +521,24 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     genf(out, "    testl %%eax, %%eax");
     genf(out, "    jz LAB_%d", end_label);
 
+    int prev_in_loop = in_loop;
+    int prev_break_label = break_label;
+    int prev_continue_label = continue_label;
+
+    in_loop = 1;
+    break_label = end_label;
+    continue_label = inc_label;
+
     result = emit_node(out, while_node->block);
     if (result.type == RESULT_ERROR) {
         return result;
     }
 
+    in_loop = prev_in_loop;
+    break_label = prev_break_label;
+    continue_label = prev_continue_label;
+
+    genf(out, "LAB_%d:", inc_label);
     if (while_node->inc) {
         result = emit_node(out, while_node->inc);
         if (result.type == RESULT_ERROR) {
@@ -530,6 +549,30 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     genf(out, "    jmp LAB_%d", loop_label);
 
     genf(out, "LAB_%d:", end_label);
+
+    result.type = RESULT_OK;
+    return result;
+}
+
+static EmitResult emit_goto(FILE* out, GotoNode* node) {
+    EmitResult result;
+
+    switch (node->op) {
+        case TK_BREAK:
+            if (in_loop == 0) {
+                return error(node->pos, "break statement not within a loop");
+            }
+            genf(out, "    jmp LAB_%d", break_label);
+            break;
+        case TK_CONTINUE:
+            if (in_loop == 0) {
+                return error(node->pos, "continue statement not within a loop");
+            }
+            genf(out, "    jmp LAB_%d", continue_label);
+            break;
+        default:
+            assert(0);
+    }
 
     result.type = RESULT_OK;
     return result;
@@ -671,6 +714,10 @@ static EmitResult emit_node(FILE* out, ASTNode* node) {
 
         case NODE_WHILE:
             result = emit_while(out, (WhileNode*)node);
+            break;
+
+        case NODE_GOTO:
+            result = emit_goto(out, (GotoNode*)node);
             break;
 
         case NODE_CALL:
