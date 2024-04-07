@@ -42,11 +42,17 @@ static void print_err(const char* src, const char* file_name, Error* err) {
 
 int main(int argc, char* argv[]) {
     const char* src_path;
-    const char* out_path = "out.s";
+    const char* out_path = NULL;
+    const char* asm_out_path = NULL;
+    int s_flag = 0;
 
+    // Arg parse
     FOR_OPTS(argc, argv, {
         case 'o':
             out_path = OPTARG(argc, argv);
+            break;
+        case 'S':
+            s_flag = 1;
             break;
     });
 
@@ -57,17 +63,11 @@ int main(int argc, char* argv[]) {
 
     src_path = *argv;
 
+    // Read input file
     FILE* fp = fopen(src_path, "r");
     if (!fp) {
         fprintf(stderr, "\x1b[31merror:\x1b[0m cannot open file %s: %s\n",
                 src_path, strerror(errno));
-        return 1;
-    }
-
-    FILE* out = fopen(out_path, "w");
-    if (!out) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m cannot open file %s: %s\n",
-                out_path, strerror(errno));
         return 1;
     }
 
@@ -99,6 +99,7 @@ int main(int argc, char* argv[]) {
 
     buf[size] = '\0';
 
+    // Parse
     Arena sym_arena;
     arena_init(&sym_arena, 1 << 10, NULL);
     SymbolTable sym;
@@ -124,15 +125,63 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // codegen
+    if (s_flag) {
+        asm_out_path = out_path;
+    }
+
+    if (!asm_out_path) {
+        asm_out_path = "out.s";
+    }
+
+    if (!out_path) {
+        out_path = "a.out";
+    }
+
+    FILE* out = fopen(asm_out_path, "w");
+    if (!out) {
+        fprintf(stderr, "\x1b[31merror:\x1b[0m cannot open file %s: %s\n",
+                out_path, strerror(errno));
+        return 1;
+    }
+
     err = codegen(out, node, &sym);
+    fclose(out);
+
     if (err != NULL) {
         print_err(buf, src_path, err);
         free(err);
+
+        arena_deinit(&arena);
+        arena_deinit(&sym_arena);
+        free(buf);
+
+        return 1;
     }
 
     arena_deinit(&arena);
     arena_deinit(&sym_arena);
     free(buf);
+
+    // Invoke cc
+    if (!s_flag) {
+        char command[1024];
+        snprintf(command, sizeof(command), "cc %s -m32 -no-pie -o %s",
+                 asm_out_path, out_path);
+        int ret = system(command);
+        if (ret != 0) {
+            fprintf(stderr,
+                    "\x1b[31merror:\x1b[0m failed to compile %s into %s\n",
+                    asm_out_path, out_path);
+        }
+
+        snprintf(command, sizeof(command), "rm %s", asm_out_path);
+        ret = system(command);
+        if (ret != 0) {
+            fprintf(stderr, "\x1b[31merror:\x1b[0m failed remove %s\n",
+                    asm_out_path);
+        }
+    }
 
     return 0;
 }
