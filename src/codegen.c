@@ -748,7 +748,9 @@ static EmitResult emit_func(FILE* out, FuncSymbolTableEntry* func) {
 
     genf(out, "    pushl %%ebp");
     genf(out, "    movl %%esp, %%ebp");
-    genf(out, "    subl $%d, %%esp", *func->sym->stack_size);
+    if (*func->sym->stack_size) {
+        genf(out, "    subl $%d, %%esp", *func->sym->stack_size);
+    }
 
     result = emit_node(out, func->node);
     if (result.type == RESULT_ERROR) {
@@ -802,6 +804,9 @@ Error* codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
     genf(out, "main:");
     genf(out, "    pushl %%ebp");
     genf(out, "    movl %%esp, %%ebp");
+    if (*sym->stack_size) {
+        genf(out, "    subl $%d, %%esp", *sym->stack_size);
+    }
 
     result = emit_node(out, node);
     if (result.type == RESULT_ERROR) {

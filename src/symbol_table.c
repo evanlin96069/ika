@@ -48,7 +48,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
         sym->offset += 4;
     }
 
-    if (*sym->stack_size < sym->offset) {
+    if (ste->is_global == 0 && *sym->stack_size < sym->offset) {
         *sym->stack_size = sym->offset;
     }
 
