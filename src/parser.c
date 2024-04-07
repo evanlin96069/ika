@@ -596,17 +596,114 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
             } break;
 
             default: {
-                BinaryOpNode* binop =
-                    arena_alloc(parser->arena, sizeof(BinaryOpNode));
-                binop->type = NODE_BINARYOP;
-                binop->pos = parser->post_token_pos;
-                binop->op = tk.type;
-                binop->left = node;
-                binop->right = expr(parser, next_precedence);
-                if (binop->right->type == NODE_ERR) {
-                    return binop->right;
+                int pos = parser->post_token_pos;
+                ASTNode* left = node;
+                ASTNode* right = expr(parser, next_precedence);
+                if (right->type == NODE_ERR) {
+                    return right;
                 }
-                node = (ASTNode*)binop;
+
+                if (left->type == NODE_INTLIT && right->type == NODE_INTLIT) {
+                    int a = ((IntLitNode*)left)->val;
+                    int b = ((IntLitNode*)right)->val;
+
+                    IntLitNode* intlit =
+                        arena_alloc(parser->arena, sizeof(IntLitNode));
+                    intlit->type = NODE_INTLIT;
+
+                    switch (tk.type) {
+                        case TK_LOR:
+                            intlit->val = (a || b);
+                            break;
+
+                        case TK_LAND:
+                            intlit->val = (a && b);
+                            break;
+
+                        case TK_ADD:
+                            intlit->val = (a + b);
+                            break;
+
+                        case TK_SUB:
+                            intlit->val = (a - b);
+                            break;
+
+                        case TK_MUL:
+                            intlit->val = (a * b);
+                            break;
+
+                        case TK_DIV:
+                            if (b == 0) {
+                                return error(parser, pos, "division by zero");
+                            }
+                            intlit->val = (a / b);
+                            break;
+
+                        case TK_MOD:
+                            if (b == 0) {
+                                return error(parser, pos, "modulo by zero");
+                            }
+                            intlit->val = (a % b);
+                            break;
+
+                        case TK_SHL:
+                            intlit->val = (a << b);
+                            break;
+
+                        case TK_SHR:
+                            intlit->val = (a >> b);
+                            break;
+
+                        case TK_AND:
+                            intlit->val = (a & b);
+                            break;
+
+                        case TK_XOR:
+                            intlit->val = (a ^ b);
+                            break;
+
+                        case TK_OR:
+                            intlit->val = (a | b);
+                            break;
+
+                        case TK_EQ:
+                            intlit->val = (a == b);
+                            break;
+
+                        case TK_NE:
+                            intlit->val = (a != b);
+                            break;
+
+                        case TK_LT:
+                            intlit->val = (a < b);
+                            break;
+
+                        case TK_LE:
+                            intlit->val = (a <= b);
+                            break;
+
+                        case TK_GT:
+                            intlit->val = (a > b);
+                            break;
+
+                        case TK_GE:
+                            intlit->val = (a >= b);
+                            break;
+
+                        default:
+                            assert(0);
+                    }
+                    node = (ASTNode*)intlit;
+                } else {
+                    BinaryOpNode* binop =
+                        arena_alloc(parser->arena, sizeof(BinaryOpNode));
+                    binop->type = NODE_BINARYOP;
+                    binop->pos = parser->post_token_pos;
+                    binop->op = tk.type;
+                    binop->left = left;
+                    binop->right = right;
+                    node = (ASTNode*)binop;
+                }
             }
         }
 
