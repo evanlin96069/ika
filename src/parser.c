@@ -257,6 +257,11 @@ static Token next_token_internal(ParserState* parser, int peek) {
             offset++;
             break;
 
+        case '.':
+            tk.type = TK_DOT;
+            offset++;
+            break;
+
         case '\0':
             tk.type = TK_NUL;
             break;
@@ -442,20 +447,23 @@ static ASTNode* error(ParserState* parser, int pos, const char* fmt, ...) {
 
 static ASTNode* primary(ParserState* parser) {
     Token tk = next_token(parser);
+
+    ASTNode* node;
+
     switch (tk.type) {
         case TK_INT: {
-            IntLitNode* node = arena_alloc(parser->arena, sizeof(IntLitNode));
-            node->type = NODE_INTLIT;
-            node->val = tk.val;
-            return (ASTNode*)node;
-        }
+            IntLitNode* intlit = arena_alloc(parser->arena, sizeof(IntLitNode));
+            intlit->type = NODE_INTLIT;
+            intlit->val = tk.val;
+            node = (ASTNode*)intlit;
+        } break;
 
         case TK_STR: {
-            StrLitNode* node = arena_alloc(parser->arena, sizeof(StrLitNode));
-            node->type = NODE_STRLIT;
-            node->val = tk.str;
-            return (ASTNode*)node;
-        }
+            StrLitNode* strlit = arena_alloc(parser->arena, sizeof(StrLitNode));
+            strlit->type = NODE_STRLIT;
+            strlit->val = tk.str;
+            node = (ASTNode*)strlit;
+        } break;
 
         case TK_IDENT: {
             SymbolTableEntry* ste = symbol_table_find(parser->sym, tk.str, 0);
@@ -465,16 +473,17 @@ static ASTNode* primary(ParserState* parser) {
             }
 
             if (ste->type == SYM_VAR) {
-                VarNode* node = arena_alloc(parser->arena, sizeof(VarNode));
-                node->type = NODE_VAR;
-                node->ste = (VarSymbolTableEntry*)ste;
-                return (ASTNode*)node;
+                VarNode* var_node = arena_alloc(parser->arena, sizeof(VarNode));
+                var_node->type = NODE_VAR;
+                var_node->ste = (VarSymbolTableEntry*)ste;
+                node = (ASTNode*)var_node;
             } else {
                 // SYM_FUNC
-                CallNode* node = arena_alloc(parser->arena, sizeof(CallNode));
-                node->type = NODE_CALL;
-                node->ste = (FuncSymbolTableEntry*)ste;
-                node->args = NULL;
+                CallNode* call_node =
+                    arena_alloc(parser->arena, sizeof(CallNode));
+                call_node->type = NODE_CALL;
+                call_node->ste = (FuncSymbolTableEntry*)ste;
+                call_node->args = NULL;
 
                 tk = next_token(parser);
                 if (tk.type != TK_LPAREN) {
@@ -493,8 +502,8 @@ static ASTNode* primary(ParserState* parser) {
                         ASTNodeList* arg =
                             arena_alloc(parser->arena, sizeof(ASTNodeList));
                         arg->node = arg_node;
-                        arg->next = node->args;
-                        node->args = arg;
+                        arg->next = call_node->args;
+                        call_node->args = arg;
 
                         tk = next_token(parser);
                         if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
@@ -503,12 +512,12 @@ static ASTNode* primary(ParserState* parser) {
                         }
                     }
                 }
-                return (ASTNode*)node;
+                node = (ASTNode*)call_node;
             }
-        }
+        } break;
 
         case TK_LPAREN: {
-            ASTNode* node = expr(parser, 0);
+            node = expr(parser, 0);
             if (node->type == NODE_ERR) {
                 return node;
             }
@@ -516,8 +525,7 @@ static ASTNode* primary(ParserState* parser) {
             if (tk.type != TK_RPAREN) {
                 return error(parser, parser->pre_token_pos, "expected ')'");
             }
-            return node;
-        }
+        } break;
 
         case TK_ADD:
         case TK_SUB:
@@ -525,16 +533,17 @@ static ASTNode* primary(ParserState* parser) {
         case TK_LNOT:
         case TK_MUL:
         case TK_AND: {
-            UnaryOpNode* node = arena_alloc(parser->arena, sizeof(UnaryOpNode));
-            node->type = NODE_UNARYOP;
-            node->pos = parser->post_token_pos;
-            node->op = tk.type;
-            node->node = primary(parser);
-            if (node->node->type == NODE_ERR) {
-                return node->node;
+            UnaryOpNode* unary_node =
+                arena_alloc(parser->arena, sizeof(UnaryOpNode));
+            unary_node->type = NODE_UNARYOP;
+            unary_node->pos = parser->post_token_pos;
+            unary_node->op = tk.type;
+            unary_node->node = primary(parser);
+            if (unary_node->node->type == NODE_ERR) {
+                return unary_node->node;
             }
-            return (ASTNode*)node;
-        }
+            node = (ASTNode*)unary_node;
+        } break;
 
         case TK_ERR:
             return error(parser, parser->post_token_pos, "%.*s", tk.str.len,
@@ -543,6 +552,23 @@ static ASTNode* primary(ParserState* parser) {
         default:
             return error(parser, parser->post_token_pos, "unexpected token");
     }
+
+    tk = peek_token(parser);
+    if (tk.type == TK_DOT) {
+        next_token(parser);
+        BinaryOpNode* binop = arena_alloc(parser->arena, sizeof(BinaryOpNode));
+        binop->type = NODE_BINARYOP;
+        binop->pos = parser->post_token_pos;
+        binop->op = tk.type;
+        binop->left = node;
+        binop->right = primary(parser);
+        if (binop->right->type == NODE_ERR) {
+            return binop->right;
+        }
+        node = (ASTNode*)binop;
+    }
+
+    return node;
 }
 
 static inline int get_precedence(TokenType type) {

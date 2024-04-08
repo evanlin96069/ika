@@ -129,6 +129,9 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
         }
 
         genf(out, "LAB_%d:", label);
+
+        result.type = RESULT_OK;
+        result.info.is_lvalue = 0;
     } else if (binop->op == TK_LAND) {
         int label = add_label();
         genf(out, "    testl %%eax, %%eax");
@@ -144,6 +147,9 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
         }
 
         genf(out, "LAB_%d:", label);
+
+        result.type = RESULT_OK;
+        result.info.is_lvalue = 0;
     } else {
         genf(out, "    pushl %%eax");
 
@@ -158,6 +164,9 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
 
         genf(out, "    movl %%eax, %%ecx");
         genf(out, "    popl %%eax");
+
+        result.type = RESULT_OK;
+        result.info.is_lvalue = 0;
 
         switch (binop->op) {
             case TK_ADD:
@@ -241,13 +250,16 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
                 genf(out, "    movzbl %%al, %%eax");
                 break;
 
+            case TK_DOT:
+                genf(out, "    addl %%ecx, %%eax");
+                result.info.is_lvalue = 1;
+                break;
+
             default:
                 assert(0);
         }
     }
 
-    result.type = RESULT_OK;
-    result.info.is_lvalue = 0;
     return result;
 }
 

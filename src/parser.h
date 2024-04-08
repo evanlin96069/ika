@@ -71,6 +71,7 @@ typedef enum TokenType {
     TK_SEMICOLON,
     TK_COMMA,
     TK_COLON,
+    TK_DOT,
 } TokenType;
 
 typedef struct Token {
