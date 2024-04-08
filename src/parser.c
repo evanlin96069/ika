@@ -9,6 +9,24 @@
 
 static inline int is_digit(char c) { return c >= '0' && c <= '9'; }
 
+static inline int is_hex_digit(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+           (c >= 'A' && c <= 'F');
+}
+
+static inline int hex_digit_to_int(char c) {
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F')
+        return 10 + (c - 'A');
+    assert(0);
+    return 0;  // unreachable
+}
+
+static inline int is_oct_digit(char c) { return c >= '0' && c <= '7'; }
+
 static inline int is_letter(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
@@ -269,12 +287,84 @@ static Token next_token_internal(ParserState* parser, int peek) {
 
         default:
             if (is_digit(c)) {
-                tk.type = TK_INT;
-                tk.val = 0;
-                while (is_digit(c)) {
-                    tk.val *= 10;
-                    tk.val += (parser->src + parser->pos)[offset] - '0';
-                    c = (parser->src + parser->pos)[++offset];
+                if (c == '0') {
+                    char next = (parser->src + parser->pos)[offset + 1];
+                    if (next == 'x' || next == 'X') {  // hex
+                        offset += 2;
+                        tk.val = 0;
+                        c = (parser->src + parser->pos)[offset];
+                        if (!is_hex_digit(c)) {
+                            tk.type = TK_ERR;
+                        } else {
+                            while (is_hex_digit(c)) {
+                                tk.val = tk.val * 16 + hex_digit_to_int(c);
+                                c = (parser->src + parser->pos)[++offset];
+                            }
+
+                            if (is_letter(c)) {
+                                tk.type = TK_ERR;
+                            } else {
+                                tk.type = TK_INT;
+                            }
+                        }
+
+                        if (tk.type == TK_ERR) {
+                            tk.str =
+                                str("invalid digit in hexadecimal constant");
+                        }
+                    } else if (next == 'b' || next == 'B') {  // bin
+                        offset += 2;
+                        tk.val = 0;
+                        c = (parser->src + parser->pos)[offset];
+                        if (c != '0' && c != '1') {
+                            tk.type = TK_ERR;
+                        } else {
+                            while (c == '0' || c == '1') {
+                                tk.val = tk.val * 2 + (c - '0');
+                                c = (parser->src + parser->pos)[++offset];
+                            }
+
+                            if (is_digit(c) || is_letter(c)) {
+                                tk.type = TK_ERR;
+                            } else {
+                                tk.type = TK_INT;
+                            }
+                        }
+
+                        if (tk.type == TK_ERR) {
+                            tk.str = str("invalid digit in binary constant");
+                        }
+                    } else {  // oct
+                        offset++;
+                        tk.val = 0;
+                        c = (parser->src + parser->pos)[offset];
+                        while (is_oct_digit(c)) {
+                            tk.val = tk.val * 8 + (c - '0');
+                            c = (parser->src + parser->pos)[++offset];
+                        }
+
+                        if (is_digit(c) || is_letter(c)) {
+                            tk.type = TK_ERR;
+                            tk.str = str("invalid digit in octal constant");
+                        } else {
+                            tk.type = TK_INT;
+                        }
+                    }
+                } else {  // dec
+                    tk.type = TK_INT;
+                    tk.val = 0;
+                    while (is_digit(c)) {
+                        tk.val *= 10;
+                        tk.val += c - '0';
+                        c = (parser->src + parser->pos)[++offset];
+                    }
+
+                    if (is_letter(c)) {
+                        tk.type = TK_ERR;
+                        tk.str = str("invalid digit in decimal constant");
+                    } else {
+                        tk.type = TK_INT;
+                    }
                 }
             } else if (is_letter(c) || c == '_') {
                 Str ident = {
@@ -301,6 +391,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
 
             } else {
                 tk.type = TK_ERR;
+                tk.str = str("unknown token");
             }
     }
 
@@ -446,7 +537,8 @@ static ASTNode* primary(ParserState* parser) {
         }
 
         case TK_ERR:
-            return error(parser, parser->post_token_pos, "unknown token");
+            return error(parser, parser->post_token_pos, "%.*s", tk.str.len,
+                         tk.str.ptr);
 
         default:
             return error(parser, parser->post_token_pos, "unexpected token");
