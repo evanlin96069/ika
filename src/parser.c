@@ -1391,5 +1391,8 @@ ASTNode* parser_parse(ParserState* parser, const char* src) {
     parser->src = src;
     parser->pos = 0;
 
+    symbol_table_append_var(parser->sym, str("argc"), 0);
+    symbol_table_append_var(parser->sym, str("argv"), 0);
+
     return stmt_list(parser, 0);
 }

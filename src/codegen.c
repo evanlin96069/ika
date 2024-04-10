@@ -853,6 +853,11 @@ Error* codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
         genf(out, "    subl $%d, %%esp", *sym->stack_size);
     }
 
+    genf(out, "    movl 8(%%ebp), %%eax");
+    genf(out, "    movl %%eax, VAR_argc");
+    genf(out, "    movl 12(%%ebp), %%eax");
+    genf(out, "    movl %%eax, VAR_argv");
+
     result = emit_node(out, node);
     if (result.type == RESULT_ERROR) {
         return result.error;
