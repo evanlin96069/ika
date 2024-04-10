@@ -917,7 +917,7 @@ static ASTNode* var_decl(ParserState* parser) {
     } else if (tk.type != TK_SEMICOLON) {
         next_token(parser);
         return error(parser, parser->pre_token_pos,
-                     "Expected '=' or ';' after declaration");
+                     "expected '=' or ';' after declaration");
     }
 
     return NULL;
@@ -1034,7 +1034,7 @@ static ASTNode* if_stmt(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_LPAREN) {
-        return error(parser, parser->pre_token_pos, "Expected '('");
+        return error(parser, parser->pre_token_pos, "expected '('");
     }
 
     if_node->expr = expr(parser, 0);
@@ -1044,12 +1044,12 @@ static ASTNode* if_stmt(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_RPAREN) {
-        return error(parser, parser->pre_token_pos, "Expected ')'");
+        return error(parser, parser->pre_token_pos, "expected ')'");
     }
 
     tk = peek_token(parser);
     if (tk.type != TK_LBRACE) {
-        return error(parser, parser->pre_token_pos, "Expected '{'");
+        return error(parser, parser->pre_token_pos, "expected '{'");
     }
 
     if_node->then_block = scope(parser);
@@ -1063,7 +1063,7 @@ static ASTNode* if_stmt(ParserState* parser) {
 
         tk = peek_token(parser);
         if (tk.type != TK_LBRACE) {
-            return error(parser, parser->pre_token_pos, "Expected '{'");
+            return error(parser, parser->pre_token_pos, "expected '{'");
         }
 
         if_node->else_block = scope(parser);
@@ -1084,7 +1084,7 @@ static ASTNode* while_stmt(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_LPAREN) {
-        return error(parser, parser->pre_token_pos, "Expected '('");
+        return error(parser, parser->pre_token_pos, "expected '('");
     }
 
     while_node->expr = expr(parser, 0);
@@ -1094,7 +1094,7 @@ static ASTNode* while_stmt(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_RPAREN) {
-        return error(parser, parser->pre_token_pos, "Expected ')'");
+        return error(parser, parser->pre_token_pos, "expected ')'");
     }
 
     tk = peek_token(parser);
@@ -1110,7 +1110,7 @@ static ASTNode* while_stmt(ParserState* parser) {
 
     tk = peek_token(parser);
     if (tk.type != TK_LBRACE) {
-        return error(parser, parser->pre_token_pos, "Expected '{'");
+        return error(parser, parser->pre_token_pos, "expected '{'");
     }
 
     while_node->block = scope(parser);
@@ -1137,7 +1137,7 @@ static ASTNode* scope(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_RBRACE) {
-        return error(parser, parser->pre_token_pos, "Expected '}'");
+        return error(parser, parser->pre_token_pos, "expected '}'");
     }
 
     parser->sym = sym->parent;
@@ -1160,7 +1160,8 @@ static ASTNode* stmt(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos, "Expected ';'");
+                return error(parser, parser->pre_token_pos,
+                             "expected ';' after return statement");
             }
             break;
 
@@ -1209,7 +1210,7 @@ static ASTNode* stmt(ParserState* parser) {
 
             if (tk.type != TK_COMMA && tk.type != TK_SEMICOLON) {
                 return error(parser, parser->pre_token_pos,
-                             "expected ',' or ';'");
+                             "expected ',' or ';' after string literal");
             }
         } break;
 
@@ -1225,7 +1226,13 @@ static ASTNode* stmt(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos, "Expected ';'");
+                if (tk.type == TK_BREAK) {
+                    return error(parser, parser->pre_token_pos,
+                                 "expected ';' after break statement");
+                } else {
+                    return error(parser, parser->pre_token_pos,
+                                 "expected ';' after continue statement");
+                }
             }
         } break;
 
@@ -1236,7 +1243,8 @@ static ASTNode* stmt(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos, "Expected ';'");
+                return error(parser, parser->pre_token_pos,
+                             "expected ';' after expression");
             }
     }
     return node;
@@ -1251,29 +1259,45 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
     for (Token tk = peek_token(parser);
          tk.type != TK_NUL && (!in_scope || tk.type != TK_RBRACE);
          tk = peek_token(parser)) {
-        ASTNode* node;
-        if (!in_scope && tk.type == TK_FUNC) {
-            node = func_decl(parser);
-            if (node && node->type == NODE_ERR)
-                return node;
-        } else if (tk.type == TK_DECL) {
-            node = var_decl(parser);
-            if (node && node->type == NODE_ERR)
-                return node;
+        ASTNode* node = NULL;
 
-            tk = next_token(parser);
-            if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos, "Expected ';'");
-            }
-        } else {
-            node = stmt(parser);
+        switch (tk.type) {
+            case TK_FUNC:
+                if (in_scope) {
+                    next_token(parser);
+                    return error(parser, parser->post_token_pos,
+                                 "function definition is not allowed here");
+                }
+                node = func_decl(parser);
+                if (node && node->type == NODE_ERR) {
+                    return node;
+                }
+                break;
+
+            case TK_DECL:
+                node = var_decl(parser);
+                if (node && node->type == NODE_ERR) {
+                    return node;
+                }
+
+                tk = next_token(parser);
+                if (tk.type != TK_SEMICOLON) {
+                    return error(parser, parser->pre_token_pos,
+                                 "expected ';' at end of declaration");
+                }
+                break;
+
+            default:
+                node = stmt(parser);
         }
 
-        if (node == NULL)
+        if (node == NULL) {
             continue;
+        }
 
-        if (node->type == NODE_ERR)
+        if (node->type == NODE_ERR) {
             return node;
+        }
 
         ASTNodeList* list = arena_alloc(parser->arena, sizeof(ASTNodeList));
         list->node = node;
