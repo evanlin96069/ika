@@ -306,6 +306,9 @@ static Token next_token_internal(ParserState* parser, int peek) {
                         case '?':
                         case '\\':
                             break;
+                        case '0':
+                            c = '\0';
+                            break;
                         case 'a':
                             c = '\a';
                             break;
@@ -598,16 +601,41 @@ static ASTNode* primary(ParserState* parser) {
         case TK_MUL:
         case TK_AND:
         case TK_DOLLAR: {
-            UnaryOpNode* unary_node =
-                arena_alloc(parser->arena, sizeof(UnaryOpNode));
-            unary_node->type = NODE_UNARYOP;
-            unary_node->pos = parser->post_token_pos;
-            unary_node->op = tk.type;
-            unary_node->node = primary(parser);
-            if (unary_node->node->type == NODE_ERR) {
-                return unary_node->node;
+            ASTNode* right = primary(parser);
+            if (right->type == NODE_ERR) {
+                return right;
             }
-            node = (ASTNode*)unary_node;
+
+            if (right->type == NODE_INTLIT &&
+                (tk.type != TK_MUL && tk.type != TK_AND &&
+                 tk.type != TK_DOLLAR)) {
+                IntLitNode* intlit = (IntLitNode*)right;
+                int val = intlit->val;
+                switch (tk.type) {
+                    case TK_ADD:
+                        break;
+                    case TK_SUB:
+                        intlit->val = (-val);
+                        break;
+                    case TK_NOT:
+                        intlit->val = (~val);
+                        break;
+                    case TK_LNOT:
+                        intlit->val = (!val);
+                        break;
+                    default:
+                        assert(0);
+                }
+                node = (ASTNode*)intlit;
+            } else {
+                UnaryOpNode* unary_node =
+                    arena_alloc(parser->arena, sizeof(UnaryOpNode));
+                unary_node->type = NODE_UNARYOP;
+                unary_node->pos = parser->post_token_pos;
+                unary_node->op = tk.type;
+                unary_node->node = right;
+                node = (ASTNode*)unary_node;
+            }
         } break;
 
         case TK_ERR:
@@ -790,9 +818,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                     int a = ((IntLitNode*)left)->val;
                     int b = ((IntLitNode*)right)->val;
 
-                    IntLitNode* intlit =
-                        arena_alloc(parser->arena, sizeof(IntLitNode));
-                    intlit->type = NODE_INTLIT;
+                    IntLitNode* intlit = (IntLitNode*)left;
 
                     switch (tk.type) {
                         case TK_LOR:
@@ -1103,12 +1129,7 @@ static ASTNode* if_stmt(ParserState* parser) {
         return error(parser, parser->pre_token_pos, "expected ')'");
     }
 
-    tk = peek_token(parser);
-    if (tk.type != TK_LBRACE) {
-        return error(parser, parser->pre_token_pos, "expected '{'");
-    }
-
-    if_node->then_block = scope(parser);
+    if_node->then_block = stmt(parser);
     if (if_node->then_block && if_node->then_block->type == NODE_ERR) {
         return if_node->then_block;
     }
@@ -1117,15 +1138,12 @@ static ASTNode* if_stmt(ParserState* parser) {
     if (tk.type == TK_ELSE) {
         next_token(parser);
 
-        tk = peek_token(parser);
-        if (tk.type != TK_LBRACE) {
-            return error(parser, parser->pre_token_pos, "expected '{'");
-        }
-
-        if_node->else_block = scope(parser);
+        if_node->else_block = stmt(parser);
         if (if_node->else_block && if_node->else_block->type == NODE_ERR) {
             return if_node->else_block;
         }
+    } else {
+        if_node->else_block = NULL;
     }
 
     return (ASTNode*)if_node;
@@ -1164,12 +1182,7 @@ static ASTNode* while_stmt(ParserState* parser) {
         while_node->inc = NULL;
     }
 
-    tk = peek_token(parser);
-    if (tk.type != TK_LBRACE) {
-        return error(parser, parser->pre_token_pos, "expected '{'");
-    }
-
-    while_node->block = scope(parser);
+    while_node->block = stmt(parser);
     if (while_node->block && while_node->block->type == NODE_ERR) {
         return while_node->block;
     }
