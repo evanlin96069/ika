@@ -77,13 +77,15 @@ int main(int argc, char* argv[]) {
     rewind(fp);
 
     if (size == 0) {
+        fprintf(stderr, "\x1b[31merror:\x1b[0m file %s has no content\n",
+                src_path);
         fclose(fp);
-        return 0;
+        return 1;
     }
 
     char* buf = malloc(size + 1);
     if (!buf) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m Failed to allocate memory\n");
+        fprintf(stderr, "\x1b[31merror:\x1b[0m failed to allocate memory\n");
         fclose(fp);
         return 1;
     }
@@ -92,7 +94,8 @@ int main(int argc, char* argv[]) {
     fclose(fp);
 
     if (n_read != 1) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m Failed to read file\n");
+        fprintf(stderr, "\x1b[31merror:\x1b[0m failed to read file: %s\n",
+                src_path);
         free(buf);
         return 1;
     }
@@ -178,7 +181,7 @@ int main(int argc, char* argv[]) {
         snprintf(command, sizeof(command), "rm %s", asm_out_path);
         ret = system(command);
         if (ret != 0) {
-            fprintf(stderr, "\x1b[31merror:\x1b[0m failed remove %s\n",
+            fprintf(stderr, "\x1b[31merror:\x1b[0m failed remove file: %s\n",
                     asm_out_path);
         }
     }
