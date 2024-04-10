@@ -26,6 +26,17 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
     sym->arg_size = 0;  // fill in during parsing
 }
 
+static inline void symbol_table_append(SymbolTable* sym,
+                                       SymbolTableEntry* ste) {
+    ste->next = NULL;
+    if (!sym->ste) {
+        sym->ste = sym->_tail = (SymbolTableEntry*)ste;
+    } else {
+        sym->_tail->next = (SymbolTableEntry*)ste;
+        sym->_tail = sym->_tail->next;
+    }
+}
+
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              int is_arg) {
     VarSymbolTableEntry* ste =
@@ -34,6 +45,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+
     ste->is_global = sym->is_global;
 
     if (is_arg) {
@@ -52,13 +64,23 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
         *sym->stack_size = sym->offset;
     }
 
-    ste->next = NULL;
-    if (!sym->ste) {
-        sym->ste = sym->_tail = (SymbolTableEntry*)ste;
-    } else {
-        sym->_tail->next = (SymbolTableEntry*)ste;
-        sym->_tail = sym->_tail->next;
-    }
+    symbol_table_append(sym, (SymbolTableEntry*)ste);
+
+    return ste;
+}
+
+DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
+                                             int val) {
+    DefSymbolTableEntry* ste =
+        arena_alloc(sym->arena, sizeof(DefSymbolTableEntry));
+    ste->type = SYM_DEF;
+
+    ste->ident = ident;
+    ste->hash = djb2_hash(ident);
+
+    ste->val = val;
+
+    symbol_table_append(sym, (SymbolTableEntry*)ste);
 
     return ste;
 }
@@ -74,13 +96,7 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident) {
     ste->node = NULL;  // fill in during parsing
     ste->sym = NULL;   // fill in during parsing
 
-    ste->next = NULL;
-    if (!sym->ste) {
-        sym->ste = sym->_tail = (SymbolTableEntry*)ste;
-    } else {
-        sym->_tail->next = (SymbolTableEntry*)ste;
-        sym->_tail = sym->_tail->next;
-    }
+    symbol_table_append(sym, (SymbolTableEntry*)ste);
 
     return ste;
 }

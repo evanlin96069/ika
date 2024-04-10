@@ -41,10 +41,9 @@ typedef struct StrToken {
 } StrToken;
 
 StrToken str_tk[] = {
-    {"var", TK_DECL},    {"if", TK_IF},
-    {"else", TK_ELSE},   {"while", TK_WHILE},
-    {"fn", TK_FUNC},     {"return", TK_RET},
-    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
+    {"var", TK_DECL},   {"def", TK_DEF},     {"if", TK_IF},
+    {"else", TK_ELSE},  {"while", TK_WHILE}, {"fn", TK_FUNC},
+    {"return", TK_RET}, {"break", TK_BREAK}, {"continue", TK_CONTINUE},
 };
 
 static Token next_token_internal(ParserState* parser, int peek) {
@@ -469,6 +468,7 @@ static inline Token peek_token(ParserState* parser) {
 static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* var_decl(ParserState* parser);
+static ASTNode* def_decl(ParserState* parser);
 static ASTNode* func_decl(ParserState* parser);
 static ASTNode* return_stmt(ParserState* parser);
 static ASTNode* if_stmt(ParserState* parser);
@@ -519,47 +519,64 @@ static ASTNode* primary(ParserState* parser) {
                              "'%.*s' undeclared", tk.str.len, tk.str.ptr);
             }
 
-            if (ste->type == SYM_VAR) {
-                VarNode* var_node = arena_alloc(parser->arena, sizeof(VarNode));
-                var_node->type = NODE_VAR;
-                var_node->ste = (VarSymbolTableEntry*)ste;
-                node = (ASTNode*)var_node;
-            } else {
-                // SYM_FUNC
-                CallNode* call_node =
-                    arena_alloc(parser->arena, sizeof(CallNode));
-                call_node->type = NODE_CALL;
-                call_node->ste = (FuncSymbolTableEntry*)ste;
-                call_node->args = NULL;
+            switch (ste->type) {
+                case SYM_VAR: {
+                    VarNode* var_node =
+                        arena_alloc(parser->arena, sizeof(VarNode));
+                    var_node->type = NODE_VAR;
+                    var_node->ste = (VarSymbolTableEntry*)ste;
+                    node = (ASTNode*)var_node;
+                } break;
 
-                tk = next_token(parser);
-                if (tk.type != TK_LPAREN) {
-                    return error(parser, parser->pre_token_pos, "expected '('");
-                }
+                case SYM_DEF: {
+                    IntLitNode* intlit =
+                        arena_alloc(parser->arena, sizeof(intlit));
+                    intlit->type = NODE_INTLIT;
+                    intlit->val = ((DefSymbolTableEntry*)ste)->val;
+                    node = (ASTNode*)intlit;
+                } break;
 
-                tk = peek_token(parser);
-                if (tk.type == TK_RPAREN) {
-                    next_token(parser);
-                } else {
-                    while (tk.type != TK_RPAREN) {
-                        ASTNode* arg_node = expr(parser, 0);
-                        if (arg_node->type == NODE_ERR)
-                            return arg_node;
+                case SYM_FUNC: {
+                    CallNode* call_node =
+                        arena_alloc(parser->arena, sizeof(CallNode));
+                    call_node->type = NODE_CALL;
+                    call_node->ste = (FuncSymbolTableEntry*)ste;
+                    call_node->args = NULL;
 
-                        ASTNodeList* arg =
-                            arena_alloc(parser->arena, sizeof(ASTNodeList));
-                        arg->node = arg_node;
-                        arg->next = call_node->args;
-                        call_node->args = arg;
+                    tk = next_token(parser);
+                    if (tk.type != TK_LPAREN) {
+                        return error(parser, parser->pre_token_pos,
+                                     "expected '('");
+                    }
 
-                        tk = next_token(parser);
-                        if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
-                            return error(parser, parser->pre_token_pos,
-                                         "expected ',' or ')'");
+                    tk = peek_token(parser);
+                    if (tk.type == TK_RPAREN) {
+                        next_token(parser);
+                    } else {
+                        while (tk.type != TK_RPAREN) {
+                            ASTNode* arg_node = expr(parser, 0);
+                            if (arg_node->type == NODE_ERR) {
+                                return arg_node;
+                            }
+
+                            ASTNodeList* arg =
+                                arena_alloc(parser->arena, sizeof(ASTNodeList));
+                            arg->node = arg_node;
+                            arg->next = call_node->args;
+                            call_node->args = arg;
+
+                            tk = next_token(parser);
+                            if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
+                                return error(parser, parser->pre_token_pos,
+                                             "expected ',' or ')'");
+                            }
                         }
                     }
-                }
-                node = (ASTNode*)call_node;
+                    node = (ASTNode*)call_node;
+                } break;
+
+                default:
+                    assert(0);
             }
         } break;
 
@@ -923,6 +940,45 @@ static ASTNode* var_decl(ParserState* parser) {
     return NULL;
 }
 
+static ASTNode* def_decl(ParserState* parser) {
+    Token tk = next_token(parser);
+    assert(tk.type == TK_DEF);
+
+    tk = next_token(parser);
+
+    if (tk.type != TK_IDENT) {
+        return error(parser, parser->post_token_pos, "expected an identifier");
+    }
+
+    Str ident = tk.str;
+    if (symbol_table_find(parser->sym, ident, 1) != NULL) {
+        return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
+                     tk.str.len, tk.str.ptr);
+    }
+
+    tk = next_token(parser);
+    if (tk.type != TK_ASSIGN) {
+        return error(parser, parser->pre_token_pos,
+                     "expected '=' after define");
+    }
+
+    int pos = parser->pre_token_pos;
+
+    ASTNode* val = expr(parser, 0);
+    if (val->type == NODE_ERR) {
+        return val;
+    }
+
+    if (val->type != NODE_INTLIT) {
+        return error(parser, pos,
+                     "defined element is not a compile-time constant integer");
+    }
+
+    symbol_table_append_def(parser->sym, ident, ((IntLitNode*)val)->val);
+
+    return NULL;
+}
+
 static ASTNode* func_decl(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_FUNC);
@@ -1276,6 +1332,19 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
 
             case TK_DECL:
                 node = var_decl(parser);
+                if (node && node->type == NODE_ERR) {
+                    return node;
+                }
+
+                tk = next_token(parser);
+                if (tk.type != TK_SEMICOLON) {
+                    return error(parser, parser->pre_token_pos,
+                                 "expected ';' at end of declaration");
+                }
+                break;
+
+            case TK_DEF:
+                node = def_decl(parser);
                 if (node && node->type == NODE_ERR) {
                     return node;
                 }

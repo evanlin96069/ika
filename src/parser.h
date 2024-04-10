@@ -22,6 +22,7 @@ typedef enum TokenType {
     TK_INT,
     TK_STR,
     TK_DECL,
+    TK_DEF,
     TK_FUNC,
     TK_RET,
     TK_PRINT,

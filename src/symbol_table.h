@@ -8,6 +8,7 @@ struct ASTNode;
 
 typedef enum SymbolType {
     SYM_VAR,
+    SYM_DEF,
     SYM_FUNC,
 } SymbolType;
 
@@ -30,6 +31,15 @@ typedef struct VarSymbolTableEntry {
     int is_global;
     int offset;
 } VarSymbolTableEntry;
+
+typedef struct DefSymbolTableEntry {
+    Str ident;
+    int hash;
+    SymbolTableEntry* next;
+    SymbolType type;
+
+    int val;
+} DefSymbolTableEntry;
 
 typedef struct FuncSymbolTableEntry {
     Str ident;
@@ -54,9 +64,13 @@ struct SymbolTable {
 
 void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
                        int is_global, Arena* arena);
+
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              int is_arg);
+DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
+                                             int val);
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident);
+
 SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope);
 
