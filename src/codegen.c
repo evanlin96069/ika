@@ -85,6 +85,7 @@ static EmitResult emit_intlit(FILE* out, IntLitNode* lit) {
     EmitResult result = {RESULT_OK};
     genf(out, "    movl $%d, %%eax", lit->val);
     result.info.is_lvalue = 0;
+    result.info.size = 4;
     return result;
 }
 
@@ -92,13 +93,22 @@ static EmitResult emit_strlit(FILE* out, StrLitNode* lit) {
     EmitResult result = {RESULT_OK};
     genf(out, "    movl $DAT_%d, %%eax", add_data(lit->val));
     result.info.is_lvalue = 0;
+    result.info.size = 4;  // pointer is 4 bytes
     return result;
 }
 
-static EmitResult emit_rvalify(FILE* out) {
+static EmitResult emit_rvalify(FILE* out, int size) {
     EmitResult result = {RESULT_OK};
-    genf(out, "    movl (%%eax), %%eax");
+    if (size == 4) {
+        genf(out, "    movl (%%eax), %%eax");
+    } else if (size == 1) {
+        genf(out, "    movzbl (%%eax), %%eax");
+    } else {
+        assert(0);
+    }
+
     result.info.is_lvalue = 0;
+    result.info.size = 4;  // loaded value is 4 bytes
     return result;
 }
 
@@ -111,7 +121,7 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
     }
 
     if (result.info.is_lvalue) {
-        emit_rvalify(out);
+        emit_rvalify(out, result.info.size);
     }
 
     if (binop->op == TK_LOR) {
@@ -125,7 +135,7 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
 
         genf(out, "LAB_%d:", label);
@@ -143,7 +153,7 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
 
         genf(out, "LAB_%d:", label);
@@ -159,7 +169,7 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
 
         genf(out, "    movl %%eax, %%ecx");
@@ -167,6 +177,7 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
 
         result.type = RESULT_OK;
         result.info.is_lvalue = 0;
+        result.info.size = 4;
 
         switch (binop->op) {
             case TK_ADD:
@@ -271,60 +282,70 @@ static EmitResult emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
         return result;
     }
 
+    int is_lvalue = result.info.is_lvalue;
+    int size = result.info.size;
+
+    result.info.is_lvalue = 0;
+    result.info.size = 4;
+
     switch (unaryop->op) {
         case TK_ADD:
-            if (result.info.is_lvalue) {
-                emit_rvalify(out);
+            if (is_lvalue) {
+                emit_rvalify(out, size);
             }
 
-            result.info.is_lvalue = 0;
             break;
 
         case TK_SUB:
-            if (result.info.is_lvalue) {
-                emit_rvalify(out);
+            if (is_lvalue) {
+                emit_rvalify(out, size);
             }
 
             genf(out, "    negl %%eax");
 
-            result.info.is_lvalue = 0;
             break;
 
         case TK_NOT:
-            if (result.info.is_lvalue) {
-                emit_rvalify(out);
+            if (is_lvalue) {
+                emit_rvalify(out, size);
             }
 
             genf(out, "    notl %%eax");
 
-            result.info.is_lvalue = 0;
             break;
 
         case TK_LNOT:
-            if (result.info.is_lvalue) {
-                emit_rvalify(out);
+            if (is_lvalue) {
+                emit_rvalify(out, size);
             }
 
             genf(out, "    testl %%eax, %%eax");
             genf(out, "    sete %%al");
             genf(out, "    movzbl %%al, %%eax");
 
-            result.info.is_lvalue = 0;
             break;
 
         case TK_MUL:
-            if (result.info.is_lvalue) {
-                emit_rvalify(out);
+            if (is_lvalue) {
+                emit_rvalify(out, size);
             }
             result.info.is_lvalue = 1;
             break;
 
         case TK_AND:
-            if (result.info.is_lvalue == 0) {
+            if (is_lvalue == 0) {
                 return error(unaryop->pos,
                              "lvalue required as unary '&' operand");
             }
-            result.info.is_lvalue = 0;
+            break;
+
+        case TK_DOLLAR:
+            if (is_lvalue == 0) {
+                genf(out, "    movzbl %%al, %%eax");
+            } else {
+                result.info.size = 1;
+                result.info.is_lvalue = 1;
+            }
             break;
 
         default:
@@ -346,6 +367,7 @@ static EmitResult emit_var(FILE* out, VarNode* var) {
 
     result.type = RESULT_OK;
     result.info.is_lvalue = 1;
+    result.info.size = 4;
     return result;
 }
 
@@ -353,6 +375,7 @@ static EmitResult emit_assign(FILE* out, AssignNode* assign) {
     EmitResult result;
 
     result = emit_node(out, assign->left);
+    int lvalue_size = result.info.size;
     if (result.type == RESULT_ERROR) {
         return result;
     }
@@ -365,7 +388,7 @@ static EmitResult emit_assign(FILE* out, AssignNode* assign) {
     genf(out, "    pushl %%eax");
 
     if (assign->op != TK_ASSIGN) {
-        emit_rvalify(out);
+        emit_rvalify(out, result.info.size);
         genf(out, "    pushl %%eax");
 
         result = emit_node(out, assign->right);
@@ -374,7 +397,7 @@ static EmitResult emit_assign(FILE* out, AssignNode* assign) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
 
         genf(out, "    movl %%eax, %%ecx");
@@ -436,18 +459,26 @@ static EmitResult emit_assign(FILE* out, AssignNode* assign) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
     }
 
     genf(out, "    movl %%eax, %%ecx");
     genf(out, "    popl %%eax");
 
-    genf(out, "    movl %%ecx, (%%eax)");
+    if (lvalue_size == 4) {
+        genf(out, "    movl %%ecx, (%%eax)");
+    } else if (lvalue_size == 1) {
+        genf(out, "    movb %%cl, (%%eax)");
+    } else {
+        assert(0);
+    }
+
     genf(out, "    movl %%ecx, %%eax");
 
     result.type = RESULT_OK;
     result.info.is_lvalue = 0;
+    result.info.size = 4;
     return result;
 }
 
@@ -473,7 +504,7 @@ static EmitResult emit_if(FILE* out, IfStatementNode* if_node) {
     }
 
     if (result.info.is_lvalue) {
-        emit_rvalify(out);
+        emit_rvalify(out, result.info.size);
     }
 
     genf(out, "    testl %%eax, %%eax");
@@ -527,7 +558,7 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     }
 
     if (result.info.is_lvalue) {
-        emit_rvalify(out);
+        emit_rvalify(out, result.info.size);
     }
 
     genf(out, "    testl %%eax, %%eax");
@@ -613,7 +644,7 @@ static EmitResult emit_call(FILE* out, CallNode* call) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
 
         genf(out, "    pushl %%eax");
@@ -635,6 +666,7 @@ static EmitResult emit_call(FILE* out, CallNode* call) {
 
     result.type = RESULT_OK;
     result.info.is_lvalue = 0;
+    result.info.size = 4;
     return result;
 }
 
@@ -650,7 +682,7 @@ static EmitResult emit_print(FILE* out, PrintNode* print_node) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
 
         genf(out, "    pushl %%eax");
@@ -666,6 +698,7 @@ static EmitResult emit_print(FILE* out, PrintNode* print_node) {
 
     result.type = RESULT_OK;
     result.info.is_lvalue = 0;
+    result.info.size = 4;
     return result;
 }
 
@@ -679,7 +712,7 @@ static EmitResult emit_ret(FILE* out, ReturnNode* ret) {
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out);
+            emit_rvalify(out, result.info.size);
         }
     }
     genf(out, "    jmp LAB_%d", out_label);

@@ -262,6 +262,11 @@ static Token next_token_internal(ParserState* parser, int peek) {
             offset++;
             break;
 
+        case '$':
+            tk.type = TK_DOLLAR;
+            offset++;
+            break;
+
         case '\0':
             tk.type = TK_NUL;
             break;
@@ -532,7 +537,8 @@ static ASTNode* primary(ParserState* parser) {
         case TK_NOT:
         case TK_LNOT:
         case TK_MUL:
-        case TK_AND: {
+        case TK_AND:
+        case TK_DOLLAR: {
             UnaryOpNode* unary_node =
                 arena_alloc(parser->arena, sizeof(UnaryOpNode));
             unary_node->type = NODE_UNARYOP;

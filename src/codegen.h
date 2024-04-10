@@ -9,6 +9,7 @@ typedef enum { RESULT_OK, RESULT_ERROR } ResultType;
 
 typedef struct TypeInfo {
     int is_lvalue;
+    int size;
 } TypeInfo;
 
 typedef struct EmitResult {
