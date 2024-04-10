@@ -280,19 +280,61 @@ static Token next_token_internal(ParserState* parser, int peek) {
 
             // TODO: Parse string properly
             while (c != '"') {
-                s.len++;
-                c = (parser->src + parser->pos)[++offset];
                 if (c == '\\') {
                     s.len++;
                     c = (parser->src + parser->pos)[++offset];
-                    s.len++;
-                    c = (parser->src + parser->pos)[++offset];
                 }
+                s.len++;
+                c = (parser->src + parser->pos)[++offset];
             }
             offset++;
 
             tk.type = TK_STR;
             tk.str = s;
+        } break;
+
+        case '\'': {
+            tk.type = TK_INT;
+            tk.val = 0;
+
+            c = (parser->src + parser->pos)[++offset];
+            while (c != '\'') {
+                if (c == '\\') {
+                    c = (parser->src + parser->pos)[++offset];
+                    switch (c) {
+                        case '\'':
+                        case '"':
+                        case '?':
+                        case '\\':
+                            break;
+                        case 'a':
+                            c = '\a';
+                            break;
+                        case 'b':
+                            c = '\b';
+                            break;
+                        case 'f':
+                            c = '\f';
+                            break;
+                        case 'n':
+                            c = '\n';
+                            break;
+                        case 'r':
+                            c = '\r';
+                            break;
+                        case 't':
+                            c = '\t';
+                            break;
+                        case 'v':
+                            c = '\v';
+                            break;
+                    }
+                }
+                tk.val <<= 8;
+                tk.val += c;
+                c = (parser->src + parser->pos)[++offset];
+            }
+            offset++;
         } break;
 
         default:
