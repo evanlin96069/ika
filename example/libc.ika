@@ -1,0 +1,118 @@
+def char = 1;
+def int = 4;
+def ptr = 4;
+
+// stdio.h
+
+def EOF = -1;
+def NULL = 0;
+
+extern var stdin;
+extern var stdout;
+extern var stderr;
+
+extern fn snprintf(str, n, fmt);
+extern fn fprintf(fp, fmt);
+extern fn fflush(fp);
+
+extern fn perror(str);
+
+extern fn fscanf(fp, fmt);
+extern fn scanf(fmt);
+extern fn sscanf(str, fmt);
+
+extern fn fopen(path, mode);
+extern fn fclose(fp);
+
+extern fn clearerr(fp);
+extern fn feof(fp);
+extern fn ferror(fp);
+
+def SEEK_SET = 0;
+def SEEK_CUR = 1;
+def SEEK_END = 2;
+
+extern fn fseek(fp, offset, whence);
+extern fn ftell(fp);
+extern fn rewind(fp);
+
+extern fn fread(ptr, size, n, fp);
+extern fn fwrite(ptr, size, n, fp);
+
+extern fn remove(path);
+extern fn rename(old_path, new_path);
+
+extern fn tmpfile();
+extern fn tmpnam(str);
+
+extern fn fgetc(fp);
+extern fn fputc(c, fp);
+extern fn fgets(str, n, fp);
+extern fn fputs(str, fp);
+extern fn gets(str);
+extern fn puts(str);
+extern fn putchar(c);
+extern fn getchar();
+
+// stdlib.h
+
+extern fn atoi(str);
+
+extern fn malloc(size);
+extern fn calloc(n, size);
+extern fn realloc(ptr, size);
+extern fn free(ptr);
+
+extern fn getenv(str);
+
+def EXIT_FAILURE = 1;
+def EXIT_SUCCESS = 0;
+extern fn abort();
+extern fn exit(ret);
+
+def RAND_MAX = 32767;
+extern fn rand();
+extern fn srand(seed);
+
+extern fn abs(x);
+
+// string.h
+
+extern fn memchr(str, c, n);
+extern fn memcmp(s1, s2, n);
+extern fn memcpy(dest, sec, n);
+extern fn memmove(dest, sec, n);
+extern fn memset(str, c, n);
+
+extern fn strcat(dest, src);
+extern fn strncat(dest, src, n);
+extern fn strchr(str, c);
+extern fn strrchr(str, c);
+extern fn strcmp(s1, s2);
+extern fn strncmp(s1, s2, n);
+extern fn strcpy(dest, src);
+extern fn strncpy(dest, src, n);
+extern fn strlen(str);
+extern fn strstr(haytstack, neddle);
+
+// time.h
+
+extern fn clock();
+extern fn time(t);
+
+// ctype.h
+
+extern fn isalnum(c);
+extern fn isalpha(c);
+extern fn iscntrl(c);
+extern fn isdigit(c);
+extern fn isgraph(c);
+extern fn islower(c);
+extern fn isprint(c);
+extern fn ispunct(c);
+extern fn isspace(c);
+extern fn isupper(c);
+extern fn isxdigit(c);
+
+extern fn tolower(c);
+extern fn toupper(c);
