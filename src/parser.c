@@ -947,7 +947,7 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
         if (is_extern) {
             next_token(parser);
             return error(parser, parser->post_token_pos,
-                         "cannot initialize while declaring 'extern'");
+                         "initializing extern variable is not allowed");
         }
 
         VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
@@ -1038,8 +1038,6 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
                      tk.str.len, tk.str.ptr);
     }
 
-    func->is_extern = is_extern;
-
     tk = next_token(parser);
     if (tk.type != TK_LPAREN) {
         return error(parser, parser->pre_token_pos, "expected '('");
@@ -1080,6 +1078,12 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
     tk = peek_token(parser);
     if (tk.type == TK_LBRACE) {
+        if (func->is_extern) {
+            next_token(parser);
+            return error(parser, parser->post_token_pos,
+                         "implementing extern function is not allowed");
+        }
+
         ASTNode* node = scope(parser);
         if (node->type == NODE_ERR) {
             return node;

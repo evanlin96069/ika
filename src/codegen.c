@@ -792,12 +792,10 @@ static EmitResult emit_func(FILE* out, FuncSymbolTableEntry* func) {
 
     out_label = add_label();
 
-    if (func->is_extern) {
-        genf(out, ".global %.*s", func->ident.len, func->ident.ptr);
-        genf(out, "%.*s:", func->ident.len, func->ident.ptr);
-    } else {
-        genf(out, "FUNC_%.*s:", func->ident.len, func->ident.ptr);
-    }
+    assert(func->node);
+    assert(func->is_extern == 0);
+
+    genf(out, "FUNC_%.*s:", func->ident.len, func->ident.ptr);
 
     genf(out, "    pushl %%ebp");
     genf(out, "    movl %%esp, %%ebp");
