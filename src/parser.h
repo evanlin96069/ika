@@ -24,6 +24,7 @@ typedef enum TokenType {
     TK_DECL,
     TK_DEF,
     TK_FUNC,
+    TK_EXTERN,
     TK_RET,
     TK_PRINT,
     TK_IF,

@@ -38,7 +38,7 @@ static inline void symbol_table_append(SymbolTable* sym,
 }
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
-                                             int is_arg) {
+                                             int is_arg, int is_extern) {
     VarSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(VarSymbolTableEntry));
     ste->type = SYM_VAR;
@@ -46,22 +46,25 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
 
+    ste->is_extern = is_extern;
     ste->is_global = sym->is_global;
 
-    if (is_arg) {
-        ste->offset = sym->arg_size + 8;
-        sym->arg_size += 4;
-    } else {
-        if (ste->is_global) {
-            ste->offset = sym->offset;
+    if (is_extern == 0) {
+        if (is_arg) {
+            ste->offset = sym->arg_size + 8;
+            sym->arg_size += 4;
         } else {
-            ste->offset = -sym->offset - 4;
+            if (ste->is_global) {
+                ste->offset = sym->offset;
+            } else {
+                ste->offset = -sym->offset - 4;
+            }
+            sym->offset += 4;
         }
-        sym->offset += 4;
-    }
 
-    if (ste->is_global == 0 && *sym->stack_size < sym->offset) {
-        *sym->stack_size = sym->offset;
+        if (ste->is_global == 0 && *sym->stack_size < sym->offset) {
+            *sym->stack_size = sym->offset;
+        }
     }
 
     symbol_table_append(sym, (SymbolTableEntry*)ste);
@@ -85,13 +88,16 @@ DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
     return ste;
 }
 
-FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident) {
+FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
+                                               int is_extern) {
     FuncSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(FuncSymbolTableEntry));
     ste->type = SYM_FUNC;
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+
+    ste->is_extern = is_extern;
 
     ste->node = NULL;  // fill in during parsing
     ste->sym = NULL;   // fill in during parsing

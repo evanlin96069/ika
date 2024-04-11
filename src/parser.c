@@ -41,9 +41,10 @@ typedef struct StrToken {
 } StrToken;
 
 StrToken str_tk[] = {
-    {"var", TK_DECL},   {"def", TK_DEF},     {"if", TK_IF},
-    {"else", TK_ELSE},  {"while", TK_WHILE}, {"fn", TK_FUNC},
-    {"return", TK_RET}, {"break", TK_BREAK}, {"continue", TK_CONTINUE},
+    {"var", TK_DECL},      {"def", TK_DEF},     {"if", TK_IF},
+    {"else", TK_ELSE},     {"while", TK_WHILE}, {"fn", TK_FUNC},
+    {"return", TK_RET},    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
+    {"extern", TK_EXTERN},
 };
 
 static Token next_token_internal(ParserState* parser, int peek) {
@@ -470,9 +471,9 @@ static inline Token peek_token(ParserState* parser) {
 
 static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
-static ASTNode* var_decl(ParserState* parser);
+static ASTNode* var_decl(ParserState* parser, int is_extern);
 static ASTNode* def_decl(ParserState* parser);
-static ASTNode* func_decl(ParserState* parser);
+static ASTNode* func_decl(ParserState* parser, int is_extern);
 static ASTNode* return_stmt(ParserState* parser);
 static ASTNode* if_stmt(ParserState* parser);
 static ASTNode* while_stmt(ParserState* parser);
@@ -922,7 +923,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
     return node;
 }
 
-static ASTNode* var_decl(ParserState* parser) {
+static ASTNode* var_decl(ParserState* parser, int is_extern) {
     Token tk = next_token(parser);
     assert(tk.type == TK_DECL);
 
@@ -938,10 +939,17 @@ static ASTNode* var_decl(ParserState* parser) {
                      tk.str.len, tk.str.ptr);
     }
 
-    VarSymbolTableEntry* ste = symbol_table_append_var(parser->sym, ident, 0);
+    VarSymbolTableEntry* ste =
+        symbol_table_append_var(parser->sym, ident, 0, is_extern);
 
     tk = peek_token(parser);
     if (tk.type == TK_ASSIGN) {
+        if (is_extern) {
+            next_token(parser);
+            return error(parser, parser->post_token_pos,
+                         "cannot initialize while declaring 'extern'");
+        }
+
         VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
         var->type = NODE_VAR;
         var->ste = ste;
@@ -1005,7 +1013,7 @@ static ASTNode* def_decl(ParserState* parser) {
     return NULL;
 }
 
-static ASTNode* func_decl(ParserState* parser) {
+static ASTNode* func_decl(ParserState* parser, int is_extern) {
     Token tk = next_token(parser);
     assert(tk.type == TK_FUNC);
 
@@ -1020,15 +1028,17 @@ static ASTNode* func_decl(ParserState* parser) {
 
     FuncSymbolTableEntry* func;
     if (ste == NULL) {
-        func = symbol_table_append_func(parser->sym, ident);
+        func = symbol_table_append_func(parser->sym, ident, is_extern);
     } else if (ste->type == SYM_FUNC &&
                ((FuncSymbolTableEntry*)ste)->node == NULL) {
-        // extern
+        // forward declaration
         func = (FuncSymbolTableEntry*)ste;
     } else {
         return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
                      tk.str.len, tk.str.ptr);
     }
+
+    func->is_extern = is_extern;
 
     tk = next_token(parser);
     if (tk.type != TK_LPAREN) {
@@ -1058,7 +1068,7 @@ static ASTNode* func_decl(ParserState* parser) {
                 return error(parser, parser->post_token_pos,
                              "redefinition of '%.*s'", tk.str.len, tk.str.ptr);
             }
-            symbol_table_append_var(parser->sym, ident, 1);
+            symbol_table_append_var(parser->sym, ident, 1, 0);
 
             tk = next_token(parser);
             if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
@@ -1330,6 +1340,19 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
          tk = peek_token(parser)) {
         ASTNode* node = NULL;
 
+        int is_extern = 0;
+
+        if (tk.type == TK_EXTERN) {
+            next_token(parser);
+            tk = peek_token(parser);
+            if (tk.type != TK_FUNC && tk.type != TK_DECL) {
+                next_token(parser);
+                return error(parser, parser->post_token_pos,
+                             "expected function or variable declaration");
+            }
+            is_extern = 1;
+        }
+
         switch (tk.type) {
             case TK_FUNC:
                 if (in_scope) {
@@ -1337,14 +1360,14 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                     return error(parser, parser->post_token_pos,
                                  "function definition is not allowed here");
                 }
-                node = func_decl(parser);
+                node = func_decl(parser, is_extern);
                 if (node && node->type == NODE_ERR) {
                     return node;
                 }
                 break;
 
             case TK_DECL:
-                node = var_decl(parser);
+                node = var_decl(parser, is_extern);
                 if (node && node->type == NODE_ERR) {
                     return node;
                 }
@@ -1404,8 +1427,8 @@ ASTNode* parser_parse(ParserState* parser, const char* src) {
     parser->src = src;
     parser->pos = 0;
 
-    symbol_table_append_var(parser->sym, str("argc"), 0);
-    symbol_table_append_var(parser->sym, str("argv"), 0);
+    symbol_table_append_var(parser->sym, str("argc"), 0, 0);
+    symbol_table_append_var(parser->sym, str("argv"), 0, 0);
 
     return stmt_list(parser, 0);
 }

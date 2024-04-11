@@ -358,7 +358,10 @@ static EmitResult emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
 
 static EmitResult emit_var(FILE* out, VarNode* var) {
     EmitResult result;
-    if (var->ste->is_global) {
+    if (var->ste->is_extern) {
+        genf(out, "    movl $%.*s, %%eax", var->ste->ident.len,
+             var->ste->ident.ptr);
+    } else if (var->ste->is_global) {
         genf(out, "    movl $VAR_%.*s, %%eax", var->ste->ident.len,
              var->ste->ident.ptr);
     } else {
@@ -652,12 +655,12 @@ static EmitResult emit_call(FILE* out, CallNode* call) {
         curr = curr->next;
     }
 
-    if (call->ste->node) {
-        genf(out, "    call FUNC_%.*s", call->ste->ident.len,
-             call->ste->ident.ptr);
-    } else {
+    if (call->ste->is_extern || call->ste->node == NULL) {
         // extern
         genf(out, "    call %.*s", call->ste->ident.len, call->ste->ident.ptr);
+    } else {
+        genf(out, "    call FUNC_%.*s", call->ste->ident.len,
+             call->ste->ident.ptr);
     }
 
     if (call->ste->sym->arg_size) {
@@ -789,7 +792,12 @@ static EmitResult emit_func(FILE* out, FuncSymbolTableEntry* func) {
 
     out_label = add_label();
 
-    genf(out, "FUNC_%.*s:", func->ident.len, func->ident.ptr);
+    if (func->is_extern) {
+        genf(out, ".global %.*s", func->ident.len, func->ident.ptr);
+        genf(out, "%.*s:", func->ident.len, func->ident.ptr);
+    } else {
+        genf(out, "FUNC_%.*s:", func->ident.len, func->ident.ptr);
+    }
 
     genf(out, "    pushl %%ebp");
     genf(out, "    movl %%esp, %%ebp");
@@ -820,8 +828,11 @@ Error* codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
     genf(out, ".data");
     while (ste) {
         if (ste->type == SYM_VAR) {
-            genf(out, "VAR_%.*s:", ste->ident.len, ste->ident.ptr);
-            genf(out, "    .zero 4");
+            VarSymbolTableEntry* var = (VarSymbolTableEntry*)ste;
+            if (var->is_extern == 0) {
+                genf(out, "VAR_%.*s:", var->ident.len, var->ident.ptr);
+                genf(out, "    .zero 4");
+            }
         }
         ste = ste->next;
     }

@@ -28,6 +28,7 @@ typedef struct VarSymbolTableEntry {
     SymbolTableEntry* next;
     SymbolType type;
 
+    int is_extern;
     int is_global;
     int offset;
 } VarSymbolTableEntry;
@@ -47,6 +48,7 @@ typedef struct FuncSymbolTableEntry {
     SymbolTableEntry* next;
     SymbolType type;
 
+    int is_extern;
     struct ASTNode* node;
     SymbolTable* sym;
 } FuncSymbolTableEntry;
@@ -66,10 +68,11 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
                        int is_global, Arena* arena);
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
-                                             int is_arg);
+                                             int is_arg, int is_extern);
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
                                              int val);
-FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident);
+FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
+                                               int is_extern);
 
 SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope);
