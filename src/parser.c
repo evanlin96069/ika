@@ -44,7 +44,7 @@ StrToken str_tk[] = {
     {"var", TK_DECL},      {"def", TK_DEF},     {"if", TK_IF},
     {"else", TK_ELSE},     {"while", TK_WHILE}, {"fn", TK_FUNC},
     {"return", TK_RET},    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
-    {"extern", TK_EXTERN},
+    {"extern", TK_EXTERN}, {"enum", TK_ENUM},
 };
 
 static Token next_token_internal(ParserState* parser, int peek) {
@@ -473,6 +473,7 @@ static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* var_decl(ParserState* parser, int is_extern);
 static ASTNode* def_decl(ParserState* parser);
+static ASTNode* enum_decl(ParserState* parser);
 static ASTNode* func_decl(ParserState* parser, int is_extern);
 static ASTNode* return_stmt(ParserState* parser);
 static ASTNode* if_stmt(ParserState* parser);
@@ -1013,6 +1014,86 @@ static ASTNode* def_decl(ParserState* parser) {
     return NULL;
 }
 
+static ASTNode* enum_decl(ParserState* parser) {
+    Token tk = next_token(parser);
+    assert(tk.type == TK_ENUM);
+
+    tk = next_token(parser);
+    if (tk.type != TK_LBRACE) {
+        return error(parser, parser->post_token_pos, "expected '{'");
+    }
+
+    int enum_val = 0;
+    int increment = 1;
+
+    tk = next_token(parser);
+    while (tk.type != TK_RBRACE) {
+        if (tk.type != TK_IDENT) {
+            return error(parser, parser->post_token_pos,
+                         "expected an identifier");
+        }
+
+        Str ident = tk.str;
+        if (symbol_table_find(parser->sym, ident, 1) != NULL) {
+            return error(parser, parser->post_token_pos,
+                         "redefinition of identifier '%.*s'", tk.str.len,
+                         tk.str.ptr);
+        }
+
+        Token peek = peek_token(parser);
+        if (peek.type == TK_ASSIGN) {
+            next_token(parser);
+            int pos = parser->pre_token_pos;
+            ASTNode* val = expr(parser, 0);
+            if (val->type == NODE_ERR) {
+                return val;
+            }
+
+            if (val->type != NODE_INTLIT) {
+                return error(parser, pos,
+                             "expected a compile-time constant integer");
+            }
+
+            enum_val = ((IntLitNode*)val)->val;
+        }
+
+        peek = peek_token(parser);
+        if (peek.type == TK_COLON) {
+            next_token(parser);
+            int pos = parser->pre_token_pos;
+            ASTNode* val = primary(parser);
+            if (val->type == NODE_ERR) {
+                return val;
+            }
+
+            if (val->type != NODE_INTLIT) {
+                return error(parser, pos,
+                             "expected a compile-time constant integer");
+            }
+
+            increment = ((IntLitNode*)val)->val;
+        } else {
+            increment = 1;
+        }
+
+        symbol_table_append_def(parser->sym, ident, enum_val);
+        enum_val += increment;
+
+        tk = next_token(parser);
+        if (tk.type == TK_COMMA) {
+            tk = next_token(parser);
+            if (tk.type == TK_RBRACE) {
+                break;
+            }
+        } else if (tk.type != TK_RBRACE) {
+            return error(parser, parser->post_token_pos,
+                         "expected ',' or '}' after identifier");
+        }
+    }
+
+    return NULL;
+}
+
 static ASTNode* func_decl(ParserState* parser, int is_extern) {
     Token tk = next_token(parser);
     assert(tk.type == TK_FUNC);
@@ -1393,6 +1474,13 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 if (tk.type != TK_SEMICOLON) {
                     return error(parser, parser->pre_token_pos,
                                  "expected ';' at end of declaration");
+                }
+                break;
+
+            case TK_ENUM:
+                node = enum_decl(parser);
+                if (node && node->type == NODE_ERR) {
+                    return node;
                 }
                 break;
 
