@@ -6,10 +6,11 @@
 #include "codegen.h"
 #include "opt.h"
 #include "parser.h"
+#include "preprocessor.h"
 #include "symbol_table.h"
 #include "utils.h"
 
-static void print_err(const char* src, const char* file_name, Error* err) {
+static void print_err(const char* src, const char* filename, Error* err) {
     const char* line = src;
     int line_num = 1;
     int line_pos = 0;
@@ -31,7 +32,7 @@ static void print_err(const char* src, const char* file_name, Error* err) {
         line_len++;
     }
 
-    fprintf(stderr, "%s:%d:%d: ", file_name, line_num, line_pos);
+    fprintf(stderr, "%s:%d:%d: ", filename, line_num, line_pos);
     ika_log(LOG_ERROR, "%s\n", err->msg);
 
     fprintf(stderr, "%5d | %.*s\n", line_num, line_len, line);
@@ -67,10 +68,11 @@ int main(int argc, char* argv[]) {
     src_path = *argv;
 
     // Read input file
-    char* buf = read_entire_file(src_path);
-    if (!buf) {
+    char* src = pp_expand(src_path, 0);
+    if (!src) {
         return 1;
     }
+    // printf("%s\n", src);
 
     // Parse
     Arena sym_arena;
@@ -85,15 +87,15 @@ int main(int argc, char* argv[]) {
 
     Error* err = NULL;
 
-    ASTNode* node = parser_parse(&parser, buf);
+    ASTNode* node = parser_parse(&parser, src);
     if (node->type == NODE_ERR) {
         err = ((ErrorNode*)node)->val;
-        print_err(buf, src_path, err);
+        print_err(src, src_path, err);
         free(err);
 
         arena_deinit(&arena);
         arena_deinit(&sym_arena);
-        free(buf);
+        free(src);
 
         return 1;
     }
@@ -122,19 +124,19 @@ int main(int argc, char* argv[]) {
     fclose(out);
 
     if (err != NULL) {
-        print_err(buf, src_path, err);
+        print_err(src, src_path, err);
         free(err);
 
         arena_deinit(&arena);
         arena_deinit(&sym_arena);
-        free(buf);
+        free(src);
 
         return 1;
     }
 
     arena_deinit(&arena);
     arena_deinit(&sym_arena);
-    free(buf);
+    free(src);
 
     // Invoke cc
     if (!s_flag) {
