@@ -279,7 +279,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
             };
 
             // TODO: Parse string properly
-            while (c != '"') {
+            while (c != '"' && c != '\n' && c != '\0') {
                 if (c == '\\') {
                     s.len++;
                     c = (parser->src + parser->pos)[++offset];
@@ -287,10 +287,16 @@ static Token next_token_internal(ParserState* parser, int peek) {
                 s.len++;
                 c = (parser->src + parser->pos)[++offset];
             }
+
             offset++;
 
-            tk.type = TK_STR;
-            tk.str = s;
+            if (c != '"') {
+                tk.type = TK_ERR;
+                tk.str = str("missing terminating \" character");
+            } else {
+                tk.type = TK_STR;
+                tk.str = s;
+            }
         } break;
 
         case '\'': {
