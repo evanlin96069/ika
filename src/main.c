@@ -7,6 +7,7 @@
 #include "opt.h"
 #include "parser.h"
 #include "symbol_table.h"
+#include "utils.h"
 
 static void print_err(const char* src, const char* file_name, Error* err) {
     const char* line = src;
@@ -30,9 +31,11 @@ static void print_err(const char* src, const char* file_name, Error* err) {
         line_len++;
     }
 
-    fprintf(stderr, "%s:%d:%d: \x1b[31merror:\x1b[0m %s\n", file_name, line_num,
-            line_pos, err->msg);
+    fprintf(stderr, "%s:%d:%d: ", file_name, line_num, line_pos);
+    ika_log(LOG_ERROR, "%s\n", err->msg);
+
     fprintf(stderr, "%5d | %.*s\n", line_num, line_len, line);
+
     if (line_pos > 0) {
         fprintf(stderr, "      | %*c^\n", line_pos, ' ');
     } else {
@@ -57,50 +60,17 @@ int main(int argc, char* argv[]) {
     });
 
     if (*argv == NULL) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m no input file\n");
+        ika_log(LOG_ERROR, "no input file\n");
         return 1;
     }
 
     src_path = *argv;
 
     // Read input file
-    FILE* fp = fopen(src_path, "r");
-    if (!fp) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m cannot open file %s: %s\n",
-                src_path, strerror(errno));
-        return 1;
-    }
-
-    long size;
-    fseek(fp, 0L, SEEK_END);
-    size = ftell(fp);
-    rewind(fp);
-
-    if (size == 0) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m file %s has no content\n",
-                src_path);
-        fclose(fp);
-        return 1;
-    }
-
-    char* buf = malloc(size + 1);
+    char* buf = read_entire_file(src_path);
     if (!buf) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m failed to allocate memory\n");
-        fclose(fp);
         return 1;
     }
-
-    int n_read = fread(buf, size, 1, fp);
-    fclose(fp);
-
-    if (n_read != 1) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m failed to read file: %s\n",
-                src_path);
-        free(buf);
-        return 1;
-    }
-
-    buf[size] = '\0';
 
     // Parse
     Arena sym_arena;
@@ -143,8 +113,8 @@ int main(int argc, char* argv[]) {
 
     FILE* out = fopen(asm_out_path, "w");
     if (!out) {
-        fprintf(stderr, "\x1b[31merror:\x1b[0m cannot open file %s: %s\n",
-                out_path, strerror(errno));
+        ika_log(LOG_ERROR, "cannot open file %s: %s\n", out_path,
+                strerror(errno));
         return 1;
     }
 
@@ -173,16 +143,14 @@ int main(int argc, char* argv[]) {
                  asm_out_path, out_path);
         int ret = system(command);
         if (ret != 0) {
-            fprintf(stderr,
-                    "\x1b[31merror:\x1b[0m failed to compile %s into %s\n",
-                    asm_out_path, out_path);
+            ika_log(LOG_ERROR, "failed to compile %s into %s\n", asm_out_path,
+                    out_path);
         }
 
         snprintf(command, sizeof(command), "rm %s", asm_out_path);
         ret = system(command);
         if (ret != 0) {
-            fprintf(stderr, "\x1b[31merror:\x1b[0m failed remove file: %s\n",
-                    asm_out_path);
+            ika_log(LOG_ERROR, "failed remove file: %s\n", asm_out_path);
         }
     }
 
