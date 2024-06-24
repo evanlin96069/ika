@@ -70,23 +70,40 @@ char* pp_expand(const char* filename, int depth) {
             pos++;
             c = *(src + pos);
 
-            char* include_filename = malloc(s.len + 1);
-            snprintf(include_filename, s.len + 1, "%.*s", s.len, s.ptr);
-            char* include_src = pp_expand(include_filename, depth + 1);
-            if (!include_src) {
-                return NULL;
-            }
-
-            int include_len = strlen(include_src);
-            src_len += include_len;
-            result = realloc(result, src_len);
-            if (!result) {
+            char* dir = dirname(filename);
+            if (!dir) {
                 ika_log(LOG_ERROR, "failed to allocate memory\n");
                 return NULL;
             }
-            memcpy(result + r_off, include_src, include_len);
-            r_off += include_len;
-            free(include_src);
+
+            size_t inc_path_len = strlen(dir) + 1 + s.len;
+            char* inc_path = malloc(inc_path_len + 1);
+            if (!inc_path) {
+                ika_log(LOG_ERROR, "failed to allocate memory\n");
+                free(dir);
+                return NULL;
+            }
+            snprintf(inc_path, inc_path_len + 1, "%s/%.*s", dir, s.len, s.ptr);
+            free(dir);
+
+            char* inc_src = pp_expand(inc_path, depth + 1);
+            free(inc_path);
+            if (!inc_src) {
+                ika_log(LOG_ERROR, "failed to include file \"%.*s\"\n", s.len, s.ptr);
+                return NULL;
+            }
+
+            int inc_src_len = strlen(inc_src);
+            src_len += inc_src_len;
+            result = realloc(result, src_len);
+            if (!result) {
+                free(inc_src);
+                ika_log(LOG_ERROR, "failed to allocate memory\n");
+                return NULL;
+            }
+            memcpy(result + r_off, inc_src, inc_src_len);
+            r_off += inc_src_len;
+            free(inc_src);
         }
 
         while (c != '\n' && c != '\0') {

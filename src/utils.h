@@ -10,4 +10,8 @@ void ika_log(int level, const char* fmt, ...);
 
 char* read_entire_file(const char* path);
 
+char* dirname(const char* path);
+
+char* strdup(const char* str);
+
 #endif

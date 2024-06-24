@@ -64,3 +64,48 @@ char* read_entire_file(const char* path) {
 
     return buf;
 }
+
+char* dirname(const char* path) {
+    if (path == NULL || *path == '\0') {
+        return strdup(".");
+    }
+
+    char* path_copy = strdup(path);
+    if (path_copy == NULL) {
+        return NULL;
+    }
+
+    size_t len = strlen(path_copy);
+    while (len > 1 && path_copy[len - 1] == '/') {
+        path_copy[--len] = '\0';
+    }
+
+    char* last_slash = strrchr(path_copy, '/');
+    if (last_slash != NULL) {
+        if (last_slash == path_copy) {
+            last_slash[1] = '\0';
+        } else {
+            *last_slash = '\0';
+        }
+    } else {
+        strcpy(path_copy, ".");
+    }
+
+    return path_copy;
+}
+
+char* strdup(const char* str) {
+    if (str == NULL) {
+        return NULL;
+    }
+
+    size_t len = strlen(str) + 1;
+    char* copy = (char*)malloc(len);
+    if (copy == NULL) {
+        return NULL;
+    }
+
+    strcpy(copy, str);
+
+    return copy;
+}
