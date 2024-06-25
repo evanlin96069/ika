@@ -30,9 +30,9 @@ char* pp_expand(const char* filename, int depth) {
     size_t pos = 0;
     char c = *(src + pos);
     while (c != '\0') {
+        size_t start_pos = pos;
         while (c == ' ' || c == '\t') {
             pos++;
-            result[r_off++] = c;
             c = *(src + pos);
         }
 
@@ -104,6 +104,9 @@ char* pp_expand(const char* filename, int depth) {
             memcpy(result + r_off, inc_src, inc_src_len);
             r_off += inc_src_len;
             free(inc_src);
+        } else {
+            pos = start_pos;
+            c = *(src + pos);
         }
 
         while (c != '\n' && c != '\0') {
