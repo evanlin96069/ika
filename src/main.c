@@ -44,21 +44,39 @@ static void print_err(const char* src, const char* filename, Error* err) {
     }
 }
 
+void usage(void) {
+    fprintf(stderr,
+            "Usage: ikac [options] file...\n"
+            "Options:\n"
+            "  -E               Preprocess only; do not compile, assemble or "
+            "link.\n"
+            "  -S               Compile only; do not assemble or link.\n"
+            "  -o <file>        Place the output into <file>.\n"
+            "  -?               Display this information.\n");
+}
+
 int main(int argc, char* argv[]) {
     const char* src_path;
     const char* out_path = NULL;
     const char* asm_out_path = NULL;
     int s_flag = 0;
+    int e_flag = 0;
 
     // Arg parse
-    FOR_OPTS(argc, argv, {
+    FOR_OPTS(argc, argv) {
         case 'o':
             out_path = OPTARG(argc, argv);
             break;
         case 'S':
             s_flag = 1;
             break;
-    });
+        case 'E':
+            e_flag = 1;
+            break;
+        case '?':
+            usage();
+            return 0;
+    };
 
     if (*argv == NULL) {
         ika_log(LOG_ERROR, "no input file\n");
@@ -72,7 +90,27 @@ int main(int argc, char* argv[]) {
     if (!src) {
         return 1;
     }
-    // printf("%s\n", src);
+
+    if (e_flag) {
+        FILE* pp_out = stdout;
+        if (out_path) {
+            pp_out = fopen(out_path, "w");
+            if (!pp_out) {
+                ika_log(LOG_ERROR, "cannot open file %s: %s\n", out_path,
+                        strerror(errno));
+                return 1;
+            }
+        }
+
+        fprintf(pp_out, "%s\n", src);
+
+        if (out_path) {
+            fclose(pp_out);
+        }
+
+        free(src);
+        return 0;
+    }
 
     // Parse
     Arena sym_arena;

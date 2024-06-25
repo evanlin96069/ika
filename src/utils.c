@@ -8,17 +8,21 @@
 
 void ika_log(int level, const char* fmt, ...) {
     switch (level) {
-        case LOG_INFO:
-            fprintf(stderr, "info: ");
+        case LOG_DEBUG:
+#ifdef NDEBUG
+            return;
+#else
+            fprintf(stderr, "\x1b[1mdebug:\x1b[0m ");
+#endif
             break;
         case LOG_NOTE:
-            fprintf(stderr, "\x1b[36mnote:\x1b[0m ");
+            fprintf(stderr, "\x1b[1;96mnote:\x1b[0m ");
             break;
         case LOG_WARNING:
-            fprintf(stderr, "\x1b[33mwarning:\x1b[0m ");
+            fprintf(stderr, "\x1b[1;95mwarning:\x1b[0m ");
             break;
         case LOG_ERROR:
-            fprintf(stderr, "\x1b[31merror:\x1b[0m ");
+            fprintf(stderr, "\x1b[1;91merror:\x1b[0m ");
             break;
         default:
             break;

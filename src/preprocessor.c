@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "utils.h"
 #include "str.h"
+#include "utils.h"
 
 char* pp_expand(const char* filename, int depth) {
     if (depth > MAX_INCLUDE_DEPTH) {
@@ -89,7 +89,8 @@ char* pp_expand(const char* filename, int depth) {
             char* inc_src = pp_expand(inc_path, depth + 1);
             free(inc_path);
             if (!inc_src) {
-                ika_log(LOG_ERROR, "failed to include file \"%.*s\"\n", s.len, s.ptr);
+                ika_log(LOG_ERROR, "failed to include file \"%.*s\"\n", s.len,
+                        s.ptr);
                 return NULL;
             }
 
