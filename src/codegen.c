@@ -82,7 +82,7 @@ static EmitResult emit_stmts(FILE* out, StatementListNode* stmts) {
 }
 
 static EmitResult emit_intlit(FILE* out, IntLitNode* lit) {
-    EmitResult result = {RESULT_OK};
+    EmitResult result = {.type = RESULT_OK, .info = {0}};
     genf(out, "    movl $%d, %%eax", lit->val);
     result.info.is_lvalue = 0;
     result.info.size = 4;
@@ -90,7 +90,7 @@ static EmitResult emit_intlit(FILE* out, IntLitNode* lit) {
 }
 
 static EmitResult emit_strlit(FILE* out, StrLitNode* lit) {
-    EmitResult result = {RESULT_OK};
+    EmitResult result = {.type = RESULT_OK, .info = {0}};
     genf(out, "    movl $DAT_%d, %%eax", add_data(lit->val));
     result.info.is_lvalue = 0;
     result.info.size = 4;  // pointer is 4 bytes
@@ -98,7 +98,7 @@ static EmitResult emit_strlit(FILE* out, StrLitNode* lit) {
 }
 
 static EmitResult emit_rvalify(FILE* out, int size) {
-    EmitResult result = {RESULT_OK};
+    EmitResult result = {.type = RESULT_OK, .info = {0}};
     if (size == 4) {
         genf(out, "    movl (%%eax), %%eax");
     } else if (size == 1) {
