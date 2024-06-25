@@ -1,5 +1,14 @@
+# MacOS Finder files.
+.DS_Store
+
+# Visual Studio Code
+.vscode/
+/.cache/
+
+# Build directories
 release/
 debug/
 
+# Compiler output
 *.s
-a.out
+*.out
