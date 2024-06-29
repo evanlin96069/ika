@@ -179,5 +179,8 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
     }
 
     state->last_include = last_include;
+
+    free(src);
+
     return NULL;
 }
