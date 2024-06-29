@@ -2,89 +2,10 @@
 #define PARSER_H
 
 #include "arena.h"
+#include "error.h"
+#include "lexer.h"
+#include "preprocessor.h"
 #include "symbol_table.h"
-
-// Error
-
-#define ERROR_MAX_LENGTH 255
-
-typedef struct Error {
-    size_t pos;
-    char msg[ERROR_MAX_LENGTH];
-} Error;
-
-// Lexer
-
-typedef enum TokenType {
-    TK_ERR = -1,
-    TK_NUL = 0,
-    TK_IDENT,
-    TK_INT,
-    TK_STR,
-    TK_DECL,
-    TK_DEF,
-    TK_ENUM,
-    TK_FUNC,
-    TK_EXTERN,
-    TK_RET,
-    TK_PRINT,
-    TK_IF,
-    TK_ELSE,
-    TK_WHILE,
-    TK_BREAK,
-    TK_CONTINUE,
-
-    TK_MUL,
-    TK_DIV,
-    TK_MOD,
-    TK_ADD,
-    TK_SUB,
-    TK_SHL,
-    TK_SHR,
-    TK_LT,
-    TK_LE,
-    TK_GT,
-    TK_GE,
-    TK_EQ,
-    TK_NE,
-    TK_AND,
-    TK_XOR,
-    TK_OR,
-    TK_LAND,
-    TK_LOR,
-    TK_ASSIGN,
-    TK_AADD,
-    TK_ASUB,
-    TK_AMUL,
-    TK_ADIV,
-    TK_AMOD,
-    TK_ASHL,
-    TK_ASHR,
-    TK_AAND,
-    TK_AXOR,
-    TK_AOR,
-
-    TK_NOT,
-    TK_LNOT,
-
-    TK_LPAREN,
-    TK_RPAREN,
-    TK_LBRACE,
-    TK_RBRACE,
-    TK_SEMICOLON,
-    TK_COMMA,
-    TK_COLON,
-    TK_DOT,
-    TK_DOLLAR,
-} TokenType;
-
-typedef struct Token {
-    TokenType type;
-    union {
-        int val;
-        Str str;
-    };
-} Token;
 
 // AST
 
@@ -121,7 +42,7 @@ typedef struct StrLitNode {
 
 typedef struct BinaryOpNode {
     ASTNodeType type;
-    int pos;
+    SourcePos pos;
     TokenType op;
     ASTNode* left;
     ASTNode* right;
@@ -129,7 +50,7 @@ typedef struct BinaryOpNode {
 
 typedef struct UnaryOpNode {
     ASTNodeType type;
-    int pos;
+    SourcePos pos;
     TokenType op;
     ASTNode* node;
 } UnaryOpNode;
@@ -141,7 +62,7 @@ typedef struct VarNode {
 
 typedef struct AssignNode {
     ASTNodeType type;
-    int pos;
+    SourcePos pos;
     TokenType op;
     ASTNode* left;
     ASTNode* right;
@@ -163,7 +84,7 @@ typedef struct WhileNode {
 
 typedef struct GotoNode {
     ASTNodeType type;
-    int pos;
+    SourcePos pos;
     TokenType op;
 } GotoNode;
 
@@ -201,20 +122,23 @@ typedef struct ReturnNode {
     ASTNode* expr;
 } ReturnNode;
 
+// Parser
+
 typedef struct ParserState {
     Arena* arena;
     SymbolTable* sym;
     SymbolTable* global_sym;
 
-    const char* src;
-    size_t pos;
+    SourceState* src;
+    size_t line;
+    size_t pos;  // current pos
 
     Token token;
-    size_t pre_token_pos;
-    size_t post_token_pos;
+    SourcePos pre_token_pos;   // pos at the end of previous token
+    SourcePos post_token_pos;  // pos at the start of this token
 } ParserState;
 
 void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena);
-ASTNode* parser_parse(ParserState* parser, const char* src);
+ASTNode* parser_parse(ParserState* parser, SourceState* src);
 
 #endif

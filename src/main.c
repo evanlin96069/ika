@@ -4,45 +4,12 @@
 #include <string.h>
 
 #include "codegen.h"
+#include "error.h"
 #include "opt.h"
 #include "parser.h"
 #include "preprocessor.h"
 #include "symbol_table.h"
 #include "utils.h"
-
-static void print_err(const char* src, const char* filename, Error* err) {
-    const char* line = src;
-    int line_num = 1;
-    int line_pos = 0;
-
-    size_t pos = 0;
-    while (pos < err->pos) {
-        if (src[pos] == '\n') {
-            line = src + pos + 1;
-            line_num++;
-            line_pos = 0;
-        } else {
-            line_pos++;
-        }
-        pos++;
-    }
-
-    int line_len = 0;
-    while (line[line_len] != '\n' && line[line_len] != '\0') {
-        line_len++;
-    }
-
-    fprintf(stderr, "%s:%d:%d: ", filename, line_num, line_pos);
-    ika_log(LOG_ERROR, "%s\n", err->msg);
-
-    fprintf(stderr, "%5d | %.*s\n", line_num, line_len, line);
-
-    if (line_pos > 0) {
-        fprintf(stderr, "      | %*c^\n", line_pos, ' ');
-    } else {
-        fprintf(stderr, "      | ^\n");
-    }
-}
 
 void usage(void) {
     fprintf(stderr,
@@ -76,7 +43,7 @@ int main(int argc, char* argv[]) {
         case '?':
             usage();
             return 0;
-    };
+    }
 
     if (*argv == NULL) {
         ika_log(LOG_ERROR, "no input file\n");
@@ -85,9 +52,18 @@ int main(int argc, char* argv[]) {
 
     src_path = *argv;
 
+    Arena pp_arena;
+    arena_init(&pp_arena, 1 << 10, NULL);
+
+    SourceState src;
+    pp_init(&src, &pp_arena);
+
     // Read input file
-    char* src = pp_expand(src_path, 0);
-    if (!src) {
+
+    Error* err = pp_expand(&src, src_path, 0);
+
+    if (err != NULL) {
+        print_err(&src, err);
         return 1;
     }
 
@@ -102,13 +78,16 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        fprintf(pp_out, "%s\n", src);
+        for (size_t i = 0; i < src.line_count; i++) {
+            fprintf(pp_out, "%s\n", src.lines[i].content);
+        }
 
         if (out_path) {
             fclose(pp_out);
         }
 
-        free(src);
+        arena_deinit(&pp_arena);
+        pp_deinit(&src);
         return 0;
     }
 
@@ -123,18 +102,10 @@ int main(int argc, char* argv[]) {
     ParserState parser;
     parser_init(&parser, &sym, &arena);
 
-    Error* err = NULL;
-
-    ASTNode* node = parser_parse(&parser, src);
+    ASTNode* node = parser_parse(&parser, &src);
     if (node->type == NODE_ERR) {
         err = ((ErrorNode*)node)->val;
-        print_err(src, src_path, err);
-        free(err);
-
-        arena_deinit(&arena);
-        arena_deinit(&sym_arena);
-        free(src);
-
+        print_err(&src, err);
         return 1;
     }
 
@@ -162,19 +133,14 @@ int main(int argc, char* argv[]) {
     fclose(out);
 
     if (err != NULL) {
-        print_err(src, src_path, err);
-        free(err);
-
-        arena_deinit(&arena);
-        arena_deinit(&sym_arena);
-        free(src);
-
+        print_err(&src, err);
         return 1;
     }
 
+    arena_deinit(&pp_arena);
     arena_deinit(&arena);
     arena_deinit(&sym_arena);
-    free(src);
+    pp_deinit(&src);
 
     // Invoke cc
     if (!s_flag) {

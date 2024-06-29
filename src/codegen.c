@@ -4,6 +4,8 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
+#include "lexer.h"
+
 #ifdef _DEBUG
 
 #define genf(out, ...)                                  \
@@ -48,7 +50,7 @@ static int in_loop = 0;
 static int break_label;
 static int continue_label;
 
-static EmitResult error(int pos, const char* fmt, ...) {
+static EmitResult error(SourcePos pos, const char* fmt, ...) {
     EmitResult result;
     result.type = RESULT_ERROR;
     result.error = malloc(sizeof(Error));

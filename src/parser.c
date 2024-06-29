@@ -5,476 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Lexer
-
-static inline int is_digit(char c) { return c >= '0' && c <= '9'; }
-
-static inline int is_hex_digit(char c) {
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
-           (c >= 'A' && c <= 'F');
-}
-
-static inline int hex_digit_to_int(char c) {
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'a' && c <= 'f')
-        return 10 + (c - 'a');
-    if (c >= 'A' && c <= 'F')
-        return 10 + (c - 'A');
-    assert(0);
-    return 0;  // unreachable
-}
-
-static inline int is_oct_digit(char c) { return c >= '0' && c <= '7'; }
-
-static inline int is_letter(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-}
-
-static inline int is_space(char c) {
-    return c == ' ' || c == '\n' || c == '\r' || c == '\t';
-}
-
-typedef struct StrToken {
-    const char* s;
-    TokenType token_type;
-} StrToken;
-
-StrToken str_tk[] = {
-    {"var", TK_DECL},      {"def", TK_DEF},     {"if", TK_IF},
-    {"else", TK_ELSE},     {"while", TK_WHILE}, {"fn", TK_FUNC},
-    {"return", TK_RET},    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
-    {"extern", TK_EXTERN}, {"enum", TK_ENUM},
-};
-
-static Token next_token_internal(ParserState* parser, int peek) {
-    int start = 0;
-    int offset = 0;
-    Token tk;
-
-    char c = (parser->src + parser->pos)[offset];
-    while (is_space(c) || c == '/') {
-        if (c == '/') {
-            if ((parser->src + parser->pos)[offset + 1] == '/') {
-                while (c != '\n' && c != '\0') {
-                    c = (parser->src + parser->pos)[++offset];
-                }
-            } else {
-                break;
-            }
-        }
-        c = (parser->src + parser->pos)[++offset];
-    }
-
-    start = offset;
-
-    switch (c) {
-        case '*':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_AMUL;
-            } else {
-                tk.type = TK_MUL;
-            }
-            offset++;
-            break;
-
-        case '/':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_ADIV;
-            } else {
-                tk.type = TK_DIV;
-            }
-            offset++;
-            break;
-
-        case '%':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_AMOD;
-            } else {
-                tk.type = TK_MOD;
-            }
-            offset++;
-            break;
-
-        case '+':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_AADD;
-            } else {
-                tk.type = TK_ADD;
-            }
-            offset++;
-            break;
-
-        case '-':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_ASUB;
-            } else {
-                tk.type = TK_SUB;
-            }
-            offset++;
-            break;
-
-        case '<': {
-            char next = (parser->src + parser->pos)[offset + 1];
-            if (next == '=') {
-                offset++;
-                tk.type = TK_LE;
-            } else if (next == '<') {
-                offset++;
-                next = (parser->src + parser->pos)[offset + 1];
-                if (next == '=') {
-                    offset++;
-                    tk.type = TK_ASHL;
-                } else {
-                    tk.type = TK_SHL;
-                }
-            } else {
-                tk.type = TK_LT;
-            }
-            offset++;
-        } break;
-
-        case '>': {
-            char next = (parser->src + parser->pos)[offset + 1];
-            if (next == '=') {
-                offset++;
-                tk.type = TK_GE;
-            } else if (next == '>') {
-                offset++;
-                next = (parser->src + parser->pos)[offset + 1];
-                if (next == '=') {
-                    offset++;
-                    tk.type = TK_ASHR;
-                } else {
-                    tk.type = TK_SHR;
-                }
-            } else {
-                tk.type = TK_GT;
-            }
-            offset++;
-        } break;
-
-        case '&': {
-            char next = (parser->src + parser->pos)[offset + 1];
-            if (next == '&') {
-                offset++;
-                tk.type = TK_LAND;
-            } else if (next == '=') {
-                offset++;
-                tk.type = TK_AAND;
-            } else {
-                tk.type = TK_AND;
-            }
-            offset++;
-        } break;
-
-        case '|': {
-            char next = (parser->src + parser->pos)[offset + 1];
-            if (next == '|') {
-                offset++;
-                tk.type = TK_LOR;
-            } else if (next == '=') {
-                offset++;
-                tk.type = TK_AOR;
-            } else {
-                tk.type = TK_OR;
-            }
-            offset++;
-        } break;
-
-        case '^':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_AXOR;
-            } else {
-                tk.type = TK_XOR;
-            }
-            offset++;
-            break;
-
-        case '~':
-            tk.type = TK_NOT;
-            offset++;
-            break;
-
-        case '!':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_NE;
-            } else {
-                tk.type = TK_LNOT;
-            }
-            offset++;
-            break;
-
-        case '=':
-            if ((parser->src + parser->pos)[offset + 1] == '=') {
-                offset++;
-                tk.type = TK_EQ;
-            } else {
-                tk.type = TK_ASSIGN;
-            }
-            offset++;
-            break;
-
-        case '(':
-            tk.type = TK_LPAREN;
-            offset++;
-            break;
-
-        case ')':
-            tk.type = TK_RPAREN;
-            offset++;
-            break;
-
-        case '{':
-            tk.type = TK_LBRACE;
-            offset++;
-            break;
-
-        case '}':
-            tk.type = TK_RBRACE;
-            offset++;
-            break;
-
-        case ';':
-            tk.type = TK_SEMICOLON;
-            offset++;
-            break;
-
-        case ',':
-            tk.type = TK_COMMA;
-            offset++;
-            break;
-
-        case ':':
-            tk.type = TK_COLON;
-            offset++;
-            break;
-
-        case '.':
-            tk.type = TK_DOT;
-            offset++;
-            break;
-
-        case '$':
-            tk.type = TK_DOLLAR;
-            offset++;
-            break;
-
-        case '\0':
-            tk.type = TK_NUL;
-            break;
-
-        case '"': {
-            c = (parser->src + parser->pos)[++offset];
-            Str s = {
-                .ptr = parser->src + parser->pos + offset,
-                .len = 0,
-            };
-
-            // TODO: Parse string properly
-            while (c != '"' && c != '\n' && c != '\0') {
-                if (c == '\\') {
-                    s.len++;
-                    c = (parser->src + parser->pos)[++offset];
-                }
-                s.len++;
-                c = (parser->src + parser->pos)[++offset];
-            }
-
-            offset++;
-
-            if (c != '"') {
-                tk.type = TK_ERR;
-                tk.str = str("missing terminating \" character");
-            } else {
-                tk.type = TK_STR;
-                tk.str = s;
-            }
-        } break;
-
-        case '\'': {
-            tk.type = TK_INT;
-            tk.val = 0;
-
-            c = (parser->src + parser->pos)[++offset];
-            while (c != '\'') {
-                if (c == '\\') {
-                    c = (parser->src + parser->pos)[++offset];
-                    switch (c) {
-                        case '\'':
-                        case '"':
-                        case '?':
-                        case '\\':
-                            break;
-                        case '0':
-                            c = '\0';
-                            break;
-                        case 'a':
-                            c = '\a';
-                            break;
-                        case 'b':
-                            c = '\b';
-                            break;
-                        case 'f':
-                            c = '\f';
-                            break;
-                        case 'n':
-                            c = '\n';
-                            break;
-                        case 'r':
-                            c = '\r';
-                            break;
-                        case 't':
-                            c = '\t';
-                            break;
-                        case 'v':
-                            c = '\v';
-                            break;
-                    }
-                }
-                tk.val <<= 8;
-                tk.val += c;
-                c = (parser->src + parser->pos)[++offset];
-            }
-            offset++;
-        } break;
-
-        default:
-            if (is_digit(c)) {
-                if (c == '0') {
-                    char next = (parser->src + parser->pos)[offset + 1];
-                    if (next == 'x' || next == 'X') {  // hex
-                        offset += 2;
-                        tk.val = 0;
-                        c = (parser->src + parser->pos)[offset];
-                        if (!is_hex_digit(c)) {
-                            tk.type = TK_ERR;
-                        } else {
-                            while (is_hex_digit(c)) {
-                                tk.val = tk.val * 16 + hex_digit_to_int(c);
-                                c = (parser->src + parser->pos)[++offset];
-                            }
-
-                            if (is_letter(c)) {
-                                tk.type = TK_ERR;
-                            } else {
-                                tk.type = TK_INT;
-                            }
-                        }
-
-                        if (tk.type == TK_ERR) {
-                            tk.str =
-                                str("invalid digit in hexadecimal constant");
-                        }
-                    } else if (next == 'b' || next == 'B') {  // bin
-                        offset += 2;
-                        tk.val = 0;
-                        c = (parser->src + parser->pos)[offset];
-                        if (c != '0' && c != '1') {
-                            tk.type = TK_ERR;
-                        } else {
-                            while (c == '0' || c == '1') {
-                                tk.val = tk.val * 2 + (c - '0');
-                                c = (parser->src + parser->pos)[++offset];
-                            }
-
-                            if (is_digit(c) || is_letter(c)) {
-                                tk.type = TK_ERR;
-                            } else {
-                                tk.type = TK_INT;
-                            }
-                        }
-
-                        if (tk.type == TK_ERR) {
-                            tk.str = str("invalid digit in binary constant");
-                        }
-                    } else {  // oct
-                        offset++;
-                        tk.val = 0;
-                        c = (parser->src + parser->pos)[offset];
-                        while (is_oct_digit(c)) {
-                            tk.val = tk.val * 8 + (c - '0');
-                            c = (parser->src + parser->pos)[++offset];
-                        }
-
-                        if (is_digit(c) || is_letter(c)) {
-                            tk.type = TK_ERR;
-                            tk.str = str("invalid digit in octal constant");
-                        } else {
-                            tk.type = TK_INT;
-                        }
-                    }
-                } else {  // dec
-                    tk.type = TK_INT;
-                    tk.val = 0;
-                    while (is_digit(c)) {
-                        tk.val *= 10;
-                        tk.val += c - '0';
-                        c = (parser->src + parser->pos)[++offset];
-                    }
-
-                    if (is_letter(c)) {
-                        tk.type = TK_ERR;
-                        tk.str = str("invalid digit in decimal constant");
-                    } else {
-                        tk.type = TK_INT;
-                    }
-                }
-            } else if (is_letter(c) || c == '_') {
-                Str ident = {
-                    .ptr = parser->src + parser->pos + offset,
-                    .len = 1,
-                };
-
-                c = (parser->src + parser->pos)[++offset];
-                while (is_letter(c) || is_digit(c) || c == '_') {
-                    ident.len++;
-                    c = (parser->src + parser->pos)[++offset];
-                }
-
-                tk.type = TK_IDENT;
-                tk.str = ident;
-
-                for (unsigned int i = 0; i < sizeof(str_tk) / sizeof(str_tk[0]);
-                     i++) {
-                    if (str_eql(str(str_tk[i].s), ident)) {
-                        tk.type = str_tk[i].token_type;
-                        break;
-                    }
-                }
-
-            } else {
-                tk.type = TK_ERR;
-                tk.str = str("unknown token");
-            }
-    }
-
-    if (!peek) {
-        parser->pre_token_pos = parser->pos;
-        parser->post_token_pos = parser->pos + start;
-        parser->pos += offset;
-    }
-
-    return tk;
-}
-
-static inline Token next_token(ParserState* parser) {
-    parser->token = next_token_internal(parser, 0);
-    return parser->token;
-}
-static inline Token peek_token(ParserState* parser) {
-    return next_token_internal(parser, 1);
-}
-
-// Parser
-
 static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* var_decl(ParserState* parser, int is_extern);
@@ -488,7 +18,8 @@ static ASTNode* scope(ParserState* parser);
 static ASTNode* stmt(ParserState* parser);
 static ASTNode* stmt_list(ParserState* parser, int in_scope);
 
-static ASTNode* error(ParserState* parser, int pos, const char* fmt, ...) {
+static ASTNode* error(ParserState* parser, SourcePos pos, const char* fmt,
+                      ...) {
     ErrorNode* err = arena_alloc(parser->arena, sizeof(ErrorNode));
     err->type = NODE_ERR;
 
@@ -815,7 +346,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
             } break;
 
             default: {
-                int pos = parser->post_token_pos;
+                SourcePos pos = parser->post_token_pos;
                 ASTNode* left = node;
                 ASTNode* right = expr(parser, next_precedence);
                 if (right->type == NODE_ERR) {
@@ -1003,7 +534,7 @@ static ASTNode* def_decl(ParserState* parser) {
                      "expected '=' after define");
     }
 
-    int pos = parser->pre_token_pos;
+    SourcePos pos = parser->pre_token_pos;
 
     ASTNode* val = expr(parser, 0);
     if (val->type == NODE_ERR) {
@@ -1049,7 +580,7 @@ static ASTNode* enum_decl(ParserState* parser) {
         Token peek = peek_token(parser);
         if (peek.type == TK_ASSIGN) {
             next_token(parser);
-            int pos = parser->pre_token_pos;
+            SourcePos pos = parser->pre_token_pos;
             ASTNode* val = expr(parser, 0);
             if (val->type == NODE_ERR) {
                 return val;
@@ -1066,7 +597,7 @@ static ASTNode* enum_decl(ParserState* parser) {
         peek = peek_token(parser);
         if (peek.type == TK_COLON) {
             next_token(parser);
-            int pos = parser->pre_token_pos;
+            SourcePos pos = parser->pre_token_pos;
             ASTNode* val = primary(parser);
             if (val->type == NODE_ERR) {
                 return val;
@@ -1520,9 +1051,10 @@ void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena) {
     parser->sym = parser->global_sym = sym;
 }
 
-ASTNode* parser_parse(ParserState* parser, const char* src) {
+ASTNode* parser_parse(ParserState* parser, SourceState* src) {
     arena_reset(parser->arena);
     parser->src = src;
+    parser->line = 0;
     parser->pos = 0;
 
     symbol_table_append_var(parser->sym, str("argc"), 0, 0);

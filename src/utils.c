@@ -9,10 +9,10 @@
 void ika_log(int level, const char* fmt, ...) {
     switch (level) {
         case LOG_DEBUG:
-#ifdef NDEBUG
-            return;
-#else
+#ifdef _DEBUG
             fprintf(stderr, "\x1b[1mdebug:\x1b[0m ");
+#else
+            return;
 #endif
             break;
         case LOG_NOTE:
@@ -37,7 +37,6 @@ void ika_log(int level, const char* fmt, ...) {
 char* read_entire_file(const char* path) {
     FILE* fp = fopen(path, "r");
     if (!fp) {
-        ika_log(LOG_ERROR, "cannot open file %s: %s\n", path, strerror(errno));
         return NULL;
     }
 
@@ -48,8 +47,8 @@ char* read_entire_file(const char* path) {
 
     char* buf = malloc(size + 1);
     if (!buf) {
-        ika_log(LOG_ERROR, "failed to allocate memory\n");
         fclose(fp);
+        errno = ENOMEM;
         return NULL;
     }
 
@@ -58,8 +57,8 @@ char* read_entire_file(const char* path) {
         fclose(fp);
 
         if (n_read != 1) {
-            ika_log(LOG_ERROR, "failed to read file: %s\n", path);
             free(buf);
+            errno = EIO;
             return NULL;
         }
     }
