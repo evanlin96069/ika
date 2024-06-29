@@ -13,7 +13,7 @@
 
 void usage(void) {
     fprintf(stderr,
-            "Usage: ikac [options] file...\n"
+            "Usage: ikac [options] file\n"
             "Options:\n"
             "  -E               Preprocess only; do not compile, assemble or "
             "link.\n"
