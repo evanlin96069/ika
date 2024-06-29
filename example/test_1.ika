@@ -1,4 +1,0 @@
-// #include example
-#include "test_2.ika"
-
-"Hello from test_1\n";

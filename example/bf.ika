@@ -1,0 +1,100 @@
+// A simple brainfuck interpreter
+
+#include "libc.ika"
+
+def TAPE_LENGTH = 32768;
+
+fn interpreter(code) {
+    var tape = calloc(TAPE_LENGTH, 1);
+    if (!tape) {
+        "Buy more ram\n";
+        exit(1);
+    }
+
+    var ptr = tape;
+    var loop;
+
+    var code_size = strlen(code);
+
+    var i = 0;
+    while (i < code_size) : (i += 1) {
+        var c = $code.i;
+
+        if (c == '>') {
+            ptr += 1;
+        } else if (c == '<') {
+            ptr -= 1;
+        } else if (c == '+') {
+            $(*ptr) += 1;
+        } else if (c == '-') {
+            $(*ptr) -= 1;
+        } else if (c == '.') {
+            putchar($(*ptr));
+        } else if (c == ',') {
+            $(*ptr) = getchar();
+        } else if (c == '[') {
+            if ($(*ptr) == 0) {
+                loop = 1;
+                while (loop > 0) {
+                    i += 1;
+                    if ($code.i == '[') {
+                        loop += 1;
+                    } else if ($code.i == ']') {
+                        loop -= 1;
+                    }
+                }
+            }
+        } else if (c == ']') {
+            if ($(*ptr) != 0) {
+                loop = 1;
+                while (loop > 0) {
+                    i -= 1;
+                    if ($code.i == '[') {
+                        loop -= 1;
+                    } else if ($code.i == ']') {
+                        loop += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    free(tape);
+}
+
+fn main() {
+    if (argc != 2) {
+        "usage: bf <src path>\n";
+        exit(1);
+    }
+
+    var src_path = argv.4;
+
+    var fp = fopen(src_path, "r");
+
+    if (fp == NULL) {
+        "Failed to open file: %s\n", src_path;
+        exit(1);
+    }
+
+    fseek(fp, 0, SEEK_END);
+    var code_size = ftell(fp);
+    rewind(fp);
+
+    var code = malloc(code_size + 1);
+    if (!code) {
+        "Buy more ram\n";
+        exit(1);
+    }
+
+    fread(code, 1, code_size, fp);
+    fclose(fp);
+
+    $code.code_size = '\0';
+
+    interpreter(code);
+
+    free(code);
+}
+
+main();
