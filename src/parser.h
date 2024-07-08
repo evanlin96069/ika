@@ -57,7 +57,7 @@ typedef struct UnaryOpNode {
 
 typedef struct VarNode {
     ASTNodeType type;
-    VarSymbolTableEntry* ste;
+    SymbolTableEntry* ste;
 } VarNode;
 
 typedef struct AssignNode {
@@ -107,7 +107,7 @@ typedef struct StatementListNode {
 
 typedef struct CallNode {
     ASTNodeType type;
-    FuncSymbolTableEntry* ste;
+    ASTNode* node;
     ASTNodeList* args;
 } CallNode;
 

@@ -62,11 +62,12 @@ static ASTNode* primary(ParserState* parser) {
             }
 
             switch (ste->type) {
-                case SYM_VAR: {
+                case SYM_VAR:
+                case SYM_FUNC: {
                     VarNode* var_node =
                         arena_alloc(parser->arena, sizeof(VarNode));
                     var_node->type = NODE_VAR;
-                    var_node->ste = (VarSymbolTableEntry*)ste;
+                    var_node->ste = ste;
                     node = (ASTNode*)var_node;
                 } break;
 
@@ -76,45 +77,6 @@ static ASTNode* primary(ParserState* parser) {
                     intlit->type = NODE_INTLIT;
                     intlit->val = ((DefSymbolTableEntry*)ste)->val;
                     node = (ASTNode*)intlit;
-                } break;
-
-                case SYM_FUNC: {
-                    CallNode* call_node =
-                        arena_alloc(parser->arena, sizeof(CallNode));
-                    call_node->type = NODE_CALL;
-                    call_node->ste = (FuncSymbolTableEntry*)ste;
-                    call_node->args = NULL;
-
-                    tk = next_token(parser);
-                    if (tk.type != TK_LPAREN) {
-                        return error(parser, parser->pre_token_pos,
-                                     "expected '('");
-                    }
-
-                    tk = peek_token(parser);
-                    if (tk.type == TK_RPAREN) {
-                        next_token(parser);
-                    } else {
-                        while (tk.type != TK_RPAREN) {
-                            ASTNode* arg_node = expr(parser, 0);
-                            if (arg_node->type == NODE_ERR) {
-                                return arg_node;
-                            }
-
-                            ASTNodeList* arg =
-                                arena_alloc(parser->arena, sizeof(ASTNodeList));
-                            arg->node = arg_node;
-                            arg->next = call_node->args;
-                            call_node->args = arg;
-
-                            tk = next_token(parser);
-                            if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
-                                return error(parser, parser->pre_token_pos,
-                                             "expected ',' or ')'");
-                            }
-                        }
-                    }
-                    node = (ASTNode*)call_node;
                 } break;
 
                 default:
@@ -186,18 +148,57 @@ static ASTNode* primary(ParserState* parser) {
     }
 
     tk = peek_token(parser);
-    if (tk.type == TK_DOT) {
-        next_token(parser);
-        BinaryOpNode* binop = arena_alloc(parser->arena, sizeof(BinaryOpNode));
-        binop->type = NODE_BINARYOP;
-        binop->pos = parser->post_token_pos;
-        binop->op = tk.type;
-        binop->left = node;
-        binop->right = primary(parser);
-        if (binop->right->type == NODE_ERR) {
-            return binop->right;
-        }
-        node = (ASTNode*)binop;
+    switch (tk.type) {
+        case TK_DOT: {
+            next_token(parser);
+            BinaryOpNode* binop =
+                arena_alloc(parser->arena, sizeof(BinaryOpNode));
+            binop->type = NODE_BINARYOP;
+            binop->pos = parser->post_token_pos;
+            binop->op = tk.type;
+            binop->left = node;
+            binop->right = primary(parser);
+            if (binop->right->type == NODE_ERR) {
+                return binop->right;
+            }
+            node = (ASTNode*)binop;
+        } break;
+
+        case TK_LPAREN: {
+            next_token(parser);
+            CallNode* call_node = arena_alloc(parser->arena, sizeof(CallNode));
+            call_node->type = NODE_CALL;
+            call_node->node = node;
+            call_node->args = NULL;
+
+            tk = peek_token(parser);
+            if (tk.type == TK_RPAREN) {
+                next_token(parser);
+            } else {
+                while (tk.type != TK_RPAREN) {
+                    ASTNode* arg_node = expr(parser, 0);
+                    if (arg_node->type == NODE_ERR) {
+                        return arg_node;
+                    }
+
+                    ASTNodeList* arg =
+                        arena_alloc(parser->arena, sizeof(ASTNodeList));
+                    arg->node = arg_node;
+                    arg->next = call_node->args;
+                    call_node->args = arg;
+
+                    tk = next_token(parser);
+                    if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
+                        return error(parser, parser->pre_token_pos,
+                                     "expected ',' or ')'");
+                    }
+                }
+            }
+            node = (ASTNode*)call_node;
+        } break;
+
+        default:
+            break;
     }
 
     return node;
@@ -490,7 +491,7 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
 
         VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
         var->type = NODE_VAR;
-        var->ste = ste;
+        var->ste = (SymbolTableEntry*)ste;
 
         next_token(parser);
 

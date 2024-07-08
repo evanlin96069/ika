@@ -359,19 +359,41 @@ static EmitResult emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
 }
 
 static EmitResult emit_var(FILE* out, VarNode* var) {
+    assert(var->ste->type != SYM_DEF);
+
     EmitResult result;
-    if (var->ste->is_extern) {
-        genf(out, "    movl $%.*s, %%eax", var->ste->ident.len,
-             var->ste->ident.ptr);
-    } else if (var->ste->is_global) {
-        genf(out, "    movl $VAR_%.*s, %%eax", var->ste->ident.len,
-             var->ste->ident.ptr);
-    } else {
-        genf(out, "    leal %d(%%ebp), %%eax", var->ste->offset);
+    if (var->ste->type == SYM_VAR) {
+        // Variable
+        VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
+        if (var_ste->is_extern) {
+            // Extern variable
+            genf(out, "    movl $%.*s, %%eax", var_ste->ident.len,
+                 var_ste->ident.ptr);
+        } else if (var_ste->is_global) {
+            // Global variable
+            genf(out, "    movl $VAR_%.*s, %%eax", var_ste->ident.len,
+                 var_ste->ident.ptr);
+        } else {
+            // Local variable
+            genf(out, "    leal %d(%%ebp), %%eax", var_ste->offset);
+        }
+        result.info.is_lvalue = 1;
+    } else if (var->ste->type == SYM_FUNC) {
+        // Function pointer
+        FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
+        if (func_ste->is_extern || func_ste->node == NULL) {
+            // Extern function
+            genf(out, "    movl $%.*s, %%eax", func_ste->ident.len,
+                 func_ste->ident.ptr);
+        } else {
+            // ika function
+            genf(out, "    movl $FUNC_%.*s, %%eax", func_ste->ident.len,
+                 func_ste->ident.ptr);
+        }
+        result.info.is_lvalue = 0;
     }
 
     result.type = RESULT_OK;
-    result.info.is_lvalue = 1;
     result.info.size = 4;
     return result;
 }
@@ -657,15 +679,17 @@ static EmitResult emit_call(FILE* out, CallNode* call) {
         curr = curr->next;
     }
 
-    if (call->ste->is_extern || call->ste->node == NULL) {
-        // extern
-        genf(out, "    call %.*s", call->ste->ident.len, call->ste->ident.ptr);
-    } else {
-        genf(out, "    call FUNC_%.*s", call->ste->ident.len,
-             call->ste->ident.ptr);
+    result = emit_node(out, call->node);
+    if (result.type == RESULT_ERROR) {
+        return result;
     }
 
-    if (call->ste->sym->arg_size) {
+    if (result.info.is_lvalue) {
+        emit_rvalify(out, result.info.size);
+    }
+    genf(out, "    call *%%eax");
+
+    if (arg_size > 0) {
         genf(out, "    addl $%d, %%esp", arg_size);
     }
 
