@@ -176,7 +176,7 @@ static ASTNode* primary(ParserState* parser) {
                 next_token(parser);
             } else {
                 while (tk.type != TK_RPAREN) {
-                    ASTNode* arg_node = expr(parser, 0);
+                    ASTNode* arg_node = expr(parser, 1);
                     if (arg_node->type == NODE_ERR) {
                         return arg_node;
                     }
@@ -206,6 +206,9 @@ static ASTNode* primary(ParserState* parser) {
 
 static inline int get_precedence(TokenType type) {
     switch (type) {
+        case TK_COMMA:
+            return 0;
+
         case TK_ASSIGN:
         case TK_AADD:
         case TK_ASUB:
@@ -277,6 +280,7 @@ static inline int is_left_associative(TokenType type) {
         case TK_AOR:
             return 0;
 
+        case TK_COMMA:
         case TK_MUL:
         case TK_DIV:
         case TK_MOD:
@@ -354,7 +358,8 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                     return right;
                 }
 
-                if (left->type == NODE_INTLIT && right->type == NODE_INTLIT) {
+                if (tk.type != TK_COMMA && left->type == NODE_INTLIT &&
+                    right->type == NODE_INTLIT) {
                     int a = ((IntLitNode*)left)->val;
                     int b = ((IntLitNode*)right)->val;
 
@@ -897,7 +902,7 @@ static ASTNode* stmt(ParserState* parser) {
 
             tk = next_token(parser);
             while (tk.type == TK_COMMA) {
-                ASTNode* arg_node = expr(parser, 0);
+                ASTNode* arg_node = expr(parser, 1);
                 if (arg_node->type == NODE_ERR)
                     return arg_node;
 

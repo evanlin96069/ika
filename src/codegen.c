@@ -268,6 +268,10 @@ static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
                 result.info.is_lvalue = 1;
                 break;
 
+            case TK_COMMA:
+                genf(out, "    movl %%ecx, %%eax");
+                break;
+
             default:
                 assert(0);
         }
