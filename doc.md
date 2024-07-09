@@ -96,13 +96,29 @@ while (i < 3) {
 }
 ```
 You can also use `break` and `continue` as in C.
+```zig
+var i = 0;
+while (1) {
+    if (i == 3) {
+        break;
+    }
 
+    "WAH!\n";
+    i += 1;
+}
+```
 ika does not have for loops, but you can add a statement to execute at the end of a while loop.
 
 ```zig
 var i = 0;
 while (i < 3) : (i += 1) {
     "WAH!\n";
+}
+
+var a = 1;
+var b = 1;
+while (a * b < 2000) : (a *= 2, b *= 3) {
+    "%d\n", a * b;
 }
 ```
 
@@ -122,22 +138,18 @@ fn hello() {
     "Hello!\n";
 }
 
-hello(); // This will return 0
+var n = hello(); // This will return 0
+"%d\n", n;
 ```
 You can also forward declare a function.
 ```zig
-fn a();
+fn greeting();
 
-fn b() {
-    "This is b()\n";
-    a();
+greeting();
+
+fn greeting() {
+    "WAH!\n";
 }
-
-fn a() {
-    "This is a()\n";
-}
-
-b();
 ```
 
 ## Extern
@@ -166,6 +178,7 @@ enum {
     B, // B = 1
     C, // C = 2
 }
+"A=%d, B=%d, C=%d\n", A, B, C;
 ```
 Enum is similar to multiple `def` statements. Enum starts at 0 and increments by 1, but you can set values with `=` or change the increment with `:`.
 
@@ -175,10 +188,11 @@ enum {
     B : 3, // B = 5, increment by 3
     C      // C = 8
 }
+"A=%d, B=%d, C=%d\n", A, B, C;
 ```
 
 ## Include
-```
+```zig
 #include "libc.ika"
 printf("Hello world!\n");
 ```
@@ -216,6 +230,11 @@ while (i < 10) : (i += 1) {
     *(arr + i * int) = i;
 }
 
+i = 0;
+while (i < 10) : (i += 1) {
+    "%d\n", *(arr + i * int);
+}
+
 free(arr);
 ```
 You cannot declare arrays on the stack, but you can use `malloc`.
@@ -229,6 +248,11 @@ var arr = malloc(10 * int);
 var i = 0;
 while (i < 10) : (i += 1) {
     arr.(i * int) = i;
+}
+
+i = 0;
+while (i < 10) : (i += 1) {
+    "%d\n", arr.(i * int);
 }
 
 free(arr);
@@ -271,7 +295,7 @@ fn hello(name) {
 greeting(hi, "Evan");
 greeting(hello, "Evan");
 ```
-You can also assign function pointer to variable and call it.
+In ika, you can assign function pointer to variable and call it.
 
 ### Structure
 ```zig
