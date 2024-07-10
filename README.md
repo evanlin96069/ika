@@ -1,12 +1,22 @@
-# ika
+# 🦑 ika
 
-A simple programming language that compiles into 32-bit x86 assembly.
+A simple programming language that compiles into x86 assembly.
 
 ## Build
 ```sh
 make
 ```
 Currently, Windows build is not supported yet.
+
+## Usage
+```
+Usage: ikac [options] file
+Options:
+  -E               Preprocess only; do not compile, assemble or link.
+  -S               Compile only; do not assemble or link.
+  -o <file>        Place the output into <file>.
+  -?               Display this information.
+```
 
 ## Examples
 
@@ -36,7 +46,7 @@ fn main() {
 main();
 ```
 
-See more examples in the `example` folder.
+See more examples in the `examples` folder.
 
 ## Documentation
 
