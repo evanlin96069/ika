@@ -40,7 +40,7 @@ typedef struct StrToken {
 } StrToken;
 
 static StrToken str_tk[] = {
-    {"var", TK_DECL},      {"def", TK_DEF},     {"if", TK_IF},
+    {"var", TK_DECL},      {"const", TK_CONST}, {"if", TK_IF},
     {"else", TK_ELSE},     {"while", TK_WHILE}, {"fn", TK_FUNC},
     {"return", TK_RET},    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
     {"extern", TK_EXTERN}, {"enum", TK_ENUM},

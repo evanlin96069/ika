@@ -33,13 +33,21 @@ typedef struct VarSymbolTableEntry {
     int offset;
 } VarSymbolTableEntry;
 
+typedef struct DefSymbolValue {
+    int is_str;
+    union {
+        Str str;
+        int val;
+    };
+} DefSymbolValue;
+
 typedef struct DefSymbolTableEntry {
     Str ident;
     int hash;
     SymbolTableEntry* next;
     SymbolType type;
 
-    int val;
+    DefSymbolValue val;
 } DefSymbolTableEntry;
 
 typedef struct FuncSymbolTableEntry {
@@ -70,7 +78,7 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              int is_arg, int is_extern);
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
-                                             int val);
+                                             DefSymbolValue val);
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
                                                int is_extern);
 

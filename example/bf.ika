@@ -2,7 +2,7 @@
 
 #include "libc.ika"
 
-def TAPE_LENGTH = 32768;
+const TAPE_LENGTH = 32768;
 
 fn interpreter(code) {
     var tape = calloc(TAPE_LENGTH, 1);

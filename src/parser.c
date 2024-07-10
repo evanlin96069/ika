@@ -72,11 +72,20 @@ static ASTNode* primary(ParserState* parser) {
                 } break;
 
                 case SYM_DEF: {
-                    IntLitNode* intlit =
-                        arena_alloc(parser->arena, sizeof(intlit));
-                    intlit->type = NODE_INTLIT;
-                    intlit->val = ((DefSymbolTableEntry*)ste)->val;
-                    node = (ASTNode*)intlit;
+                    DefSymbolTableEntry* def = (DefSymbolTableEntry*)ste;
+                    if (def->val.is_str) {
+                        StrLitNode* strlit =
+                            arena_alloc(parser->arena, sizeof(StrLitNode));
+                        strlit->type = NODE_STRLIT;
+                        strlit->val = def->val.str;
+                        node = (ASTNode*)strlit;
+                    } else {
+                        IntLitNode* intlit =
+                            arena_alloc(parser->arena, sizeof(IntLitNode));
+                        intlit->type = NODE_INTLIT;
+                        intlit->val = def->val.val;
+                        node = (ASTNode*)intlit;
+                    }
                 } break;
 
                 default:
@@ -520,7 +529,7 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
 
 static ASTNode* def_decl(ParserState* parser) {
     Token tk = next_token(parser);
-    assert(tk.type == TK_DEF);
+    assert(tk.type == TK_CONST);
 
     tk = next_token(parser);
 
@@ -547,12 +556,19 @@ static ASTNode* def_decl(ParserState* parser) {
         return val;
     }
 
-    if (val->type != NODE_INTLIT) {
+    DefSymbolValue def_val;
+    if (val->type == NODE_INTLIT) {
+        def_val.is_str = 0;
+        def_val.val = ((IntLitNode*)val)->val;
+    } else if (val->type == NODE_STRLIT) {
+        def_val.is_str = 1;
+        def_val.str = ((StrLitNode*)val)->val;
+    } else {
         return error(parser, pos,
                      "defined element is not a compile-time constant integer");
     }
 
-    symbol_table_append_def(parser->sym, ident, ((IntLitNode*)val)->val);
+    symbol_table_append_def(parser->sym, ident, def_val);
 
     return NULL;
 }
@@ -619,7 +635,11 @@ static ASTNode* enum_decl(ParserState* parser) {
             increment = 1;
         }
 
-        symbol_table_append_def(parser->sym, ident, enum_val);
+        DefSymbolValue def_val = {
+            .is_str = 0,
+            .val = enum_val,
+        };
+        symbol_table_append_def(parser->sym, ident, def_val);
         enum_val += increment;
 
         tk = next_token(parser);
@@ -1007,7 +1027,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 }
                 break;
 
-            case TK_DEF:
+            case TK_CONST:
                 node = def_decl(parser);
                 if (node && node->type == NODE_ERR) {
                     return node;

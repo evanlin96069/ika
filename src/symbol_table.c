@@ -73,7 +73,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
 }
 
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
-                                             int val) {
+                                             DefSymbolValue val) {
     DefSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(DefSymbolTableEntry));
     ste->type = SYM_DEF;

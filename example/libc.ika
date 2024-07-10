@@ -1,11 +1,11 @@
-def char = 1;
-def int = 4;
-def ptr = 4;
+const char = 1;
+const int = 4;
+const ptr = 4;
 
 // stdio.h
 
-def EOF = -1;
-def NULL = 0;
+const EOF = -1;
+const NULL = 0;
 
 extern var stdin;
 extern var stdout;
@@ -28,9 +28,9 @@ extern fn clearerr(fp);
 extern fn feof(fp);
 extern fn ferror(fp);
 
-def SEEK_SET = 0;
-def SEEK_CUR = 1;
-def SEEK_END = 2;
+const SEEK_SET = 0;
+const SEEK_CUR = 1;
+const SEEK_END = 2;
 
 extern fn fseek(fp, offset, whence);
 extern fn ftell(fp);
@@ -65,12 +65,12 @@ extern fn free(ptr);
 
 extern fn getenv(str);
 
-def EXIT_FAILURE = 1;
-def EXIT_SUCCESS = 0;
+const EXIT_FAILURE = 1;
+const EXIT_SUCCESS = 0;
 extern fn abort();
 extern fn exit(ret);
 
-def RAND_MAX = 32767;
+const RAND_MAX = 32767;
 extern fn rand();
 extern fn srand(seed);
 

@@ -10,7 +10,7 @@
 - [Functions](#functions)
 - [Extern](#extern)
 - [Define](#define)
-   * [def](#def)
+   * [const](#const)
    * [enum](#enum)
 - [Include](#include)
 - [Advanced Features](#advanced-features)
@@ -62,14 +62,13 @@ var a = 35;
 var b = 34;
 var c = a + b;
 
-// Swap a and b
-x ^= y;
-y = x ^ y;
-x ^= y;
+a += b;
+b *= 2;
+b += 1; 
 
 "a=%d, b=%d, c=%d\n", a, b, c; 
 ```
-ika includes most operators from C except for `++` and `--`. It also supports assignment versions like `+=` and `^=`.
+ika includes most operators from C except for `++` and `--`. It also supports assignment versions like `+=` and `-=`.
 
 ## Control Flow
 
@@ -163,13 +162,15 @@ You can mark variables or functions as extern, meaning they are declared externa
 
 ## Define
 
-### def
+### const
 ```zig
-def a = 35;
-def b = 35;
-def c = a + b - 1; // This is compile-time known
+const a = 35;
+const b = 35;
+const c = a + b - 1; // This is compile-time known
+
+const s = "WAH!"; // A constant string
 ```
-Use `def` to define a compile-time constant. It cannot be modified.
+Use `const` to define a compile-time constant or a string. It cannot be modified.
 
 ### enum
 ```zig
@@ -180,7 +181,7 @@ enum {
 }
 "A=%d, B=%d, C=%d\n", A, B, C;
 ```
-Enum is similar to multiple `def` statements. Enum starts at 0 and increments by 1, but you can set values with `=` or change the increment with `:`.
+Enum starts at 0 and increments by 1, but you can set values with `=` or change the increment with `:`.
 
 ```zig
 enum {
@@ -223,7 +224,7 @@ String literals are pointers and can be assigned to variables. They are `const c
 ```zig
 #include "libc.ika"
 
-var arr = malloc(10 * int); // def int = 4;
+var arr = malloc(10 * int); // const int = 4;
 
 var i = 0;
 while (i < 10) : (i += 1) {
@@ -263,7 +264,7 @@ free(arr);
 ```zig
 #include "libc.ika"
 
-var arr = malloc(27 * char); // def char = 1;
+var arr = malloc(27 * char); // const char = 1;
 
 var i = 0;
 while (i < 26) : (i += 1) {
