@@ -80,9 +80,9 @@ var b = 6;
 if (a == b) {
     "equal!\n";
 } else if (a > b) {
-    "a\n";
+    "a is greater!\n";
 } else {
-    "b\n";
+    "b is greater!\n";
 }
 ```
 
@@ -168,9 +168,12 @@ const a = 35;
 const b = 35;
 const c = a + b - 1; // This is compile-time known
 
-const s = "WAH!"; // A constant string
+const s = "WAH!"; // A string literal
+
+"a=%d, b=%d, c=%d\n", a, b, c;
+"s=%s\n", s;
 ```
-Use `const` to define a compile-time constant or a string. It cannot be modified.
+Use `const` to define a compile-time constant or a string literal. It cannot be modified.
 
 ### enum
 ```zig
@@ -179,6 +182,7 @@ enum {
     B, // B = 1
     C, // C = 2
 }
+
 "A=%d, B=%d, C=%d\n", A, B, C;
 ```
 Enum starts at 0 and increments by 1, but you can set values with `=` or change the increment with `:`.
@@ -189,6 +193,7 @@ enum {
     B : 3, // B = 5, increment by 3
     C      // C = 8
 }
+
 "A=%d, B=%d, C=%d\n", A, B, C;
 ```
 
@@ -271,7 +276,7 @@ while (i < 26) : (i += 1) {
     $arr.i = 'a' + i;
 }
 
-$arr.26 = '\0';
+$arr.26 = 0;
 
 "%s\n", arr; // Prints a to z
 
@@ -300,10 +305,13 @@ In ika, you can assign function pointer to variable and call it.
 
 ### Structure
 ```zig
+#include "libc.ika"
+
+// Note: const int = 4;
 enum {
-    vec_x : 4, // 0: enum starts at 0, set next increment by 4
-    vec_y : 4, // 4: set next increment by 4
-    vec_z : 4, // 8: set next increment by 4
+    vec_x : int, // 0: enum starts at 0, set next increment to 4
+    vec_y : int, // 4: set next increment to 4
+    vec_z : int, // 8: set next increment to 4
     Vec3,     // 12: size of the "struct"
 }
 
