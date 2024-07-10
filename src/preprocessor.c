@@ -69,6 +69,7 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
         orig_file.filename = arena_alloc(state->arena, strlen(filename) + 1);
         strcpy(orig_file.filename, filename);
         orig_file.pos.index = 0;
+        orig_file.is_open = 0;
 
         append_file(state, orig_file);
     }
@@ -79,18 +80,19 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
 
     if (depth > MAX_INCLUDE_DEPTH) {
         return error(state->files[last_include].pos,
-                     "#include nested too deeply\n");
+                     "#include nested too deeply");
     }
 
     char* src = read_entire_file(filename);
     if (!src) {
-        return error(state->files[last_include].pos, "%s\n", strerror(errno));
+        return error(state->files[last_include].pos, "%s", strerror(errno));
     }
+    state->files[curr_file_index].is_open = 1;
 
     size_t pos = 0;
     char c = *(src + pos);
     int lineno = 1;
-    while (c != '\0') {
+    do {
         // read line
         size_t start_pos = pos;
         while (c != '\n' && c != '\0') {
@@ -129,7 +131,7 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
                 SourcePos pos;
                 pos.line = line;
                 pos.index = p - line.content;
-                return error(pos, "#include expects \"FILENAME\"\n");
+                return error(pos, "#include expects \"FILENAME\"");
             }
 
             int include_index = p - line.content;
@@ -149,7 +151,7 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
                 SourcePos pos;
                 pos.line = line;
                 pos.index = p - line.content;
-                return error(pos, "missing terminating \" character\n");
+                return error(pos, "missing terminating \" character");
             }
 
             char* dir = dirname(filename);
@@ -160,13 +162,19 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
             snprintf(inc_path, inc_path_len + 1, "%s/%.*s", dir, s.len, s.ptr);
             free(dir);
 
-            SourceFile file = {0};
-            file.filename = arena_alloc(state->arena, strlen(inc_path) + 1);
-            strcpy(file.filename, inc_path);
-            file.pos.index = include_index;
-            file.pos.line = line;
+            if (curr_file_index == 0) {
+                state->files[0].pos.index = include_index;
+                state->files[0].pos.line = line;
+            } else {
+                SourceFile file = {0};
+                file.filename = arena_alloc(state->arena, strlen(inc_path) + 1);
+                strcpy(file.filename, inc_path);
+                file.pos.index = include_index;
+                file.pos.line = line;
+                file.is_open = 0;
 
-            append_file(state, file);
+                append_file(state, file);
+            }
 
             Error* err = pp_expand(state, inc_path, depth + 1);
             if (err != NULL) {
@@ -176,7 +184,7 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
         } else {
             append_line(state, line);
         }
-    }
+    } while (c != '\0');
 
     state->last_include = last_include;
 

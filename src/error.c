@@ -12,6 +12,12 @@ void print_err(SourceState* src, Error* err) {
     int pos = err->pos.index;
     int included_by = file->pos.line.file_index;
 
+    if (file->is_open == 0) {
+        fprintf(stderr, "%s: ", filename);
+        ika_log(LOG_ERROR, "%s\n", err->msg);
+        return;
+    }
+
     if (err->pos.line.file_index != 0) {
         const SourceFile* included_file = &src->files[included_by];
         fprintf(stderr, "In file included from %s:%d%c\n",

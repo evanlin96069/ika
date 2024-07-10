@@ -20,6 +20,7 @@ typedef struct SourcePos {
 
 typedef struct SourceFile {
     char* filename;
+    int is_open;
     SourcePos pos;
 } SourceFile;
 
