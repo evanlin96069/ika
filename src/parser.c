@@ -565,7 +565,8 @@ static ASTNode* def_decl(ParserState* parser) {
         def_val.str = ((StrLitNode*)val)->val;
     } else {
         return error(parser, pos,
-                     "defined element is not a compile-time constant integer");
+                     "defined element is not a compile-time constant integer "
+                     "or string literal");
     }
 
     symbol_table_append_def(parser->sym, ident, def_val);
