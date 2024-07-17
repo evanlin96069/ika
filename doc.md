@@ -46,7 +46,7 @@ Comments in ika are like those in C, but multi-line comments are not supported.
 var a = 69;
 "%d\n", a;
 ```
-Declare variables using `var`. ika does not have explicit types; all variables are 32-bit integers.
+Declare variables using `var`. ika does not have explicit types; all variables are 32-bit signed integers.
 
 Variables can also be declared without initialization.
 
