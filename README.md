@@ -22,7 +22,7 @@ Options:
 
 ### Hello world
 ```zig
-"Hello world!\n"
+"Hello world!\n";
 ```
 
 ### Fibonacci
