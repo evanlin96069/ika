@@ -1,118 +1,117 @@
-const char = 1;
-const int = 4;
-const ptr = 4;
-
 // stdio.h
 
 const EOF = -1;
-const NULL = 0;
 
-extern var stdin;
-extern var stdout;
-extern var stderr;
+struct FILE;
 
-extern fn snprintf(str, n, fmt);
-extern fn fprintf(fp, fmt);
-extern fn fflush(fp);
+extern var stdin: *FILE;
+extern var stdout: *FILE;
+extern var stderr: *FILE;
 
-extern fn perror(str);
+extern fn snprintf(str: []u8, n: u32, format: []u8, ...) i32;
+extern fn fprintf(stream: *FILE, format: []u8, ...) i32;
+extern fn fflush(stream: *FILE) i32;
 
-extern fn fscanf(fp, fmt);
-extern fn scanf(fmt);
-extern fn sscanf(str, fmt);
+extern fn perror(str: []u8) void;
 
-extern fn fopen(path, mode);
-extern fn fclose(fp);
+extern fn fscanf(stream: *FILE, format: []u8, ...) i32;
+extern fn scanf(format: []u8, ...) i32;
+extern fn sscanf(str: []u8, format: []u8, ...) i32;
 
-extern fn clearerr(fp);
-extern fn feof(fp);
-extern fn ferror(fp);
+extern fn fopen(pathname: []u8, mode: []u8) *FILE;
+extern fn fclose(stream: *FILE) i32;
+
+extern fn clearerr(stream: *FILE) void;
+extern fn feof(stream: *FILE) i32;
+extern fn ferror(stream: *FILE) i32;
+extern fn fileno(stream: *FILE) i32;
 
 const SEEK_SET = 0;
 const SEEK_CUR = 1;
 const SEEK_END = 2;
 
-extern fn fseek(fp, offset, whence);
-extern fn ftell(fp);
-extern fn rewind(fp);
+extern fn fseek(stream: *FILE, offset: i32, whence: i32) i32;
+extern fn ftell(stream: *FILE) i32;
+extern fn rewind(stream: *FILE) void;
 
-extern fn fread(ptr, size, n, fp);
-extern fn fwrite(ptr, size, n, fp);
+extern fn fread(ptr: *void, size: u32, nmemb: u32, stream: *FILE) u32;
+extern fn fwrite(ptr: *void, size: u32, nmemb: u32, stream: *FILE) u32;
 
-extern fn remove(path);
-extern fn rename(old_path, new_path);
+extern fn remove(pathname: []u8) i32;
+extern fn rename(oldpath: []u8, newpath: []u8) i32;
 
-extern fn tmpfile();
-extern fn tmpnam(str);
+extern fn tmpfile() *FILE;
 
-extern fn fgetc(fp);
-extern fn fputc(c, fp);
-extern fn fgets(str, n, fp);
-extern fn fputs(str, fp);
-extern fn gets(str);
-extern fn puts(str);
-extern fn putchar(c);
-extern fn getchar();
+extern fn fgetc(stream: *FILE) i32;
+extern fn fgets(s: []u8, size: i32, stream: *FILE) []u8;
+extern fn getchar() i32;
+
+extern fn fputc(c: i32, stream: *FILE) i32;
+extern fn fputs(s: []u8, stream: *FILE) i32;
+extern fn putchar(c: i32) i32;
+extern fn puts(s: []u8) i32;
+
+extern fn gets(s: []u8) []u8;
 
 // stdlib.h
 
-extern fn atoi(str);
+extern fn atoi(nptr: []u8) i32;
 
-extern fn malloc(size);
-extern fn calloc(n, size);
-extern fn realloc(ptr, size);
-extern fn free(ptr);
+extern fn malloc(size: u32) *void;
+extern fn free(ptr: *void) void;
+extern fn calloc(nmemb: u32, size: u32) *void;
+extern fn realloc(ptr: *void, size: u32) *void;
 
-extern fn getenv(str);
+extern fn getenv(name: []u8) []u8;
 
 const EXIT_FAILURE = 1;
 const EXIT_SUCCESS = 0;
-extern fn abort();
-extern fn exit(ret);
+extern fn abort() void;
+extern fn exit(status: i32) void;
 
 const RAND_MAX = 32767;
-extern fn rand();
-extern fn srand(seed);
+extern fn rand() i32;
+extern fn srand(seed: u32) void;
 
-extern fn abs(x);
+extern fn abs(j: i32) i32;
 
 // string.h
 
-extern fn memchr(str, c, n);
-extern fn memcmp(s1, s2, n);
-extern fn memcpy(dest, sec, n);
-extern fn memmove(dest, sec, n);
-extern fn memset(str, c, n);
+extern fn memchr(s: *void, c: i32, n: u32) *void;
+extern fn memcmp(s1: *void, s2: *void, n: u32) u32;
+extern fn memcpy(dest: *void, src: *void, n: u32) *void;
+extern fn memmove(dest: *void, src: *void, n: u32) *void;
+extern fn memset(s: *void, c: i32, n: u32) *void;
 
-extern fn strcat(dest, src);
-extern fn strncat(dest, src, n);
-extern fn strchr(str, c);
-extern fn strrchr(str, c);
-extern fn strcmp(s1, s2);
-extern fn strncmp(s1, s2, n);
-extern fn strcpy(dest, src);
-extern fn strncpy(dest, src, n);
-extern fn strlen(str);
-extern fn strstr(haytstack, neddle);
+extern fn strcat(dest: []u8, src: []u8) []u8;
+extern fn strncat(dest: []u8, src: []u8, n: u32) []u8;
+extern fn strchr(s: []u8, c: i32) []u8;
+extern fn strrchr(s: []u8, c: u32) []u8;
+extern fn strcmp(s1: []u8, s2: []u8) i32;
+extern fn strncmp(s1: []u8, s2: []u8, n: u32) i32;
+extern fn strcpy(dest: []u8, src: []u8) []u8;
+extern fn strncpy(dest: []u8, src: []u8, n: u32) []u8;
+extern fn strlen(s: []u8) u32;
+extern fn strstr(haytstack: []u8, neddle: []u8) []u8;
 
 // time.h
 
-extern fn clock();
-extern fn time(t);
+extern fn clock() u32;
+extern fn time(tloc: *u32) u32;
 
 // ctype.h
 
-extern fn isalnum(c);
-extern fn isalpha(c);
-extern fn iscntrl(c);
-extern fn isdigit(c);
-extern fn isgraph(c);
-extern fn islower(c);
-extern fn isprint(c);
-extern fn ispunct(c);
-extern fn isspace(c);
-extern fn isupper(c);
-extern fn isxdigit(c);
+extern fn isalnum(c: i32) i32;
+extern fn isalpha(c: i32) i32;
+extern fn iscntrl(c: i32) i32;
+extern fn isdigit(c: i32) i32;
+extern fn isgraph(c: i32) i32;
+extern fn islower(c: i32) i32;
+extern fn isprint(c: i32) i32;
+extern fn ispunct(c: i32) i32;
+extern fn isspace(c: i32) i32;
+extern fn isupper(c: i32) i32;
+extern fn isxdigit(c: i32) i32;
 
-extern fn tolower(c);
-extern fn toupper(c);
+extern fn tolower(c: i32) i32;
+extern fn toupper(c: i32) i32;

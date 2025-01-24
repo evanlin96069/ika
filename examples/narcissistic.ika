@@ -1,7 +1,7 @@
 // Finding Narcissistic numbers
 
-fn digit_num(n) {
-    var sum = 0;
+fn digit_num(n: i32) i32 {
+    var sum: i32 = 0;
     while (n != 0) {
         n /= 10;
         sum += 1;
@@ -9,15 +9,15 @@ fn digit_num(n) {
     return sum;
 }
 
-fn is_narcissistic(n) {
-    var digit = digit_num(n);
-    var sum = 0;
+fn is_narcissistic(n: i32) bool {
+    var digit: i32 = digit_num(n);
+    var sum: i32 = 0;
 
-    var i = n;
+    var i: i32 = n;
     while (i != 0) : (i /= 10) {
-        var num = i % 10;
-        var product = 1;
-        var j = 0;
+        var num: i32 = i % 10;
+        var product: i32 = 1;
+        var j: i32 = 0;
         while (j < digit) : (j += 1) {
             product *= num;
         }
@@ -26,8 +26,8 @@ fn is_narcissistic(n) {
     return sum == n;
 }
 
-fn main() {
-    var i = 0;
+fn main() void {
+    var i: i32 = 0;
     while (i < 10000) : (i += 1) {
         if (is_narcissistic(i)) {
             "%d\n", i;
