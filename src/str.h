@@ -8,7 +8,7 @@ typedef struct Str {
     int len;
 } Str;
 
-static inline Str str(const char* s) { return (Str){s, strlen(s)}; }
+static inline Str str(const char* s) { return (Str){s, (int)strlen(s)}; }
 
 static inline int str_eql(Str s1, Str s2) {
     if (s1.len != s2.len)

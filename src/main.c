@@ -129,7 +129,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    err = codegen(out, node, &sym);
+    CodegenState state = {
+        .out = out,
+        .arena = &arena,
+    };
+
+    err = codegen(&state, node, &sym);
     fclose(out);
 
     if (err != NULL) {

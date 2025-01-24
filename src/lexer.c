@@ -43,7 +43,11 @@ static StrToken str_tk[] = {
     {"var", TK_DECL},      {"const", TK_CONST}, {"if", TK_IF},
     {"else", TK_ELSE},     {"while", TK_WHILE}, {"fn", TK_FUNC},
     {"return", TK_RET},    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
-    {"extern", TK_EXTERN}, {"enum", TK_ENUM},
+    {"extern", TK_EXTERN}, {"enum", TK_ENUM},   {"struct", TK_STRUCT},
+    {"sizeof", TK_SIZEOF}, {"void", TK_VOID},   {"u8", TK_U8},
+    {"u16", TK_U16},       {"u32", TK_U32},     {"i8", TK_I8},
+    {"i16", TK_I16},       {"i32", TK_I32},     {"bool", TK_BOOL},
+    {"true", TK_TRUE},     {"false", TK_FALSE}, {"null", TK_NULL},
 };
 
 Token next_token_internal(ParserState* parser, int peek) {
@@ -253,6 +257,16 @@ Token next_token_internal(ParserState* parser, int peek) {
             pos++;
             break;
 
+        case '[':
+            tk.type = TK_LBRACKET;
+            pos++;
+            break;
+
+        case ']':
+            tk.type = TK_RBRACKET;
+            pos++;
+            break;
+
         case '{':
             tk.type = TK_LBRACE;
             pos++;
@@ -279,13 +293,13 @@ Token next_token_internal(ParserState* parser, int peek) {
             break;
 
         case '.':
-            tk.type = TK_DOT;
-            pos++;
-            break;
-
-        case '$':
-            tk.type = TK_DOLLAR;
-            pos++;
+            if (*(p + 1) == '.' && *(p + 2) == '.') {
+                pos += 3;
+                tk.type = TK_ARGS;
+            } else {
+                tk.type = TK_DOT;
+                pos++;
+            }
             break;
 
         case '"': {

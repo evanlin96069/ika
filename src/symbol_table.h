@@ -3,6 +3,7 @@
 
 #include "arena.h"
 #include "str.h"
+#include "type.h"
 
 struct ASTNode;
 
@@ -10,10 +11,18 @@ typedef enum SymbolType {
     SYM_VAR,
     SYM_DEF,
     SYM_FUNC,
+    SYM_TYPE,
+    SYM_FIELD,
 } SymbolType;
 
 typedef struct SymbolTable SymbolTable;
 typedef struct SymbolTableEntry SymbolTableEntry;
+
+typedef struct VarSymbolTableEntry VarSymbolTableEntry;
+typedef struct FieldSymbolTableEntry FieldSymbolTableEntry;
+typedef struct DefSymbolTableEntry DefSymbolTableEntry;
+typedef struct FuncSymbolTableEntry FuncSymbolTableEntry;
+typedef struct TypeSymbolTableEntry TypeSymbolTableEntry;
 
 struct SymbolTableEntry {
     Str ident;
@@ -22,7 +31,7 @@ struct SymbolTableEntry {
     SymbolType type;
 };
 
-typedef struct VarSymbolTableEntry {
+struct VarSymbolTableEntry {
     Str ident;
     int hash;
     SymbolTableEntry* next;
@@ -31,41 +40,66 @@ typedef struct VarSymbolTableEntry {
     int is_extern;
     int is_global;
     int offset;
-} VarSymbolTableEntry;
+    const Type* data_type;
+};
+
+struct FieldSymbolTableEntry {
+    Str ident;
+    int hash;
+    SymbolTableEntry* next;
+    SymbolType type;
+
+    int offset;
+    const Type* data_type;
+};
 
 typedef struct DefSymbolValue {
     int is_str;
     union {
         Str str;
-        int val;
+        unsigned int val;
     };
+    PrimitiveType data_type;  // for val
 } DefSymbolValue;
 
-typedef struct DefSymbolTableEntry {
+struct DefSymbolTableEntry {
     Str ident;
     int hash;
     SymbolTableEntry* next;
     SymbolType type;
 
     DefSymbolValue val;
-} DefSymbolTableEntry;
+};
 
-typedef struct FuncSymbolTableEntry {
+struct FuncSymbolTableEntry {
     Str ident;
     int hash;
     SymbolTableEntry* next;
     SymbolType type;
 
     int is_extern;
+    FuncMetadata func_data;
+
     struct ASTNode* node;
     SymbolTable* sym;
-} FuncSymbolTableEntry;
+};
+
+struct TypeSymbolTableEntry {
+    Str ident;
+    int hash;
+    SymbolTableEntry* next;
+    SymbolType type;
+
+    int incomplete;
+    int size;
+    int alignment;
+    SymbolTable* name_space;
+};
 
 struct SymbolTable {
     SymbolTable* parent;
     Arena* arena;
     SymbolTableEntry* ste;
-    SymbolTableEntry* _tail;
     int* stack_size;
     int is_global;
     int offset;
@@ -76,11 +110,15 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
                        int is_global, Arena* arena);
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
-                                             int is_arg, int is_extern);
+                                             int is_arg, int is_extern,
+                                             const Type* data_type);
+FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
+                                                 const Type* data_type);
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
                                              DefSymbolValue val);
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
                                                int is_extern);
+TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident);
 
 SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope);

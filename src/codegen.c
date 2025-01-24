@@ -5,10 +5,13 @@
 #include <stdlib.h>
 
 #include "lexer.h"
+#include "parser.h"
+#include "symbol_table.h"
+#include "type.h"
 
 #ifdef _DEBUG
 
-#define genf(out, ...)                                  \
+#define GEN(out, ...)                                   \
     do {                                                \
         fprintf(out, __VA_ARGS__);                      \
         fprintf(out, " # %s:%d\n", __FILE__, __LINE__); \
@@ -16,13 +19,20 @@
 
 #else
 
-#define genf(out, ...)             \
+#define GEN(out, ...)              \
     do {                           \
         fprintf(out, __VA_ARGS__); \
         fprintf(out, "\n");        \
     } while (0)
 
 #endif
+
+#define genf(...)                         \
+    do {                                  \
+        if (state->out != NULL) {         \
+            GEN(state->out, __VA_ARGS__); \
+        }                                 \
+    } while (0)
 
 static int add_label(void) {
     static int label_count = 0;
@@ -43,8 +53,8 @@ static int add_data(Str str) {
     return data_count++;
 }
 
-// out label for current function
-static int out_label;
+// state label for current function
+static int state_label;
 
 static int in_loop = 0;
 static int break_label;
@@ -64,14 +74,14 @@ static EmitResult error(SourcePos pos, const char* fmt, ...) {
     return result;
 }
 
-static EmitResult emit_node(FILE* out, ASTNode* node);
+static EmitResult emit_node(CodegenState* state, ASTNode* node);
 
-static EmitResult emit_stmts(FILE* out, StatementListNode* stmts) {
+static EmitResult emit_stmts(CodegenState* state, StatementListNode* stmts) {
     EmitResult result;
 
     ASTNodeList* iter = stmts->stmts;
     while (iter) {
-        result = emit_node(out, iter->node);
+        result = emit_node(state, iter->node);
         if (result.type == RESULT_ERROR) {
             return result;
         }
@@ -83,258 +93,434 @@ static EmitResult emit_stmts(FILE* out, StatementListNode* stmts) {
     return result;
 }
 
-static EmitResult emit_intlit(FILE* out, IntLitNode* lit) {
+static EmitResult emit_intlit(CodegenState* state, IntLitNode* lit) {
     EmitResult result = {.type = RESULT_OK, .info = {0}};
-    genf(out, "    movl $%d, %%eax", lit->val);
+    genf("    movl $%d, %%eax", lit->val);
     result.info.is_lvalue = 0;
-    result.info.size = 4;
-    return result;
-}
-
-static EmitResult emit_strlit(FILE* out, StrLitNode* lit) {
-    EmitResult result = {.type = RESULT_OK, .info = {0}};
-    genf(out, "    movl $DAT_%d, %%eax", add_data(lit->val));
-    result.info.is_lvalue = 0;
-    result.info.size = 4;  // pointer is 4 bytes
-    return result;
-}
-
-static EmitResult emit_rvalify(FILE* out, int size) {
-    EmitResult result = {.type = RESULT_OK, .info = {0}};
-    if (size == 4) {
-        genf(out, "    movl (%%eax), %%eax");
-    } else if (size == 1) {
-        genf(out, "    movzbl (%%eax), %%eax");
+    if (lit->data_type == TYPE_VOID) {
+        result.info.type = *get_void_ptr_type();
     } else {
-        assert(0);
+        result.info.type = *get_primitive_type(lit->data_type);
     }
-
-    result.info.is_lvalue = 0;
-    result.info.size = 4;  // loaded value is 4 bytes
     return result;
 }
 
-static EmitResult emit_binop(FILE* out, BinaryOpNode* binop) {
+static EmitResult emit_strlit(CodegenState* state, StrLitNode* lit) {
+    EmitResult result = {.type = RESULT_OK, .info = {0}};
+    genf("    movl $DAT_%d, %%eax", add_data(lit->val));
+    result.info.is_lvalue = 0;
+    result.info.type = *get_string_type();
+    return result;
+}
+
+// load the value into register if size is 4 bytes, 2 bytes, or 1 byte,
+// else do nothing.
+static void emit_rvalify(CodegenState* state, const Type* type) {
+    switch (type->size) {
+        case 4:
+            genf("    movl (%%eax), %%eax");
+            break;
+        case 3:
+            genf("    movl %%eax, %%ecx");
+            genf("    movzwl (%%ecx), %%eax");
+            genf("    movb 2(%%ecx), %%ah");
+            break;
+        case 2:
+            if (type->primitive_type == TYPE_I16) {
+                genf("    movswl (%%eax), %%eax");
+            } else {
+                genf("    movzwl (%%eax), %%eax");
+            }
+            break;
+        case 1:
+            if (type->primitive_type == TYPE_I8) {
+                genf("    movsbl (%%eax), %%eax");
+            } else {
+                genf("    movzbl (%%eax), %%eax");
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+static EmitResult emit_binop(CodegenState* state, BinaryOpNode* binop) {
     EmitResult result;
 
-    result = emit_node(out, binop->left);
+    result = emit_node(state, binop->left);
     if (result.type == RESULT_ERROR) {
         return result;
     }
 
-    if (result.info.is_lvalue) {
-        emit_rvalify(out, result.info.size);
+    if (binop->op == TK_COMMA) {
+        return emit_node(state, binop->right);
     }
 
-    if (binop->op == TK_LOR) {
-        int label = add_label();
-        genf(out, "    testl %%eax, %%eax");
-        genf(out, "    jnz LAB_%d", label);
+    const Type l_type = result.info.type;
+    if (!(is_bool(&l_type) || is_int(&l_type) || is_ptr_like(&l_type))) {
+        return error(binop->pos, "invalid left operand to do binary operation");
+    }
 
-        result = emit_node(out, binop->right);
-        if (result.type == RESULT_ERROR) {
-            return result;
+    if (result.info.is_lvalue) {
+        emit_rvalify(state, &l_type);
+    }
+
+    // Boolean operations
+    if (is_bool(&l_type)) {
+        if (binop->op == TK_EQ || binop->op == TK_NE) {
+            genf("    pushl %%eax");
+
+            result = emit_node(state, binop->right);
+            if (result.type == RESULT_ERROR) {
+                return result;
+            }
+
+            const Type r_type = result.info.type;
+            if (!is_bool(&r_type)) {
+                return error(binop->pos,
+                             "invalid right operand to do boolean operation");
+            }
+
+            if (result.info.is_lvalue) {
+                emit_rvalify(state, &r_type);
+            }
+
+            genf("    movl %%eax, %%ecx");
+            genf("    popl %%eax");
+
+            if (binop->op == TK_EQ) {
+                genf("    cmpl %%ecx, %%eax");
+                genf("    sete %%al");
+                genf("    movzbl %%al, %%eax");
+            } else {  // TK_NE
+                genf("    cmpl %%ecx, %%eax");
+                genf("    setne %%al");
+                genf("    movzbl %%al, %%eax");
+            }
+        } else {
+            int label = add_label();
+            if (binop->op == TK_LOR) {
+                genf("    testl %%eax, %%eax");
+                genf("    jnz LAB_%d", label);
+            } else if (binop->op == TK_LAND) {
+                genf("    testl %%eax, %%eax");
+                genf("    jz LAB_%d", label);
+            } else {
+                return error(binop->pos, "invalid boolean operator");
+            }
+            result = emit_node(state, binop->right);
+            if (result.type == RESULT_ERROR) {
+                return result;
+            }
+
+            const Type r_type = result.info.type;
+            if (!is_bool(&r_type)) {
+                return error(binop->pos,
+                             "invalid right operand to do boolean operation");
+            }
+
+            if (result.info.is_lvalue) {
+                emit_rvalify(state, &r_type);
+            }
+
+            genf("LAB_%d:", label);
         }
-
-        if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
-        }
-
-        genf(out, "LAB_%d:", label);
-
         result.type = RESULT_OK;
         result.info.is_lvalue = 0;
-    } else if (binop->op == TK_LAND) {
-        int label = add_label();
-        genf(out, "    testl %%eax, %%eax");
-        genf(out, "    jz LAB_%d", label);
-
-        result = emit_node(out, binop->right);
-        if (result.type == RESULT_ERROR) {
-            return result;
-        }
-
-        if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
-        }
-
-        genf(out, "LAB_%d:", label);
-
-        result.type = RESULT_OK;
-        result.info.is_lvalue = 0;
+        result.info.type = *get_primitive_type(TYPE_BOOL);
     } else {
-        genf(out, "    pushl %%eax");
+        genf("    pushl %%eax");
 
-        result = emit_node(out, binop->right);
+        result = emit_node(state, binop->right);
         if (result.type == RESULT_ERROR) {
             return result;
         }
 
-        if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
+        const Type r_type = result.info.type;
+        if (!is_int(&r_type) && !is_ptr_like(&r_type)) {
+            return error(binop->pos,
+                         "invalid right operand to do binary operation");
         }
 
-        genf(out, "    movl %%eax, %%ecx");
-        genf(out, "    popl %%eax");
+        if (result.info.is_lvalue) {
+            emit_rvalify(state, &r_type);
+        }
 
-        result.type = RESULT_OK;
-        result.info.is_lvalue = 0;
-        result.info.size = 4;
+        genf("    movl %%eax, %%ecx");
+        genf("    popl %%eax");
 
+        // At this point, both operands are either pointer or integer.
         switch (binop->op) {
             case TK_ADD:
-                genf(out, "    addl %%ecx, %%eax");
-                break;
+            case TK_SUB: {
+                int l_ptr = is_array_ptr(&l_type);
+                int r_ptr = is_array_ptr(&r_type);
 
-            case TK_SUB:
-                genf(out, "    subl %%ecx, %%eax");
-                break;
+                if (l_ptr || r_ptr) {  // Pointers
+                    if (l_ptr && r_ptr) {
+                        return error(binop->pos,
+                                     "invalid operands to do binary operation");
+                    }
 
-            case TK_MUL:
-                genf(out, "    imull %%ecx, %%eax");
-                break;
+                    const Type* p_type = l_ptr ? &l_type : &r_type;
+                    int size;
+                    if (is_void(p_type->inner_type)) {
+                        size = 1;
+                    } else if (p_type->inner_type->incomplete) {
+                        return error(binop->pos, "use of incomplete tyoe");
+                    } else {
+                        size = p_type->inner_type->size;
+                    }
 
-            case TK_DIV:
-                genf(out, "    cdq");
-                genf(out, "    idivl %%ecx");
-                break;
+                    if (size != 1) {
+                        if (l_ptr) {
+                            genf("    imull $%d, %%ecx", size);
+                        } else {
+                            genf("    imull $%d, %%eax", size);
+                        }
+                    }
 
-            case TK_MOD:
-                genf(out, "    cdq");
-                genf(out, "    idivl %%ecx");
-                genf(out, "    movl %%edx, %%eax");
-                break;
-
-            case TK_SHL:
-                genf(out, "    movl %%ecx, %%edx");
-                genf(out, "    shll %%cl, %%eax");
-                break;
-
-            case TK_SHR:
-                genf(out, "    movl %%ecx, %%edx");
-                genf(out, "    sarl %%cl, %%eax");
-                break;
-
-            case TK_AND:
-                genf(out, "    andl %%ecx, %%eax");
-                break;
-
-            case TK_XOR:
-                genf(out, "    xorl %%ecx, %%eax");
-                break;
-
-            case TK_OR:
-                genf(out, "    orl %%ecx, %%eax");
-                break;
+                    if (binop->op == TK_ADD) {
+                        genf("    addl %%ecx, %%eax");
+                    } else {  // TK_SUB
+                        genf("    subl %%ecx, %%eax");
+                    }
+                    result.info.type = *p_type;
+                } else if (is_int(&l_type) && is_int(&r_type)) {  // Integers
+                    if (binop->op == TK_ADD) {
+                        genf("    addl %%ecx, %%eax");
+                    } else {  // TK_SUB
+                        genf("    subl %%ecx, %%eax");
+                    }
+                    result.info.type =
+                        *get_primitive_type(implicit_type_convert(
+                            l_type.primitive_type, r_type.primitive_type));
+                } else {
+                    return error(binop->pos,
+                                 "invalid operands to do binary operation");
+                }
+            } break;
 
             case TK_EQ:
-                genf(out, "    cmpl %%ecx, %%eax");
-                genf(out, "    sete %%al");
-                genf(out, "    movzbl %%al, %%eax");
-                break;
-
             case TK_NE:
-                genf(out, "    cmpl %%ecx, %%eax");
-                genf(out, "    setne %%al");
-                genf(out, "    movzbl %%al, %%eax");
-                break;
-
             case TK_LT:
-                genf(out, "    cmpl %%ecx, %%eax");
-                genf(out, "    setl %%al");
-                genf(out, "    movzbl %%al, %%eax");
-                break;
-
             case TK_LE:
-                genf(out, "    cmpl %%ecx, %%eax");
-                genf(out, "    setle %%al");
-                genf(out, "    movzbl %%al, %%eax");
-                break;
-
             case TK_GT:
-                genf(out, "    cmpl %%ecx, %%eax");
-                genf(out, "    setg %%al");
-                genf(out, "    movzbl %%al, %%eax");
-                break;
+            case TK_GE: {
+                int is_valid_types = 0;
+                if (binop->op == TK_EQ || binop->op == TK_NE) {
+                    if (is_int(&l_type) && is_int(&r_type)) {
+                        is_valid_types = 1;
+                    } else if (is_void_ptr(&l_type) && is_ptr_like(&r_type)) {
+                        is_valid_types = 1;
+                    } else if (is_void_ptr(&r_type) && is_ptr_like(&l_type)) {
+                        is_valid_types = 1;
+                    } else if (is_equal_type(&l_type, &r_type)) {
+                        is_valid_types = 1;
+                    }
+                } else {
+                    if (is_int(&l_type) && is_int(&r_type)) {
+                        is_valid_types = 1;
+                    } else if (is_array_ptr(&l_type) &&
+                               is_equal_type(&l_type, &r_type)) {
+                        is_valid_types = 1;
+                    }
+                }
 
-            case TK_GE:
-                genf(out, "    cmpl %%ecx, %%eax");
-                genf(out, "    setge %%al");
-                genf(out, "    movzbl %%al, %%eax");
-                break;
+                if (!is_valid_types) {
+                    return error(binop->pos,
+                                 "invalid operands for comparison operation");
+                }
 
-            case TK_DOT:
-                genf(out, "    addl %%ecx, %%eax");
-                result.info.is_lvalue = 1;
-                break;
+                genf("    cmpl %%ecx, %%eax");
+                switch (binop->op) {
+                    case TK_EQ:
+                        genf("    sete %%al");
+                        break;
+                    case TK_NE:
+                        genf("    setne %%al");
+                        break;
+                    case TK_LT:
+                        genf("    setl %%al");
+                        break;
+                    case TK_LE:
+                        genf("    setle %%al");
+                        break;
+                    case TK_GT:
+                        genf("    setg %%al");
+                        break;
+                    case TK_GE:
+                        genf("    setge %%al");
+                        break;
+                    default:
+                        break;
+                }
+                genf("    movzbl %%al, %%eax");
 
-            case TK_COMMA:
-                genf(out, "    movl %%ecx, %%eax");
-                break;
+                result.info.type = *get_primitive_type(TYPE_BOOL);
+            } break;
 
-            default:
-                assert(0);
+            default: {
+                if (!is_int(&l_type) || !is_int(&r_type)) {
+                    return error(binop->pos,
+                                 "invalid operands to do binary operation");
+                }
+
+                PrimitiveType result_type = implicit_type_convert(
+                    l_type.primitive_type, r_type.primitive_type);
+                int result_signed = is_signed(result_type);
+
+                switch (binop->op) {
+                    case TK_MUL:
+                        genf("    imull %%ecx, %%eax");
+                        break;
+
+                    case TK_DIV:
+                        if (result_signed) {
+                            genf("    cdq");
+                            genf("    idivl %%ecx");
+                        } else {
+                            genf("    xor %%edx, %%edx");
+                            genf("    divl %%ecx");
+                        }
+                        break;
+
+                    case TK_MOD:
+                        if (result_signed) {
+                            genf("    cdq");
+                            genf("    idivl %%ecx");
+                            genf("    movl %%edx, %%eax");
+                        } else {
+                            genf("    xor %%edx, %%edx");
+                            genf("    divl %%ecx");
+                            genf("    movl %%edx, %%eax");
+                        }
+                        break;
+
+                    case TK_SHL:
+                        genf("    movl %%ecx, %%edx");
+                        genf("    shll %%cl, %%eax");
+                        break;
+
+                    case TK_SHR:
+                        if (result_signed) {
+                            genf("    movl %%ecx, %%edx");
+                            genf("    sarl %%cl, %%eax");
+                        } else {
+                            genf("    movl %%ecx, %%edx");
+                            genf("    shrl %%cl, %%eax");
+                        }
+                        break;
+
+                    case TK_AND:
+                        genf("    andl %%ecx, %%eax");
+                        break;
+
+                    case TK_XOR:
+                        genf("    xorl %%ecx, %%eax");
+                        break;
+
+                    case TK_OR:
+                        genf("    orl %%ecx, %%eax");
+                        break;
+
+                    default:
+                        // fprintf(stderr, "Token type: %d\n", binop->op);
+                        assert(0);
+                }
+                result.info.type = *get_primitive_type(result_type);
+            }
         }
+        result.type = RESULT_OK;
+        result.info.is_lvalue = 0;
     }
 
     return result;
 }
 
-static EmitResult emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
+static EmitResult emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
     EmitResult result;
 
-    result = emit_node(out, unaryop->node);
+    result = emit_node(state, unaryop->node);
     if (result.type == RESULT_ERROR) {
         return result;
     }
 
     int is_lvalue = result.info.is_lvalue;
-    int size = result.info.size;
+    const Type* type = &result.info.type;
 
     result.info.is_lvalue = 0;
-    result.info.size = 4;
 
     switch (unaryop->op) {
         case TK_ADD:
-            if (is_lvalue) {
-                emit_rvalify(out, size);
+            if (!is_int(type)) {
+                return error(unaryop->pos,
+                             "invalid type to do unary operation");
             }
 
+            if (is_lvalue) {
+                emit_rvalify(state, type);
+            }
             break;
 
         case TK_SUB:
-            if (is_lvalue) {
-                emit_rvalify(out, size);
+            if (!is_int(type)) {
+                return error(unaryop->pos,
+                             "invalid type to do unary operation");
             }
 
-            genf(out, "    negl %%eax");
-
+            if (is_lvalue) {
+                emit_rvalify(state, type);
+            }
+            genf("    negl %%eax");
             break;
 
         case TK_NOT:
-            if (is_lvalue) {
-                emit_rvalify(out, size);
+            if (!is_int(type)) {
+                return error(unaryop->pos,
+                             "invalid type to do unary operation");
             }
 
-            genf(out, "    notl %%eax");
-
+            if (is_lvalue) {
+                emit_rvalify(state, type);
+            }
+            genf("    notl %%eax");
             break;
 
         case TK_LNOT:
-            if (is_lvalue) {
-                emit_rvalify(out, size);
+            if (!is_bool(type)) {
+                return error(unaryop->pos,
+                             "invalid type to do unary operation");
             }
 
-            genf(out, "    testl %%eax, %%eax");
-            genf(out, "    sete %%al");
-            genf(out, "    movzbl %%al, %%eax");
+            if (is_lvalue) {
+                emit_rvalify(state, type);
+            }
 
+            genf("    testl %%eax, %%eax");
+            genf("    sete %%al");
+            genf("    movzbl %%al, %%eax");
             break;
 
         case TK_MUL:
-            if (is_lvalue) {
-                emit_rvalify(out, size);
+            if (!is_ptr_like(type)) {
+                return error(unaryop->pos,
+                             "indirection requires pointer operand");
             }
+
+            if (is_lvalue) {
+                emit_rvalify(state, type);
+            }
+
+            if (is_ptr(type)) {
+                result.info.type.pointer_level--;
+                if (result.info.type.pointer_level == 0) {
+                    result.info.type = *result.info.type.inner_type;
+                }
+            } else {
+                result.info.type = *result.info.type.inner_type;
+            }
+
             result.info.is_lvalue = 1;
             break;
 
@@ -343,14 +529,17 @@ static EmitResult emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
                 return error(unaryop->pos,
                              "lvalue required as unary '&' operand");
             }
-            break;
 
-        case TK_DOLLAR:
-            if (is_lvalue == 0) {
-                genf(out, "    movzbl %%al, %%eax");
+            if (is_ptr(type)) {
+                result.info.type.pointer_level++;
             } else {
-                result.info.size = 1;
-                result.info.is_lvalue = 1;
+                Type* inner = arena_alloc(state->arena, sizeof(Type));
+                memcpy(inner, &result.info.type, sizeof(Type));
+                result.info.type.type = METADATA_POINTER;
+                result.info.type.size = PTR_SIZE;
+                result.info.type.alignment = PTR_SIZE;
+                result.info.type.pointer_level = 1;
+                result.info.type.inner_type = inner;
             }
             break;
 
@@ -362,7 +551,7 @@ static EmitResult emit_unaryop(FILE* out, UnaryOpNode* unaryop) {
     return result;
 }
 
-static EmitResult emit_var(FILE* out, VarNode* var) {
+static EmitResult emit_var(CodegenState* state, VarNode* var) {
     assert(var->ste->type != SYM_DEF);
 
     EmitResult result;
@@ -371,42 +560,74 @@ static EmitResult emit_var(FILE* out, VarNode* var) {
         VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
         if (var_ste->is_extern) {
             // Extern variable
-            genf(out, "    movl $%.*s, %%eax", var_ste->ident.len,
+            genf("    movl $%.*s, %%eax", var_ste->ident.len,
                  var_ste->ident.ptr);
         } else if (var_ste->is_global) {
             // Global variable
-            genf(out, "    movl $VAR_%.*s, %%eax", var_ste->ident.len,
+            genf("    movl $VAR_%.*s, %%eax", var_ste->ident.len,
                  var_ste->ident.ptr);
         } else {
             // Local variable
-            genf(out, "    leal %d(%%ebp), %%eax", var_ste->offset);
+            genf("    leal %d(%%ebp), %%eax", var_ste->offset);
         }
         result.info.is_lvalue = 1;
+        result.info.type = *var_ste->data_type;
     } else if (var->ste->type == SYM_FUNC) {
         // Function pointer
         FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
         if (func_ste->is_extern || func_ste->node == NULL) {
             // Extern function
-            genf(out, "    movl $%.*s, %%eax", func_ste->ident.len,
+            genf("    movl $%.*s, %%eax", func_ste->ident.len,
                  func_ste->ident.ptr);
         } else {
             // ika function
-            genf(out, "    movl $FUNC_%.*s, %%eax", func_ste->ident.len,
+            genf("    movl $FUNC_%.*s, %%eax", func_ste->ident.len,
                  func_ste->ident.ptr);
         }
         result.info.is_lvalue = 0;
+        result.info.type.type = METADATA_FUNC;
+        result.info.type.func_data = func_ste->func_data;
     }
 
     result.type = RESULT_OK;
-    result.info.size = 4;
     return result;
 }
 
-static EmitResult emit_assign(FILE* out, AssignNode* assign) {
+static inline int is_allowed_type_convert(const Type* left, const Type* right) {
+    if (is_equal_type(left, right)) {
+        return 1;
+    }
+
+    // integer conversion
+    if (is_int(left) && is_int(right)) {
+        return 1;
+    }
+
+    // void pointer conversion
+    if (is_ptr_like(right) && is_void_ptr(left)) {
+        return 1;
+    }
+    if (is_ptr_like(left) && is_void_ptr(right)) {
+        return 1;
+    }
+
+    // convert pointer to array to array pointer
+    if (is_array_ptr(left) && is_ptr(right) && right->pointer_level == 1) {
+        const Type* l_inner = left->inner_type;
+        const Type* r_inner = right->inner_type;
+
+        if (r_inner->type == METADATA_ARRAY && r_inner->array_size != 0) {
+            return is_equal_type(l_inner, r_inner->inner_type);
+        }
+    }
+
+    return 0;
+}
+
+static EmitResult emit_assign(CodegenState* state, AssignNode* assign) {
     EmitResult result;
 
-    result = emit_node(out, assign->left);
-    int lvalue_size = result.info.size;
+    result = emit_node(state, assign->left);
     if (result.type == RESULT_ERROR) {
         return result;
     }
@@ -416,104 +637,61 @@ static EmitResult emit_assign(FILE* out, AssignNode* assign) {
                      "lvalue required as left operand of assignment");
     }
 
-    genf(out, "    pushl %%eax");
+    const Type l_type = result.info.type;
 
-    if (assign->op != TK_ASSIGN) {
-        emit_rvalify(out, result.info.size);
-        genf(out, "    pushl %%eax");
+    genf("    pushl %%eax");
 
-        result = emit_node(out, assign->right);
-        if (result.type == RESULT_ERROR) {
-            return result;
-        }
-
-        if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
-        }
-
-        genf(out, "    movl %%eax, %%ecx");
-        genf(out, "    popl %%eax");
-
-        switch (assign->op) {
-            case TK_AADD:
-                genf(out, "    addl %%ecx, %%eax");
-                break;
-
-            case TK_ASUB:
-                genf(out, "    subl %%ecx, %%eax");
-                break;
-
-            case TK_AMUL:
-                genf(out, "    imull %%ecx, %%eax");
-                break;
-
-            case TK_ADIV:
-                genf(out, "    cdq");
-                genf(out, "    idivl %%ecx");
-                break;
-
-            case TK_AMOD:
-                genf(out, "    cdq");
-                genf(out, "    idivl %%ecx");
-                genf(out, "    movl %%edx, %%eax");
-                break;
-
-            case TK_ASHL:
-                genf(out, "    movl %%ecx, %%edx");
-                genf(out, "    shll %%cl, %%eax");
-                break;
-
-            case TK_ASHR:
-                genf(out, "    movl %%ecx, %%edx");
-                genf(out, "    sarl %%cl, %%eax");
-                break;
-
-            case TK_AAND:
-                genf(out, "    andl %%ecx, %%eax");
-                break;
-
-            case TK_AXOR:
-                genf(out, "    xorl %%ecx, %%eax");
-                break;
-
-            case TK_AOR:
-                genf(out, "    orl %%ecx, %%eax");
-                break;
-
-            default:
-                assert(0);
-        }
-    } else {
-        result = emit_node(out, assign->right);
-        if (result.type == RESULT_ERROR) {
-            return result;
-        }
-
-        if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
-        }
+    result = emit_node(state, assign->right);
+    if (result.type == RESULT_ERROR) {
+        return result;
     }
 
-    genf(out, "    movl %%eax, %%ecx");
-    genf(out, "    popl %%eax");
+    const Type r_type = result.info.type;
 
-    if (lvalue_size == 4) {
-        genf(out, "    movl %%ecx, (%%eax)");
-    } else if (lvalue_size == 1) {
-        genf(out, "    movb %%cl, (%%eax)");
-    } else {
-        assert(0);
+    if (result.info.is_lvalue) {
+        emit_rvalify(state, &result.info.type);
     }
 
-    genf(out, "    movl %%ecx, %%eax");
+    if (!is_allowed_type_convert(&l_type, &r_type)) {
+        return error(assign->pos, "type is not assignable");
+    }
+
+    genf("    popl %%ecx");
+
+    // left address on ecx, right value in eax
+    switch (l_type.size) {
+        case 4:
+            genf("    movl %%eax, (%%ecx)");
+            break;
+        case 3:
+            genf("    movw %%ax, (%%ecx)");
+            genf("    movb %%ah, 2(%%ecx)");
+            break;
+        case 2:
+            genf("    movw %%ax, (%%ecx)");
+            break;
+        case 1:
+            genf("    movb %%al, (%%ecx)");
+            break;
+        default:
+            genf("    movl $%d, %%edx", l_type.size);
+            genf("    pushl %%edx");  // n
+            genf("    push %%eax");   // src
+            genf("    pushl %%ecx");  // dest
+            genf("    call memcpy");
+            genf("    addl $12, %%esp");
+            break;
+    }
+
+    genf("    movl %%ecx, %%eax");
 
     result.type = RESULT_OK;
-    result.info.is_lvalue = 0;
-    result.info.size = 4;
+    result.info.is_lvalue = 1;
+    result.info.type = l_type;
     return result;
 }
 
-static EmitResult emit_if(FILE* out, IfStatementNode* if_node) {
+static EmitResult emit_if(CodegenState* state, IfStatementNode* if_node) {
     /*
      *      <cond>
      *      JZ else_label
@@ -529,41 +707,45 @@ static EmitResult emit_if(FILE* out, IfStatementNode* if_node) {
     int end_label = add_label();
     int else_label = add_label();
 
-    result = emit_node(out, if_node->expr);
+    result = emit_node(state, if_node->expr);
     if (result.type == RESULT_ERROR) {
         return result;
+    }
+
+    if (!is_bool(&result.info.type)) {
+        return error(if_node->expr->pos, "expected type 'bool'");
     }
 
     if (result.info.is_lvalue) {
-        emit_rvalify(out, result.info.size);
+        emit_rvalify(state, &result.info.type);
     }
 
-    genf(out, "    testl %%eax, %%eax");
-    genf(out, "    jz LAB_%d", else_label);
+    genf("    testl %%eax, %%eax");
+    genf("    jz LAB_%d", else_label);
 
-    result = emit_node(out, if_node->then_block);
+    result = emit_node(state, if_node->then_block);
     if (result.type == RESULT_ERROR) {
         return result;
     }
 
-    genf(out, "    jmp LAB_%d", end_label);
+    genf("    jmp LAB_%d", end_label);
 
-    genf(out, "LAB_%d:", else_label);
+    genf("LAB_%d:", else_label);
 
     if (if_node->else_block) {
-        result = emit_node(out, if_node->else_block);
+        result = emit_node(state, if_node->else_block);
         if (result.type == RESULT_ERROR) {
             return result;
         }
     }
 
-    genf(out, "LAB_%d:", end_label);
+    genf("LAB_%d:", end_label);
 
     result.type = RESULT_OK;
     return result;
 }
 
-static EmitResult emit_while(FILE* out, WhileNode* while_node) {
+static EmitResult emit_while(CodegenState* state, WhileNode* while_node) {
     /*
      *  loop_label:
      *      <cond>
@@ -581,19 +763,23 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     int inc_label = add_label();
     int end_label = add_label();
 
-    genf(out, "LAB_%d:", loop_label);
+    genf("LAB_%d:", loop_label);
 
-    result = emit_node(out, while_node->expr);
+    result = emit_node(state, while_node->expr);
     if (result.type == RESULT_ERROR) {
         return result;
     }
 
-    if (result.info.is_lvalue) {
-        emit_rvalify(out, result.info.size);
+    if (!is_bool(&result.info.type)) {
+        return error(while_node->expr->pos, "expected type 'bool'");
     }
 
-    genf(out, "    testl %%eax, %%eax");
-    genf(out, "    jz LAB_%d", end_label);
+    if (result.info.is_lvalue) {
+        emit_rvalify(state, &result.info.type);
+    }
+
+    genf("    testl %%eax, %%eax");
+    genf("    jz LAB_%d", end_label);
 
     int prev_in_loop = in_loop;
     int prev_break_label = break_label;
@@ -603,7 +789,7 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     break_label = end_label;
     continue_label = inc_label;
 
-    result = emit_node(out, while_node->block);
+    result = emit_node(state, while_node->block);
     if (result.type == RESULT_ERROR) {
         return result;
     }
@@ -612,23 +798,23 @@ static EmitResult emit_while(FILE* out, WhileNode* while_node) {
     break_label = prev_break_label;
     continue_label = prev_continue_label;
 
-    genf(out, "LAB_%d:", inc_label);
+    genf("LAB_%d:", inc_label);
     if (while_node->inc) {
-        result = emit_node(out, while_node->inc);
+        result = emit_node(state, while_node->inc);
         if (result.type == RESULT_ERROR) {
             return result;
         }
     }
 
-    genf(out, "    jmp LAB_%d", loop_label);
+    genf("    jmp LAB_%d", loop_label);
 
-    genf(out, "LAB_%d:", end_label);
+    genf("LAB_%d:", end_label);
 
     result.type = RESULT_OK;
     return result;
 }
 
-static EmitResult emit_goto(FILE* out, GotoNode* node) {
+static EmitResult emit_goto(CodegenState* state, GotoNode* node) {
     EmitResult result;
 
     switch (node->op) {
@@ -636,13 +822,13 @@ static EmitResult emit_goto(FILE* out, GotoNode* node) {
             if (in_loop == 0) {
                 return error(node->pos, "break statement not within a loop");
             }
-            genf(out, "    jmp LAB_%d", break_label);
+            genf("    jmp LAB_%d", break_label);
             break;
         case TK_CONTINUE:
             if (in_loop == 0) {
                 return error(node->pos, "continue statement not within a loop");
             }
-            genf(out, "    jmp LAB_%d", continue_label);
+            genf("    jmp LAB_%d", continue_label);
             break;
         default:
             assert(0);
@@ -652,7 +838,7 @@ static EmitResult emit_goto(FILE* out, GotoNode* node) {
     return result;
 }
 
-static EmitResult emit_call(FILE* out, CallNode* call) {
+static EmitResult emit_call(CodegenState* state, CallNode* call) {
     /*
      *  local 3         [ebp]-16 <-ESP
      *  local 2         [ebp]-8
@@ -666,148 +852,298 @@ static EmitResult emit_call(FILE* out, CallNode* call) {
 
     EmitResult result;
 
+    // Don't emit things, we just want to get the function type.
+    FILE* old_out = state->out;
+    state->out = NULL;
+    EmitResult func_result = emit_node(state, call->node);
+    state->out = old_out;
+
+    if (func_result.type == RESULT_ERROR) {
+        return func_result;
+    }
+
+    const Type* func_type = &func_result.info.type;
+    if (func_type->type != METADATA_FUNC) {
+        return error(call->pos,
+                     "called object is not a function or function pointer");
+    }
+
     ASTNodeList* curr = call->args;
-    int arg_size = 0;
+    ArgList* arg_type = func_type->func_data.args;
+    int has_va_args = func_type->func_data.has_va_args;
+    int args_size = 0;
     while (curr) {
-        result = emit_node(out, curr->node);
+        result = emit_node(state, curr->node);
         if (result.type == RESULT_ERROR) {
             return result;
         }
 
-        if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
+        if (arg_type != NULL) {
+            // TODO: Add va_args type check
+            if (!has_va_args &&
+                !is_allowed_type_convert(arg_type->type, &result.info.type)) {
+                return error(curr->node->pos,
+                             "passing argument with invalid type");
+            }
+            arg_type = arg_type->next;
+        } else if (!has_va_args) {
+            return error(call->pos, "too many arguments");
         }
 
-        genf(out, "    pushl %%eax");
-        arg_size += 4;
+        if (result.info.is_lvalue) {
+            emit_rvalify(state, &result.info.type);
+        }
+
+        int size = result.info.type.size;
+        int padding = (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
+
+        if (size <= 4) {
+            genf("    pushl %%eax");
+        } else {
+            genf("    subl $%d, %%esp", size + padding);
+            genf("    movl %%esp, %%edx");
+            genf("    movl $%d, %%ecx", size);
+            genf("    pushl %%ecx");  // n
+            genf("    pushl %%eax");  // src
+            genf("    pushl %%edx");  // dest
+            genf("    call memcpy");
+            genf("    addl $12, %%esp");
+        }
+
+        args_size += size + padding;
         curr = curr->next;
     }
 
-    result = emit_node(out, call->node);
-    if (result.type == RESULT_ERROR) {
-        return result;
+    if (arg_type != NULL) {
+        return error(call->pos, "too few arguments");
     }
 
-    if (result.info.is_lvalue) {
-        emit_rvalify(out, result.info.size);
+    emit_node(state, call->node);
+    if (func_result.info.is_lvalue) {
+        emit_rvalify(state, func_type);
     }
-    genf(out, "    call *%%eax");
+    genf("    call *%%eax");
 
-    if (arg_size > 0) {
-        genf(out, "    addl $%d, %%esp", arg_size);
+    if (args_size > 0) {
+        genf("    addl $%d, %%esp", args_size);
     }
 
+    // TODO: Return struct
     result.type = RESULT_OK;
     result.info.is_lvalue = 0;
-    result.info.size = 4;
+    if (func_type->func_data.return_type) {
+        result.info.type = *func_type->func_data.return_type;
+    } else {
+        result.info.type = *get_primitive_type(TYPE_VOID);
+    }
     return result;
 }
 
-static EmitResult emit_print(FILE* out, PrintNode* print_node) {
+static EmitResult emit_print(CodegenState* state, PrintNode* print_node) {
     EmitResult result;
 
     int arg_count = 0;
     ASTNodeList* curr = print_node->args;
     while (curr) {
-        result = emit_node(out, curr->node);
+        result = emit_node(state, curr->node);
         if (result.type == RESULT_ERROR) {
             return result;
         }
 
-        if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
+        if (result.info.type.size > 4) {
+            return error(curr->node->pos, "passing argument with invalid type");
         }
 
-        genf(out, "    pushl %%eax");
+        if (result.info.is_lvalue) {
+            emit_rvalify(state, &result.info.type);
+        }
+
+        genf("    pushl %%eax");
         arg_count++;
         curr = curr->next;
     }
 
-    genf(out, "    pushl $DAT_%d", add_data(print_node->fmt));
+    genf("    pushl $DAT_%d", add_data(print_node->fmt));
     arg_count++;
 
-    genf(out, "    call printf");
-    genf(out, "    addl $%d, %%esp", arg_count * 4);
+    genf("    call printf");
+    genf("    addl $%d, %%esp", arg_count * 4);
 
     result.type = RESULT_OK;
     result.info.is_lvalue = 0;
-    result.info.size = 4;
+    result.info.type = *get_primitive_type(TYPE_VOID);
     return result;
 }
 
-static EmitResult emit_ret(FILE* out, ReturnNode* ret) {
-    EmitResult result;
+static EmitResult emit_ret(CodegenState* state, ReturnNode* ret) {
+    EmitResult result = {0};
 
+    // TODO: Add type check
     if (ret->expr) {
-        result = emit_node(out, ret->expr);
+        result = emit_node(state, ret->expr);
         if (result.type == RESULT_ERROR) {
             return result;
         }
 
         if (result.info.is_lvalue) {
-            emit_rvalify(out, result.info.size);
+            emit_rvalify(state, &result.info.type);
         }
+    } else {
+        result.info.type = *get_primitive_type(TYPE_VOID);
     }
-    genf(out, "    jmp LAB_%d", out_label);
+
+    genf("    jmp LAB_%d", state_label);
 
     result.type = RESULT_OK;
     return result;
 }
 
-static EmitResult emit_node(FILE* out, ASTNode* node) {
+static EmitResult emit_field(CodegenState* state, FieldNode* field) {
+    EmitResult result;
+
+    result = emit_node(state, field->node);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
+    const Type* l_type = &result.info.type;
+    if (l_type->type == METADATA_POINTER && l_type->pointer_level == 1) {
+        // member access through pointer
+        emit_rvalify(state, l_type);
+        l_type = l_type->inner_type;
+    }
+
+    if (l_type->type != METADATA_TYPE) {
+        return error(field->pos,
+                     "request for member in something not a struct");
+    }
+
+    const TypeSymbolTableEntry* type_ste = l_type->type_ste;
+    FieldSymbolTableEntry* ste = (FieldSymbolTableEntry*)symbol_table_find(
+        type_ste->name_space, field->ident, 1);
+    if (ste == NULL || ste->type != SYM_FIELD) {
+        return error(field->pos, "type has no member '%.*s'", field->ident.len,
+                     field->ident.ptr);
+    }
+
+    genf("    leal %d(%%eax), %%eax", ste->offset);
+
+    result.type = RESULT_OK;
+    result.info.is_lvalue = 1;
+    result.info.type = *ste->data_type;
+    return result;
+}
+
+static EmitResult emit_indexof(CodegenState* state, IndexOfNode* idxof) {
+    EmitResult result;
+
+    result = emit_node(state, idxof->left);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
+    Type l_type = result.info.type;
+    if (l_type.type != METADATA_ARRAY) {
+        return error(idxof->pos,
+                     "subscripted value is neither array nor array pointer");
+    }
+
+    if (result.info.is_lvalue && l_type.array_size == 0) {
+        emit_rvalify(state, &result.info.type);
+    }
+
+    genf("    pushl %%eax");
+
+    result = emit_node(state, idxof->right);
+    if (result.type == RESULT_ERROR) {
+        return result;
+    }
+
+    Type r_type = result.info.type;
+    if (!is_int(&r_type)) {
+        return error(idxof->pos, "array subscript is not an integer");
+    }
+
+    if (result.info.is_lvalue) {
+        emit_rvalify(state, &result.info.type);
+    }
+
+    genf("    popl %%ecx");
+    // Address of the array is ecx, index is eax.
+    genf("    leal (%%ecx, %%eax, %d), %%eax", l_type.inner_type->size);
+
+    result.type = RESULT_OK;
+    result.info.is_lvalue = 1;
+    result.info.type = *l_type.inner_type;
+    return result;
+}
+
+static EmitResult emit_node(CodegenState* state, ASTNode* node) {
     EmitResult result;
 
     switch (node->type) {
         case NODE_STMTS:
-            result = emit_stmts(out, (StatementListNode*)node);
+            result = emit_stmts(state, (StatementListNode*)node);
             break;
 
         case NODE_INTLIT:
-            result = emit_intlit(out, (IntLitNode*)node);
+            result = emit_intlit(state, (IntLitNode*)node);
             break;
 
         case NODE_STRLIT:
-            result = emit_strlit(out, (StrLitNode*)node);
+            result = emit_strlit(state, (StrLitNode*)node);
             break;
 
         case NODE_BINARYOP:
-            result = emit_binop(out, (BinaryOpNode*)node);
+            result = emit_binop(state, (BinaryOpNode*)node);
             break;
 
         case NODE_UNARYOP:
-            result = emit_unaryop(out, (UnaryOpNode*)node);
+            result = emit_unaryop(state, (UnaryOpNode*)node);
             break;
 
         case NODE_VAR:
-            result = emit_var(out, (VarNode*)node);
+            result = emit_var(state, (VarNode*)node);
             break;
 
         case NODE_ASSIGN:
-            result = emit_assign(out, (AssignNode*)node);
+            result = emit_assign(state, (AssignNode*)node);
             break;
 
         case NODE_IF:
-            result = emit_if(out, (IfStatementNode*)node);
+            result = emit_if(state, (IfStatementNode*)node);
             break;
 
         case NODE_WHILE:
-            result = emit_while(out, (WhileNode*)node);
+            result = emit_while(state, (WhileNode*)node);
             break;
 
         case NODE_GOTO:
-            result = emit_goto(out, (GotoNode*)node);
+            result = emit_goto(state, (GotoNode*)node);
             break;
 
         case NODE_CALL:
-            result = emit_call(out, (CallNode*)node);
+            result = emit_call(state, (CallNode*)node);
             break;
 
         case NODE_PRINT:
-            result = emit_print(out, (PrintNode*)node);
+            result = emit_print(state, (PrintNode*)node);
             break;
 
         case NODE_RET:
-            result = emit_ret(out, (ReturnNode*)node);
+            result = emit_ret(state, (ReturnNode*)node);
+            break;
+
+        case NODE_FIELD:
+            result = emit_field(state, (FieldNode*)node);
+            break;
+
+        case NODE_INDEXOF:
+            result = emit_indexof(state, (IndexOfNode*)node);
+            break;
+
+        case NODE_TYPE:
+            assert(0);
             break;
 
         default:
@@ -817,103 +1153,113 @@ static EmitResult emit_node(FILE* out, ASTNode* node) {
     return result;
 }
 
-static EmitResult emit_func(FILE* out, FuncSymbolTableEntry* func) {
+static inline void emit_func_start(CodegenState* state, int stack_size) {
+    genf("    pushl %%ebp");
+    genf("    movl %%esp, %%ebp");
+    // genf("    pushl %%edi");
+    // genf("    pushl %%esi");
+    // genf("    pushl %%ebx");
+    if (stack_size) {
+        genf("    subl $%d, %%esp", stack_size);
+    }
+}
+
+static inline void emit_func_exit(CodegenState* state) {
+    genf("LAB_%d:", state_label);
+    // genf("    popl %%ebx");
+    // genf("    popl %%esi");
+    // genf("    popl %%edi");
+    genf("    leave");
+    genf("    ret");
+}
+
+static EmitResult emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     EmitResult result;
 
-    out_label = add_label();
+    state_label = add_label();
 
     assert(func->node);
     assert(func->is_extern == 0);
 
-    genf(out, "FUNC_%.*s:", func->ident.len, func->ident.ptr);
+    genf("FUNC_%.*s:", func->ident.len, func->ident.ptr);
+    emit_func_start(state, *func->sym->stack_size);
 
-    genf(out, "    pushl %%ebp");
-    genf(out, "    movl %%esp, %%ebp");
-    if (*func->sym->stack_size) {
-        genf(out, "    subl $%d, %%esp", *func->sym->stack_size);
-    }
-
-    result = emit_node(out, func->node);
+    result = emit_node(state, func->node);
     if (result.type == RESULT_ERROR) {
         return result;
     }
 
-    genf(out, "LAB_%d:", out_label);
-    genf(out, "    leave");
-    genf(out, "    ret");
+    emit_func_exit(state);
 
     result.type = RESULT_OK;
     return result;
 }
 
-Error* codegen(FILE* out, ASTNode* node, SymbolTable* sym) {
+Error* codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
     EmitResult result;
 
     SymbolTableEntry* curr = sym->ste;
 
     // Global variables
     SymbolTableEntry* ste = sym->ste;
-    genf(out, ".data");
+    genf(".data");
     while (ste) {
         if (ste->type == SYM_VAR) {
             VarSymbolTableEntry* var = (VarSymbolTableEntry*)ste;
             if (var->is_extern == 0) {
-                genf(out, "VAR_%.*s:", var->ident.len, var->ident.ptr);
-                genf(out, "    .zero 4");
+                int size = var->data_type->size;
+                int padding =
+                    (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
+                genf("VAR_%.*s:", var->ident.len, var->ident.ptr);
+                genf("    .zero %d", size + padding);
             }
         }
         ste = ste->next;
     }
 
     // Functions
-    genf(out, ".text");
+    genf(".text");
     while (curr) {
         if (curr->type == SYM_FUNC) {
             FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;
             if (func->node) {
-                result = emit_func(out, func);
+                result = emit_func(state, func);
                 if (result.type == RESULT_ERROR) {
                     return result.error;
                 }
-                fprintf(out, "\n");
+                fprintf(state->out, "\n");
             }
         }
         curr = curr->next;
     }
 
     // main
-    out_label = add_label();
+    state_label = add_label();
 
-    genf(out, ".global main");
-    genf(out, "main:");
-    genf(out, "    pushl %%ebp");
-    genf(out, "    movl %%esp, %%ebp");
-    if (*sym->stack_size) {
-        genf(out, "    subl $%d, %%esp", *sym->stack_size);
-    }
+    genf(".global main");
+    genf("main:");
+    emit_func_start(state, *sym->stack_size);
 
-    genf(out, "    movl 8(%%ebp), %%eax");
-    genf(out, "    movl %%eax, VAR_argc");
-    genf(out, "    movl 12(%%ebp), %%eax");
-    genf(out, "    movl %%eax, VAR_argv");
+    genf("    movl 8(%%ebp), %%eax");
+    genf("    movl %%eax, VAR_argc");
+    genf("    movl 12(%%ebp), %%eax");
+    genf("    movl %%eax, VAR_argv");
 
-    result = emit_node(out, node);
+    result = emit_node(state, node);
     if (result.type == RESULT_ERROR) {
         return result.error;
     }
 
-    genf(out, "    movl $0, %%eax");
-    genf(out, "LAB_%d:", out_label);
-    genf(out, "    leave");
-    genf(out, "    ret");
-    genf(out, ".type main, @function");
-    fprintf(out, "\n");
+    genf("    xorl %%eax, %%eax");
+    emit_func_exit(state);
+    genf(".type main, @function");
+    fprintf(state->out, "\n");
 
     // Strings
-    genf(out, ".data");
+    genf(".data");
     for (int i = 0; i < data_count; i++) {
-        genf(out, "DAT_%d:", i);
-        genf(out, "    .asciz \"%.*s\"", data[i].len, data[i].ptr);
+        genf("DAT_%d:", i);
+        genf("    .asciz \"%.*s\"", data[i].len, data[i].ptr);
     }
 
     return NULL;

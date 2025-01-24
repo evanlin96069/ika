@@ -5,13 +5,14 @@
 
 typedef enum TokenType {
     TK_ERR = -1,
-    TK_NUL = 0,
+    TK_NUL = 0,  // nothing
     TK_IDENT,
     TK_INT,
     TK_STR,
     TK_DECL,
     TK_CONST,
     TK_ENUM,
+    TK_STRUCT,
     TK_FUNC,
     TK_EXTERN,
     TK_RET,
@@ -21,6 +22,7 @@ typedef enum TokenType {
     TK_WHILE,
     TK_BREAK,
     TK_CONTINUE,
+    TK_SIZEOF,
 
     TK_MUL,
     TK_DIV,
@@ -51,25 +53,40 @@ typedef enum TokenType {
     TK_AAND,
     TK_AXOR,
     TK_AOR,
-
     TK_NOT,
     TK_LNOT,
 
     TK_LPAREN,
     TK_RPAREN,
+    TK_LBRACKET,
+    TK_RBRACKET,
     TK_LBRACE,
     TK_RBRACE,
     TK_SEMICOLON,
     TK_COMMA,
     TK_COLON,
     TK_DOT,
-    TK_DOLLAR,
+    TK_ARGS,  // ...
+
+    TK_BOOL,
+    TK_TRUE,
+    TK_FALSE,
+
+    TK_NULL,  // null pointer
+
+    TK_VOID,
+    TK_U8,
+    TK_U16,
+    TK_U32,
+    TK_I8,
+    TK_I16,
+    TK_I32,
 } TokenType;
 
 typedef struct Token {
     TokenType type;
     union {
-        int val;
+        unsigned int val;
         Str str;
     };
 } Token;
