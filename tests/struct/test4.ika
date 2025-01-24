@@ -1,0 +1,18 @@
+struct Matrix {
+    data: [2][2]i32,
+};
+
+var m: Matrix;
+m.data[0][0] = 1;
+m.data[0][1] = 2;
+m.data[1][0] = 3;
+m.data[1][1] = 4;
+
+var i: u32 = 0;
+while (i < 2) : (i += 1) {
+    var j: u32 = 0;
+    while (j < 2) : (j += 1) {
+        "%d ", m.data[i][j];
+    }
+    "\n";
+}

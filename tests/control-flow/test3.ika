@@ -1,0 +1,14 @@
+var a: i32 = 123;
+var b: i32 = 456;
+var c: i32 = 789;
+
+var largest: i32;
+if (a >= b && a >= c) {
+    largest = a;
+} else if (b >= a && b >= c) {
+    largest = b;
+} else {
+    largest = c;
+}
+
+"%d\n", largest;

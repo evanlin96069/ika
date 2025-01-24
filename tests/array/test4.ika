@@ -1,0 +1,37 @@
+const size = 5;
+fn print_arr(arr: [size]i32) void {
+    var i: u32 = 0;
+    while (i < size) : (i += 1) {
+        "%d ", arr[i];
+    }
+    "\n";
+}
+
+// pointer of an array can be convert to slice
+fn clear(arr: []i32) void {
+    var i: u32 = 0;
+    while (i < size) : (i += 1) {
+        arr[i] = 0;
+    }
+}
+
+// array is call by value
+fn not_clear(arr: [size]i32) void {
+    var i: u32 = 0;
+    while (i < size) : (i += 1) {
+        arr[i] = 0;
+    }
+}
+
+var arr: [size]i32;
+arr[0] = 51;
+arr[1] = 32;
+arr[2] = 43;
+arr[3] = 64;
+arr[4] = 30;
+
+print_arr(arr);
+not_clear(arr);
+print_arr(arr);
+clear(&arr);
+print_arr(arr);

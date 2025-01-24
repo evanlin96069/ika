@@ -1,0 +1,9 @@
+struct FILE;
+
+extern var stdout: *FILE;
+
+extern fn fprintf(stream: *FILE, format: []u8, ...) i32;
+extern fn fputs(s: []u8, stream: *FILE) i32;
+
+fprintf(stdout, "%s\n", "Hello world!");
+fputs("123\n", stdout);

@@ -1,0 +1,14 @@
+fn add(a: i32, b: i32) i32 {
+    return a + b;
+}
+
+fn sub(a: i32, b: i32) i32 {
+    return a - b;
+}
+
+var func: fn (a: i32, b: i32) i32;
+
+func = add;
+"%d\n", func(34, 35);
+func = sub;
+"%d\n", func(34, 35);

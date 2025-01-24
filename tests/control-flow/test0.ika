@@ -1,0 +1,8 @@
+var a: i32 = 3;
+var b: i32 = 2;
+
+if (a >= b) {
+    "true\n";
+} else {
+    "false\n";
+}

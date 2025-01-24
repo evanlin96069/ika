@@ -1,0 +1,17 @@
+struct Vec {
+    x: i32,
+    y: i32,
+};
+
+fn vec_scale(v: *Vec, n: i32) void {
+    v.x *= n;
+    v.y *= n;
+}
+
+var v: Vec;
+v.x = 5;
+v.y = 6;
+
+vec_scale(&v, 3);
+
+"%d %d\n", v.x, v.y;

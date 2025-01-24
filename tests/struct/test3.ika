@@ -1,0 +1,26 @@
+extern fn malloc(size: u32) *void;
+extern fn free(ptr: *void) void;
+
+struct Node {
+    val: i32,
+    next: *Node,
+};
+
+
+fn init_node(node: *Node, val: i32, next: *Node) void {
+    node.val = val;
+    node.next = next;
+}
+
+var node1: Node;
+var node2: Node;
+var node3: Node;
+
+init_node(&node1, 1, null);
+init_node(&node2, 2, &node1);
+init_node(&node3, 3, &node2);
+
+var curr: *Node = &node3;
+while (curr != null) : (curr = curr.next) {
+    "%d\n", curr.val;
+}

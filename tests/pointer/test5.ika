@@ -1,0 +1,55 @@
+extern fn malloc(size: u32) *void;
+extern fn free(ptr: *void) void;
+
+fn swap(x: *i32, y: *i32) void {
+    var tmp: i32 = *x;
+    *x = *y;
+    *y = tmp;
+}
+
+fn partition(arr: []i32, lo: u32, hi: u32) u32 {
+    var pivot: i32 = arr[hi];
+    var i: u32 = lo;
+    var j: u32 = lo;
+
+    while (j < hi) {
+        if (arr[j] < pivot) {
+            swap(&arr[i], &arr[j]);
+            i += 1;
+        }
+        j += 1;
+    }
+
+    swap(&arr[i], &arr[hi]);
+    return i;
+}
+
+fn quicksort(arr: []i32, lo: u32, hi: u32) void {
+    if (lo < hi) {
+        var p: u32 = partition(arr, lo, hi);
+        quicksort(arr, lo, p - 1);
+        quicksort(arr, p + 1, hi);
+    }
+}
+
+fn print_arr(arr: []i32, size: u32) void {
+    var i: i32 = 0;
+    while (i < size) : (i += 1) {
+        "%d ", arr[i];
+    }
+    "\n";
+}
+
+const size = 10;
+var arr: []i32 = malloc(sizeof(i32) * size);
+
+var i: i32 = 0;
+while (i < size) : (i += 1) {
+    arr[i] = size - i;
+}
+
+print_arr(arr, size);
+quicksort(arr, 0, size - 1);
+print_arr(arr, size);
+
+free(arr);

@@ -1,0 +1,12 @@
+fn swap(x: *i32, y: *i32) void {
+    var tmp: i32 = *x;
+    *x = *y;
+    *y = tmp;
+}
+
+var a: i32 = 9;
+var b: i32 = 6;
+
+swap(&a, &b);
+
+"%d %d\n", a, b;

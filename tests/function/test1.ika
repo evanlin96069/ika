@@ -1,0 +1,10 @@
+fn func(n: i32) u8 {
+    var c1: u8 = 34;
+    var c2: u8 = 35;
+
+    c1 = n;
+
+    return c1 + c2;
+}
+
+"%d\n", func(1234);

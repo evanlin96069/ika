@@ -1,0 +1,12 @@
+fn add(x: i32, y: i32) i32 {
+    return x + y;
+}
+
+fn sub(x: i32, y: i32) i32 {
+    return x - y;
+}
+
+var sum: i32 = add(34, 35);
+var diff: i32 = sub(34, 35);
+
+"%d %d\n", sum, diff;

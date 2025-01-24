@@ -1,0 +1,17 @@
+fn main() void {
+    var c: u8;
+    var arr: [3]u8;
+    var n: i32;
+
+    c = 'a';
+    arr[0] = 4;
+    arr[1] = 3;
+    arr[2] = 2;
+    n = 1;
+
+    "%c\n", c;
+    "%d %d %d\n", arr[0], arr[1], arr[2];
+    "%d\n", n;
+}
+
+main();

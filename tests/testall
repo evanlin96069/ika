@@ -1,0 +1,48 @@
+#!/bin/bash
+
+script_dir=$(dirname "$(realpath "$0")")
+
+folders=(
+    "basic"
+    "control-flow"
+    "function"
+    "pointer"
+    "array"
+    "struct"
+)
+
+compiler="$script_dir/../release/ikac"
+
+RED="$(tput setaf 1)"
+GREEN="$(tput setaf 2)"
+RESET="$(tput sgr0)"
+BOLD="$(tput bold)"
+
+for folder in "${folders[@]}"; do
+    printf "%s%-16s status%s\n" "$BOLD" "$folder" "$RESET"
+    folder_path="$script_dir/$folder"
+
+    for source_file in "$folder_path"/*.ika; do
+        base_name=$(basename "$source_file" .ika)
+        txt_file="$folder_path/$base_name.txt"
+
+        if [[ -f "$txt_file" ]]; then
+            $compiler -o "$folder_path/$base_name" "$source_file"
+
+            output=$("$folder_path/$base_name")
+
+            COLOR="$RED"
+            MSG="FAIL"
+            if diff <(echo "$output") "$txt_file" >/dev/null; then
+                COLOR="$GREEN"
+                MSG="PASS"
+            fi
+            printf "%-16s [%s%s%s]\n" "$base_name" "$COLOR" "$MSG" "$RESET"
+
+            rm "$folder_path/$base_name"
+        else
+            printf "%-16s [%s] No corresponding .txt file\n" "$base_name" "SKIP"
+        fi
+    done
+    echo
+done

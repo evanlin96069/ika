@@ -1,0 +1,14 @@
+struct Vec {
+    x: i32,
+    y: i32,
+};
+
+fn print_vec(v: Vec) void {
+    "%d %d\n", v.x, v.y;
+}
+
+var v: Vec;
+v.x = 5;
+v.y = 6;
+
+print_vec(v);

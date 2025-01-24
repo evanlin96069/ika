@@ -1,0 +1,16 @@
+var i: u32 = 0;
+
+const max = 5;
+
+var val: u32 = 0;
+
+while (i < max) : (i += 1) {
+    "i: %d\n", i;
+    var j: u32 = i;
+    while (j < max) : (j += 1) {
+        "j: %d\n", j;
+        val += 1;
+    }
+}
+
+"%d\n", val;

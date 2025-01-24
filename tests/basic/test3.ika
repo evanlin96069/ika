@@ -1,0 +1,9 @@
+var a: i32;
+var b: i32;
+var c: i32;
+
+a = 1;
+b = 2;
+c = 3;
+
+"%d\n", a + b * c;

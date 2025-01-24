@@ -1,0 +1,16 @@
+struct Inner {
+    a: i32,
+    b: i32,
+};
+
+struct Outer {
+    inner: Inner,
+    c: i32,
+};
+
+var o: Outer;
+o.inner.a = 10;
+o.inner.b = 20;
+o.c = 30;
+
+"%d %d %d\n", o.inner.a, o.inner.b, o.c;

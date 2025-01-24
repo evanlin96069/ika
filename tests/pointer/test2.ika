@@ -1,0 +1,10 @@
+extern fn malloc(size: u32) *void;
+extern fn free(ptr: *void) void;
+
+var ptr: *i32 = malloc(sizeof(i32));
+
+*ptr = 7;
+
+"%d\n", *ptr;
+
+free(ptr);

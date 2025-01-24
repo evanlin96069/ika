@@ -1,0 +1,12 @@
+extern fn malloc(size: u32) *void;
+extern fn free(ptr: *void) void;
+
+var arr: []u8 = malloc(sizeof(u8) * 3);
+
+arr[2] = 5;
+arr[1] = 3;
+arr[0] = 1;
+
+"%d %d %d\n", arr[0], arr[1], arr[2];
+
+free(arr);

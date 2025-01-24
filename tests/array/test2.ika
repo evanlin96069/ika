@@ -1,0 +1,24 @@
+const size = 10;
+
+fn sum(n1: i32, arr: [size]u8, n2: i32) i32 {
+    var count: i32 = 0;
+    var i: u32 = 0;
+    "%d %d\n", n1, n2;
+
+    while (i < size) : (i += 1) {
+        "%d ", arr[i];
+        count += arr[i];
+    }
+    "\n";
+    return count;
+}
+
+var arr: [size]u8;
+var i: u32 = 0;
+while (i < size) : (i += 1) {
+    arr[i] = i + 1;
+    "%d ", arr[i];
+}
+"\n";
+
+"%d\n", sum(34, arr, 35);

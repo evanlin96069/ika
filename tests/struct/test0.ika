@@ -1,0 +1,10 @@
+struct Vec {
+    x: i32,
+    y: i32,
+};
+
+var v: Vec;
+v.x = 5;
+v.y = 6;
+
+"%d %d\n", v.x, v.y;
