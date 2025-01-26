@@ -1313,7 +1313,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
     tk = peek_token(parser);
     if (tk.type == TK_VOID) {
         next_token(parser);
-        func_data.return_type = NULL;
+        func_data.return_type = get_primitive_type(TYPE_VOID);
     } else {
         ASTNode* return_type = data_type(parser, 0);
         if (return_type->type == NODE_ERR) {

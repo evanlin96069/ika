@@ -34,31 +34,19 @@
         }                                 \
     } while (0)
 
-static int add_label(void) {
-    static int label_count = 0;
-    return label_count++;
+static inline int add_label(CodegenState* state) {
+    return state->label_count++;
 }
 
-#define MAX_DATA_COUNT 256
-static Str data[MAX_DATA_COUNT];
-static int data_count = 0;
-
-static int add_data(Str str) {
-    for (int i = 0; i < data_count; i++) {
-        if (str_eql(str, data[i])) {
+static int add_data(CodegenState* state, Str str) {
+    for (int i = 0; i < state->data_count; i++) {
+        if (str_eql(str, state->data[i])) {
             return i;
         }
     }
-    data[data_count] = str;
-    return data_count++;
+    state->data[state->data_count] = str;
+    return state->data_count++;
 }
-
-// state label for current function
-static int state_label;
-
-static int in_loop = 0;
-static int break_label;
-static int continue_label;
 
 static EmitResult error(SourcePos pos, const char* fmt, ...) {
     EmitResult result;
@@ -107,7 +95,7 @@ static EmitResult emit_intlit(CodegenState* state, IntLitNode* lit) {
 
 static EmitResult emit_strlit(CodegenState* state, StrLitNode* lit) {
     EmitResult result = {.type = RESULT_OK, .info = {0}};
-    genf("    movl $DAT_%d, %%eax", add_data(lit->val));
+    genf("    movl $DAT_%d, %%eax", add_data(state, lit->val));
     result.info.is_lvalue = 0;
     result.info.type = *get_string_type();
     return result;
@@ -198,7 +186,7 @@ static EmitResult emit_binop(CodegenState* state, BinaryOpNode* binop) {
                 genf("    movzbl %%al, %%eax");
             }
         } else {
-            int label = add_label();
+            int label = add_label(state);
             if (binop->op == TK_LOR) {
                 genf("    testl %%eax, %%eax");
                 genf("    jnz LAB_%d", label);
@@ -704,8 +692,8 @@ static EmitResult emit_if(CodegenState* state, IfStatementNode* if_node) {
 
     EmitResult result;
 
-    int end_label = add_label();
-    int else_label = add_label();
+    int end_label = add_label(state);
+    int else_label = add_label(state);
 
     result = emit_node(state, if_node->expr);
     if (result.type == RESULT_ERROR) {
@@ -759,9 +747,9 @@ static EmitResult emit_while(CodegenState* state, WhileNode* while_node) {
 
     EmitResult result;
 
-    int loop_label = add_label();
-    int inc_label = add_label();
-    int end_label = add_label();
+    int loop_label = add_label(state);
+    int inc_label = add_label(state);
+    int end_label = add_label(state);
 
     genf("LAB_%d:", loop_label);
 
@@ -781,22 +769,22 @@ static EmitResult emit_while(CodegenState* state, WhileNode* while_node) {
     genf("    testl %%eax, %%eax");
     genf("    jz LAB_%d", end_label);
 
-    int prev_in_loop = in_loop;
-    int prev_break_label = break_label;
-    int prev_continue_label = continue_label;
+    int prev_in_loop = state->in_loop;
+    int prev_break_label = state->break_label;
+    int prev_continue_label = state->continue_label;
 
-    in_loop = 1;
-    break_label = end_label;
-    continue_label = inc_label;
+    state->in_loop = 1;
+    state->break_label = end_label;
+    state->continue_label = inc_label;
 
     result = emit_node(state, while_node->block);
     if (result.type == RESULT_ERROR) {
         return result;
     }
 
-    in_loop = prev_in_loop;
-    break_label = prev_break_label;
-    continue_label = prev_continue_label;
+    state->in_loop = prev_in_loop;
+    state->break_label = prev_break_label;
+    state->continue_label = prev_continue_label;
 
     genf("LAB_%d:", inc_label);
     if (while_node->inc) {
@@ -819,16 +807,16 @@ static EmitResult emit_goto(CodegenState* state, GotoNode* node) {
 
     switch (node->op) {
         case TK_BREAK:
-            if (in_loop == 0) {
+            if (state->in_loop == 0) {
                 return error(node->pos, "break statement not within a loop");
             }
-            genf("    jmp LAB_%d", break_label);
+            genf("    jmp LAB_%d", state->break_label);
             break;
         case TK_CONTINUE:
-            if (in_loop == 0) {
+            if (state->in_loop == 0) {
                 return error(node->pos, "continue statement not within a loop");
             }
-            genf("    jmp LAB_%d", continue_label);
+            genf("    jmp LAB_%d", state->continue_label);
             break;
         default:
             assert(0);
@@ -931,11 +919,7 @@ static EmitResult emit_call(CodegenState* state, CallNode* call) {
     // TODO: Return struct
     result.type = RESULT_OK;
     result.info.is_lvalue = 0;
-    if (func_type->func_data.return_type) {
-        result.info.type = *func_type->func_data.return_type;
-    } else {
-        result.info.type = *get_primitive_type(TYPE_VOID);
-    }
+    result.info.type = *func_type->func_data.return_type;
     return result;
 }
 
@@ -963,7 +947,7 @@ static EmitResult emit_print(CodegenState* state, PrintNode* print_node) {
         curr = curr->next;
     }
 
-    genf("    pushl $DAT_%d", add_data(print_node->fmt));
+    genf("    pushl $DAT_%d", add_data(state, print_node->fmt));
     arg_count++;
 
     genf("    call printf");
@@ -978,7 +962,6 @@ static EmitResult emit_print(CodegenState* state, PrintNode* print_node) {
 static EmitResult emit_ret(CodegenState* state, ReturnNode* ret) {
     EmitResult result = {0};
 
-    // TODO: Add type check
     if (ret->expr) {
         result = emit_node(state, ret->expr);
         if (result.type == RESULT_ERROR) {
@@ -992,7 +975,15 @@ static EmitResult emit_ret(CodegenState* state, ReturnNode* ret) {
         result.info.type = *get_primitive_type(TYPE_VOID);
     }
 
-    genf("    jmp LAB_%d", state_label);
+    if (!is_allowed_type_convert(state->ret_type, &result.info.type)) {
+        return error(ret->pos, "invalid return type");
+    }
+
+    if (result.info.type.size > 4) {
+        return error(ret->pos, "returning large type is not implemented yet");
+    }
+
+    genf("    jmp LAB_%d", state->ret_label);
 
     result.type = RESULT_OK;
     return result;
@@ -1165,7 +1156,7 @@ static inline void emit_func_start(CodegenState* state, int stack_size) {
 }
 
 static inline void emit_func_exit(CodegenState* state) {
-    genf("LAB_%d:", state_label);
+    genf("LAB_%d:", state->ret_label);
     // genf("    popl %%ebx");
     // genf("    popl %%esi");
     // genf("    popl %%edi");
@@ -1176,7 +1167,10 @@ static inline void emit_func_exit(CodegenState* state) {
 static EmitResult emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     EmitResult result;
 
-    state_label = add_label();
+    int prev_ret_label = state->ret_label;
+    const Type* prev_ret_type = state->ret_type;
+    state->ret_label = add_label(state);
+    state->ret_type = func->func_data.return_type;
 
     assert(func->node);
     assert(func->is_extern == 0);
@@ -1190,6 +1184,9 @@ static EmitResult emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     }
 
     emit_func_exit(state);
+
+    state->ret_label = prev_ret_label;
+    state->ret_type = prev_ret_type;
 
     result.type = RESULT_OK;
     return result;
@@ -1234,7 +1231,8 @@ Error* codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
     }
 
     // main
-    state_label = add_label();
+    state->ret_label = add_label(state);
+    state->ret_type = get_primitive_type(TYPE_I32);
 
     genf(".global main");
     genf("main:");
@@ -1257,9 +1255,9 @@ Error* codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
 
     // Strings
     genf(".data");
-    for (int i = 0; i < data_count; i++) {
+    for (int i = 0; i < state->data_count; i++) {
         genf("DAT_%d:", i);
-        genf("    .asciz \"%.*s\"", data[i].len, data[i].ptr);
+        genf("    .asciz \"%.*s\"", state->data[i].len, state->data[i].ptr);
     }
 
     return NULL;
