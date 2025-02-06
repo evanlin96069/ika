@@ -29,15 +29,15 @@ Options:
 ```zig
 // Fibonacci sequence using recursion
 
-fn fib(n) {
+fn fib(n: i32) i32 {
     if (n <= 1) {
         return n;
     }
     return fib(n - 1) + fib(n - 2);
 }
 
-fn main() {
-    var i = 0;
+fn main() void {
+    var i: i32 = 0;
     while (i < 10) : (i += 1) {
         "%d\n", fib(i);
     }
@@ -46,7 +46,7 @@ fn main() {
 main();
 ```
 
-See more examples in the `examples` folder.
+See more examples in the `examples` and `tests` folder.
 
 ## Documentation
 
