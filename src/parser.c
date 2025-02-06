@@ -1143,11 +1143,6 @@ static ASTNode* struct_decl(ParserState* parser) {
     type_ste->alignment = alignment;
     type_ste->incomplete = 0;
 
-    tk = next_token(parser);
-    if (tk.type != TK_SEMICOLON) {
-        return error(parser, parser->post_token_pos, "expected ';'");
-    }
-
     return NULL;
 }
 
@@ -1633,6 +1628,12 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 if (node && node->type == NODE_ERR) {
                     return node;
                 }
+
+                tk = next_token(parser);
+                if (tk.type != TK_SEMICOLON) {
+                    return error(parser, parser->pre_token_pos,
+                                 "expected ';' at end of declaration");
+                }
                 break;
 
             case TK_DECL:
@@ -1665,6 +1666,12 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 node = enum_decl(parser);
                 if (node && node->type == NODE_ERR) {
                     return node;
+                }
+
+                tk = next_token(parser);
+                if (tk.type != TK_SEMICOLON) {
+                    return error(parser, parser->pre_token_pos,
+                                 "expected ';' at end of declaration");
                 }
                 break;
 
