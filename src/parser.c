@@ -1083,7 +1083,7 @@ static ASTNode* struct_decl(ParserState* parser) {
                      tk.str.len, tk.str.ptr);
     }
 
-    tk = next_token(parser);
+    tk = peek_token(parser);
     if (tk.type == TK_SEMICOLON) {
         // Forward declaration
         return NULL;
@@ -1092,6 +1092,8 @@ static ASTNode* struct_decl(ParserState* parser) {
     if (tk.type != TK_LBRACE) {
         return error(parser, parser->post_token_pos, "expected '{'");
     }
+
+    tk = next_token(parser);
 
     int alignment = 0;
 
@@ -1175,7 +1177,7 @@ static ASTNode* enum_decl(ParserState* parser) {
         if (peek.type == TK_ASSIGN) {
             next_token(parser);
             SourcePos pos = parser->pre_token_pos;
-            ASTNode* lit_node = expr(parser, 0);
+            ASTNode* lit_node = expr(parser, 1);
             if (lit_node->type == NODE_ERR) {
                 return lit_node;
             }
@@ -1193,6 +1195,7 @@ static ASTNode* enum_decl(ParserState* parser) {
         DefSymbolValue def_val = {
             .is_str = 0,
             .val = enum_val,
+            .data_type = get_intlit_type(enum_val),
         };
         symbol_table_append_def(parser->sym, ident, def_val);
         enum_val++;
