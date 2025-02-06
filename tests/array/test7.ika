@@ -1,0 +1,7 @@
+const sz1 = sizeof([10]i32);
+const sz2 = sizeof([10]u16);
+const sz3 = sizeof([128]u8);
+const sz4 = sizeof([3][3]u8);
+const sz5 = sizeof([3][3][3]u8);
+
+"%d %d %d %d %d\n", sz1, sz2, sz3, sz4, sz5;

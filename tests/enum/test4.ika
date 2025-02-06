@@ -1,0 +1,7 @@
+enum {
+    READ  = 1 << 0,  // 0001
+    WRITE = 1 << 1,  // 0010
+    EXEC  = 1 << 2   // 0100
+};
+
+"%o\n", READ|WRITE|EXEC;

@@ -1,0 +1,31 @@
+struct Vec {
+    x: i32,
+    y: i32,
+};
+
+struct Node {
+    val: i32,
+    next: *Node,
+};
+
+struct Matrix {
+    data: [2][2]i32,
+};
+
+struct Inner {
+    a: u8,
+    b: i32,
+};
+
+struct Outer {
+    inner: Inner,
+    c: i32,
+};
+
+const sz1 = sizeof(Vec);
+const sz2 = sizeof(Node);
+const sz3 = sizeof(Matrix);
+const sz4 = sizeof(Inner);
+const sz5 = sizeof(Outer);
+
+"%d %d %d %d %d\n", sz1, sz2, sz3, sz4, sz5;

@@ -1,0 +1,8 @@
+const a = 35;
+const b = 35;
+const c = a + b - 1;
+
+const s = "WAH!";
+
+"%d %d %d\n", a, b, c;
+"%s\n", s;

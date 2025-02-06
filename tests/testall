@@ -9,6 +9,7 @@ folders=(
     "pointer"
     "array"
     "struct"
+    "enum"
 )
 
 compiler="$script_dir/../release/ikac"
