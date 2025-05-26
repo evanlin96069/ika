@@ -1,0 +1,21 @@
+var mat: [2][2][2]i8;
+
+mat[0][0][0] = 1;
+mat[0][0][1] = 2;
+mat[0][1][0] = 3;
+mat[0][1][1] = 4;
+
+"%d %d\n", mat[0][0][0], mat[0][0][1];
+"%d %d\n", mat[0][1][0], mat[0][1][1];
+
+extern fn malloc(size: u32) *void;
+extern fn free(ptr: *void) void;
+
+var mat2: [][]i8 = malloc(sizeof([]i8) * 2);
+
+mat2[0] = &mat[0][0];
+mat2[1] = &mat[0][1];
+"%d %d\n", mat2[0][0], mat2[0][1];
+"%d %d\n", mat2[1][0], mat2[1][1];
+
+free(mat2);

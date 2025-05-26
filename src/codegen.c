@@ -1060,8 +1060,9 @@ static EmitResult emit_indexof(CodegenState* state, IndexOfNode* idxof) {
     }
 
     genf("    popl %%ecx");
-    // Address of the array is ecx, index is eax.
-    genf("    leal (%%ecx, %%eax, %d), %%eax", l_type.inner_type->size);
+    // ecx = array, eax = index
+    genf("    imull $%d, %%eax", l_type.inner_type->size);
+    genf("    addl %%ecx, %%eax");
 
     result.type = RESULT_OK;
     result.info.is_lvalue = 1;
