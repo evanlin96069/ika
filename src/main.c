@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "codegen.h"
 #include "error.h"
@@ -149,20 +152,32 @@ int main(int argc, char* argv[]) {
 
     // Invoke cc
     if (!s_flag) {
-        char command[1024];
-        snprintf(command, sizeof(command), "cc %s -m32 -no-pie -o %s",
-                 asm_out_path, out_path);
-        int ret = system(command);
-        if (ret != 0) {
-            ika_log(LOG_ERROR, "failed to compile %s into %s\n", asm_out_path,
-                    out_path);
+        char* const args[] = {
+            "gcc", "-m32",          "-no-pie",
+            "-o",  (char*)out_path, (char*)asm_out_path,
+            NULL,
+        };
+
+        pid_t pid = fork();
+        if (pid == -1) {
+            fprintf(stderr, "fork failed");
+            exit(1);
         }
 
-        snprintf(command, sizeof(command), "rm %s", asm_out_path);
-        ret = system(command);
-        if (ret != 0) {
-            ika_log(LOG_ERROR, "failed remove file: %s\n", asm_out_path);
+        if (pid > 0) {
+            int status;
+            waitpid(pid, &status, 0);
+            if (status != 0) {
+                ika_log(LOG_ERROR, "failed to compile %s into %s\n",
+                        asm_out_path, out_path);
+            }
+        } else {
+            execvp(args[0], args);
+            fprintf(stderr, "exec failed");
+            exit(1);
         }
+
+        unlink(asm_out_path);
     }
 
     return 0;
