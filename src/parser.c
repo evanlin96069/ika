@@ -1140,7 +1140,13 @@ static ASTNode* struct_decl(ParserState* parser) {
         }
     }
 
-    type_ste->size = *name_space->stack_size;
+    int struct_size = *name_space->stack_size;
+    if (struct_size == 0) {
+        struct_size = 1;
+        alignment = 1;
+    }
+
+    type_ste->size = struct_size;
     type_ste->name_space = name_space;
     type_ste->alignment = alignment;
     type_ste->incomplete = 0;

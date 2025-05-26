@@ -1,0 +1,5 @@
+struct Empty {};
+
+var empty: Empty;
+
+"%d\n", sizeof(Empty);
