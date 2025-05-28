@@ -1,6 +1,5 @@
 #include "codegen.h"
 
-#include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -414,7 +413,7 @@ static EmitResult emit_binop(CodegenState* state, BinaryOpNode* binop) {
 
                     default:
                         // fprintf(stderr, "Token type: %d\n", binop->op);
-                        assert(0);
+                        UNREACHABLE();
                 }
                 result.info.type = *get_primitive_type(result_type);
             }
@@ -532,7 +531,7 @@ static EmitResult emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
             break;
 
         default:
-            assert(0);
+            UNREACHABLE();
     }
 
     result.type = RESULT_OK;
@@ -819,7 +818,7 @@ static EmitResult emit_goto(CodegenState* state, GotoNode* node) {
             genf("    jmp LAB_%d", state->continue_label);
             break;
         default:
-            assert(0);
+            UNREACHABLE();
     }
 
     result.type = RESULT_OK;
@@ -1135,11 +1134,11 @@ static EmitResult emit_node(CodegenState* state, ASTNode* node) {
             break;
 
         case NODE_TYPE:
-            assert(0);
+            UNREACHABLE();
             break;
 
         default:
-            assert(0);
+            UNREACHABLE();
     }
 
     return result;

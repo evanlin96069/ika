@@ -1,6 +1,5 @@
 #include "parser.h"
 
-#include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -148,7 +147,7 @@ static ASTNode* primary(ParserState* parser) {
                 } break;
 
                 default:
-                    assert(0);
+                    UNREACHABLE();
             }
         } break;
 
@@ -195,7 +194,7 @@ static ASTNode* primary(ParserState* parser) {
                             intlit->val = (~val);
                             break;
                         default:
-                            assert(0);
+                            UNREACHABLE();
                     }
                     node = (ASTNode*)intlit;
                 }
@@ -401,7 +400,7 @@ static inline int is_left_associative(TokenType type) {
             return 1;
 
         default:
-            assert(0);
+            UNREACHABLE();
     }
 }
 
@@ -490,7 +489,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                         binop->op = TK_OR;
                         break;
                     default:
-                        assert(0);
+                        UNREACHABLE();
                 }
                 binop->left = assign->left;
                 binop->right = expr(parser, next_precedence);
@@ -725,7 +724,7 @@ static inline PrimitiveType primitive_type_token_to_type(Token tk) {
         case TK_I32:
             return TYPE_I32;
         default:
-            assert(0);
+            UNREACHABLE();
     }
 }
 

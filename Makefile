@@ -3,6 +3,7 @@
 # Compiler flags
 CC ?= gcc
 CFLAGS = -pedantic -std=c11 -Wall -Wextra
+CFLAGS += -include src/common.h
 
 # Project files
 SRCDIR = src
@@ -16,7 +17,7 @@ RELDIR = release
 RELEXE = $(RELDIR)/$(EXE)
 RELOBJS = $(addprefix $(RELDIR)/, $(OBJS))
 RELDEPS = $(addprefix $(RELDIR)/, $(DEPS))
-RELCFLAGS = -O2
+RELCFLAGS = -O2 -DNDEBUG
 
 # Debug build settings
 DBGDIR = debug

@@ -1,8 +1,6 @@
 #ifndef TYPE_H
 #define TYPE_H
 
-#include <assert.h>
-
 #define MAX_ALIGNMENT 4
 #define PTR_SIZE 4
 
@@ -101,7 +99,7 @@ static inline int is_signed(PrimitiveType type) {
         case TYPE_I32:
             return 1;
         default:
-            assert(0);
+            UNREACHABLE();
     }
 }
 
@@ -124,7 +122,7 @@ static inline PrimitiveType implicit_type_convert(PrimitiveType a,
                 case TYPE_I32:
                     return TYPE_U32;
                 default:
-                    assert(0);
+                    UNREACHABLE();
             }
         case TYPE_U16:
             switch (b) {
@@ -141,7 +139,7 @@ static inline PrimitiveType implicit_type_convert(PrimitiveType a,
                 case TYPE_I32:
                     return TYPE_U32;
                 default:
-                    assert(0);
+                    UNREACHABLE();
             }
         case TYPE_U32:
             return TYPE_U32;
@@ -162,7 +160,7 @@ static inline PrimitiveType implicit_type_convert(PrimitiveType a,
                 case TYPE_I32:
                     return TYPE_I32;
                 default:
-                    assert(0);
+                    UNREACHABLE();
             }
         case TYPE_I32:
             switch (b) {
@@ -179,10 +177,10 @@ static inline PrimitiveType implicit_type_convert(PrimitiveType a,
                 case TYPE_I32:
                     return TYPE_I32;
                 default:
-                    assert(0);
+                    UNREACHABLE();
             }
         default:
-            assert(0);
+            UNREACHABLE();
     }
 }
 

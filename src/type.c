@@ -1,7 +1,5 @@
 #include "type.h"
 
-#include <stddef.h>
-
 static const Type primitive_tpyes[] = {
     [TYPE_VOID] =
         {
@@ -133,6 +131,6 @@ int is_equal_type(const Type* a, const Type* b) {
         }
 
         default:
-            assert(0);
+            UNREACHABLE();
     }
 }

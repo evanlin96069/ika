@@ -1,8 +1,6 @@
 #ifndef PREPROCESSOR_H
 #define PREPROCESSOR_H
 
-#include <stddef.h>
-
 #include "arena.h"
 
 #define MAX_INCLUDE_DEPTH 15

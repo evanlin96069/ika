@@ -1,7 +1,5 @@
 #include "lexer.h"
 
-#include <assert.h>
-
 #include "parser.h"
 
 static inline int is_digit(char c) { return c >= '0' && c <= '9'; }
@@ -24,8 +22,7 @@ static inline int hex_digit_to_int(char c) {
         return 10 + (c - 'A');
     }
 
-    assert(0);
-    return 0;  // unreachable
+    UNREACHABLE();
 }
 
 static inline int is_oct_digit(char c) { return c >= '0' && c <= '7'; }
