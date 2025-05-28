@@ -3,10 +3,55 @@
 A simple programming language that compiles into x86 assembly.
 
 ## Build
-```sh
-make
+
+### Prerequisites
+
+* CMake (>= 3.15)
+* GCC
+
+---
+
+### Linux
+
+```bash
+# From the project root:
+mkdir -p build/debug && cd build/debug
+cmake -DCMAKE_BUILD_TYPE=Debug ../..
+cmake --build .
+
+# For release build:
+mkdir -p build/release && cd build/release
+cmake -DCMAKE_BUILD_TYPE=Release ../..
+cmake --build .
 ```
-Currently, Windows build is not supported yet.
+The compiler executable (`ikac`) will be placed in `build/<cfg>/bin/`.
+
+### Windows
+
+Windows build is not supported yet.
+
+---
+
+## Testing
+
+### Run all tests
+
+```bash
+# From any build directory:
+ctest --output-on-failure
+```
+
+### Filter by group label
+
+```bash
+# Run only the 'basic' tests:
+ctest -L basic
+
+# Run 'function' tests in Release mode:
+ctest -C Release -L function
+```
+
+---
 
 ## Usage
 ```
@@ -17,6 +62,8 @@ Options:
   -o <file>        Place the output into <file>.
   -?               Display this information.
 ```
+
+---
 
 ## Examples
 
@@ -47,6 +94,8 @@ main();
 ```
 
 See more examples in the `examples` and `tests` folder.
+
+---
 
 ## Documentation
 
