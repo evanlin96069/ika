@@ -3,7 +3,7 @@
 
 #include "str.h"
 
-typedef enum TokenType {
+typedef enum TkType {
     TK_ERR = -1,
     TK_NUL = 0,  // nothing
     TK_IDENT,
@@ -81,10 +81,10 @@ typedef enum TokenType {
     TK_I8,
     TK_I16,
     TK_I32,
-} TokenType;
+} TkType;
 
 typedef struct Token {
-    TokenType type;
+    TkType type;
     union {
         unsigned int val;
         Str str;

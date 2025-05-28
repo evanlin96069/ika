@@ -154,13 +154,11 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
                 return error(pos, "missing terminating \" character");
             }
 
-            char* dir = dirname(filename);
+            Str dir = get_dir_name(str(filename));
 
-            size_t inc_path_len = strlen(dir) + 1 + s.len;
-            char* inc_path = malloc(inc_path_len + 1);
-
-            snprintf(inc_path, inc_path_len + 1, "%s/%.*s", dir, s.len, s.ptr);
-            free(dir);
+            char inc_path[OS_PATH_MAX];
+            snprintf(inc_path, sizeof(inc_path), "%.*s/%.*s", dir.len, dir.ptr,
+                     s.len, s.ptr);
 
             if (curr_file_index == 0) {
                 state->files[0].pos.index = include_index;
@@ -180,7 +178,6 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
             if (err != NULL) {
                 return err;
             }
-            free(inc_path);
         } else {
             append_line(state, line);
         }

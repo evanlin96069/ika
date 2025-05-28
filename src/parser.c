@@ -302,7 +302,7 @@ static ASTNode* primary(ParserState* parser) {
     return node;
 }
 
-static inline int get_precedence(TokenType type) {
+static inline int get_precedence(TkType type) {
     switch (type) {
         case TK_COMMA:
             return 0;
@@ -363,7 +363,7 @@ static inline int get_precedence(TokenType type) {
     }
 }
 
-static inline int is_left_associative(TokenType type) {
+static inline int is_left_associative(TkType type) {
     switch (type) {
         case TK_ASSIGN:
         case TK_AADD:

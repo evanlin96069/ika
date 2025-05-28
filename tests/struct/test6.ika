@@ -1,9 +1,14 @@
-struct FILE;
+struct Vec {
+    x: i32,
+    y: i32,
+};
 
-extern var stdout: *FILE;
+fn vec_sqrlen(v: Vec) i32 {
+    return v.x * v.x + v.y * v.y;
+}
 
-extern fn fprintf(stream: *FILE, format: []u8, ...) i32;
-extern fn fputs(s: []u8, stream: *FILE) i32;
+var vec: Vec;
+vec.x = 3;
+vec.y = 4;
 
-fprintf(stdout, "%s\n", "Hello world!");
-fputs("123\n", stdout);
+"%d\n", vec_sqrlen(vec);

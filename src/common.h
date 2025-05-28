@@ -6,6 +6,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#define OS_PATH_MAX 4096
+#else
+#define OS_PATH_MAX 260
+#endif
+
 #define UNREACHABLE() \
     do {              \
         assert(0);    \

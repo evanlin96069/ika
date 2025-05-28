@@ -3,22 +3,24 @@ name: CI
 on:
   push:
     paths-ignore:
-        - '.gitignore'
-        - '*.md'
-        - 'LICENSE'
+      - '.gitignore'
+      - '*.md'
+      - 'LICENSE'
 
 jobs:
-  build-and-test:
+  build-and-test-linux:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Install 32-bit dependencies
+      run: sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
+
     - name: Configure CMake
       run: |
-        cmake -S . -B build \
-          -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
     - name: Build ikac
       run: |
@@ -32,5 +34,44 @@ jobs:
     - name: Upload ikac binary
       uses: actions/upload-artifact@v4
       with:
-        name: ikac-release
+        name: ikac-release-linux
         path: build/bin/ikac
+
+  build-and-test-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-i686-gcc
+          mingw-w64-x86_64-gcc
+          make
+        pacboy: >-
+          toolchain:p
+          cmake:p
+
+    - name: Configure CMake
+      run: |
+        cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -B build -S .
+
+    - name: Build ikac
+      run: |
+        cmake --build build
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure
+
+    - name: Upload ikac.exe
+      uses: actions/upload-artifact@v4
+      with:
+        name: ikac-release-windows
+        path: build/bin/ikac.exe

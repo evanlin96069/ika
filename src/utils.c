@@ -68,47 +68,46 @@ char* read_entire_file(const char* path) {
     return buf;
 }
 
-char* dirname(const char* path) {
-    if (path == NULL || *path == '\0') {
-        return strdup(".");
+Str get_dir_name(Str path) {
+    if (path.len == 0) {
+        return str(".");
     }
 
-    char* path_copy = strdup(path);
-    if (path_copy == NULL) {
-        return NULL;
-    }
-
-    size_t len = strlen(path_copy);
-    while (len > 1 && path_copy[len - 1] == '/') {
-        path_copy[--len] = '\0';
-    }
-
-    char* last_slash = strrchr(path_copy, '/');
-    if (last_slash != NULL) {
-        if (last_slash == path_copy) {
-            last_slash[1] = '\0';
-        } else {
-            *last_slash = '\0';
+    int end_index = path.len - 1;
+    while (path.ptr[end_index] == '/'
+#ifdef _WIN32
+           || path.ptr[end_index] == '\\'
+#endif
+    ) {
+        if (end_index == 0) {
+            return str("/");
         }
-    } else {
-        strcpy(path_copy, ".");
+        end_index--;
     }
 
-    return path_copy;
-}
-
-char* strdup(const char* str) {
-    if (str == NULL) {
-        return NULL;
+    while (path.ptr[end_index] != '/'
+#ifdef _WIN32
+           && path.ptr[end_index] != '\\'
+#endif
+    ) {
+        if (end_index == 0) {
+            return str(".");
+        }
+        end_index--;
     }
 
-    size_t len = strlen(str) + 1;
-    char* copy = (char*)malloc(len);
-    if (copy == NULL) {
-        return NULL;
+    if (end_index == 0 && (path.ptr[0] == '/'
+#ifdef _WIN32
+                           || path.ptr[0] == '\\'
+#endif
+                           )) {
+        return str("/");
     }
 
-    strcpy(copy, str);
+    if (end_index == 0) {
+        return str(".");
+    }
 
-    return copy;
+    path.len = end_index + 1;
+    return path;
 }

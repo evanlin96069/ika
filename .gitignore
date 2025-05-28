@@ -21,3 +21,4 @@
 # Compiler output
 *.s
 *.out
+*.exe

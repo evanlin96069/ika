@@ -2,9 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include "codegen.h"
 #include "error.h"
@@ -120,7 +126,11 @@ int main(int argc, char* argv[]) {
     }
 
     if (!out_path) {
+#ifdef _WIN32
+        out_path = "a.exe";
+#else
         out_path = "a.out";
+#endif
     }
 
     FILE* out = fopen(asm_out_path, "w");
@@ -148,6 +158,18 @@ int main(int argc, char* argv[]) {
 
     // Invoke cc
     if (!s_flag) {
+#ifdef _WIN32
+        char cmd[1024];
+        sprintf(cmd, "i686-w64-mingw32-gcc -o \"%s\" \"%s\"", out_path,
+                asm_out_path);
+        if (system(cmd) != 0) {
+            ika_log(LOG_ERROR, "failed to compile %s into %s\n", asm_out_path,
+                    out_path);
+            _unlink(asm_out_path);
+            exit(1);
+        }
+        _unlink(asm_out_path);
+#else
         char* const args[] = {
             "gcc", "-m32",          "-no-pie",
             "-o",  (char*)out_path, (char*)asm_out_path,
@@ -166,6 +188,8 @@ int main(int argc, char* argv[]) {
             if (status != 0) {
                 ika_log(LOG_ERROR, "failed to compile %s into %s\n",
                         asm_out_path, out_path);
+                unlink(asm_out_path);
+                exit(1);
             }
         } else {
             execvp(args[0], args);
@@ -174,6 +198,7 @@ int main(int argc, char* argv[]) {
         }
 
         unlink(asm_out_path);
+#endif
     }
 
     return 0;

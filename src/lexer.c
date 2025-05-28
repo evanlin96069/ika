@@ -33,7 +33,7 @@ static inline int is_letter(char c) {
 
 typedef struct StrToken {
     const char* s;
-    TokenType token_type;
+    TkType token_type;
 } StrToken;
 
 static StrToken str_tk[] = {

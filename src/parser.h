@@ -51,7 +51,7 @@ typedef struct StrLitNode {
 typedef struct BinaryOpNode {
     ASTNodeType type;
     SourcePos pos;
-    TokenType op;
+    TkType op;
     ASTNode* left;
     ASTNode* right;
 } BinaryOpNode;
@@ -59,7 +59,7 @@ typedef struct BinaryOpNode {
 typedef struct UnaryOpNode {
     ASTNodeType type;
     SourcePos pos;
-    TokenType op;
+    TkType op;
     ASTNode* node;
 } UnaryOpNode;
 
@@ -95,7 +95,7 @@ typedef struct WhileNode {
 typedef struct GotoNode {
     ASTNodeType type;
     SourcePos pos;
-    TokenType op;
+    TkType op;
 } GotoNode;
 
 typedef struct ErrorNode {

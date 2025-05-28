@@ -8,7 +8,7 @@
 #include "symbol_table.h"
 #include "type.h"
 
-#ifdef _DEBUG
+#ifdef CODEGEN_DBG
 
 #define GEN(out, ...)                                   \
     do {                                                \
@@ -32,6 +32,12 @@
             GEN(state->out, __VA_ARGS__); \
         }                                 \
     } while (0)
+
+#ifdef _WIN32
+#define OS_SYM_PREFIX "_"
+#else
+#define OS_SYM_PREFIX ""
+#endif
 
 static inline int add_label(CodegenState* state) {
     return state->label_count++;
@@ -547,7 +553,7 @@ static EmitResult emit_var(CodegenState* state, VarNode* var) {
         VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
         if (var_ste->is_extern) {
             // Extern variable
-            genf("    movl $%.*s, %%eax", var_ste->ident.len,
+            genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax", var_ste->ident.len,
                  var_ste->ident.ptr);
         } else if (var_ste->is_global) {
             // Global variable
@@ -564,7 +570,7 @@ static EmitResult emit_var(CodegenState* state, VarNode* var) {
         FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
         if (func_ste->is_extern || func_ste->node == NULL) {
             // Extern function
-            genf("    movl $%.*s, %%eax", func_ste->ident.len,
+            genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax", func_ste->ident.len,
                  func_ste->ident.ptr);
         } else {
             // ika function
@@ -665,7 +671,7 @@ static EmitResult emit_assign(CodegenState* state, AssignNode* assign) {
             genf("    pushl %%edx");  // n
             genf("    push %%eax");   // src
             genf("    pushl %%ecx");  // dest
-            genf("    call memcpy");
+            genf("    call " OS_SYM_PREFIX "memcpy");
             genf("    addl $12, %%esp");
             break;
     }
@@ -893,7 +899,7 @@ static EmitResult emit_call(CodegenState* state, CallNode* call) {
             genf("    pushl %%ecx");  // n
             genf("    pushl %%eax");  // src
             genf("    pushl %%edx");  // dest
-            genf("    call memcpy");
+            genf("    call "OS_SYM_PREFIX "memcpy");
             genf("    addl $12, %%esp");
         }
 
@@ -949,7 +955,7 @@ static EmitResult emit_print(CodegenState* state, PrintNode* print_node) {
     genf("    pushl $DAT_%d", add_data(state, print_node->fmt));
     arg_count++;
 
-    genf("    call printf");
+    genf("    call " OS_SYM_PREFIX "printf");
     genf("    addl $%d, %%esp", arg_count * 4);
 
     result.type = RESULT_OK;
@@ -1234,8 +1240,8 @@ Error* codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
     state->ret_label = add_label(state);
     state->ret_type = get_primitive_type(TYPE_I32);
 
-    genf(".global main");
-    genf("main:");
+    genf(".global " OS_SYM_PREFIX "main");
+    genf(OS_SYM_PREFIX "main:");
     emit_func_start(state, *sym->stack_size);
 
     genf("    movl 8(%%ebp), %%eax");
@@ -1250,7 +1256,10 @@ Error* codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
 
     genf("    xorl %%eax, %%eax");
     emit_func_exit(state);
+
+#ifndef _WIN32
     genf(".type main, @function");
+#endif
     fprintf(state->out, "\n");
 
     // Strings

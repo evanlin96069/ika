@@ -1,6 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include "str.h"
+
 #define LOG_DEBUG 0
 #define LOG_NOTE 1
 #define LOG_WARNING 2
@@ -10,8 +12,6 @@ void ika_log(int level, const char* fmt, ...);
 
 char* read_entire_file(const char* path);
 
-char* dirname(const char* path);
-
-char* strdup(const char* str);
+Str get_dir_name(Str path);
 
 #endif

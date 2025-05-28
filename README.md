@@ -20,6 +20,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug ../..
 cmake --build .
 
 # For release build:
+cd ..\..
 mkdir -p build/release && cd build/release
 cmake -DCMAKE_BUILD_TYPE=Release ../..
 cmake --build .
@@ -28,7 +29,24 @@ The compiler executable (`ikac`) will be placed in `build/<cfg>/bin/`.
 
 ### Windows
 
-Windows build is not supported yet.
+The project currently supports Windows builds using the MinGW toolchain. You may build a 64-bit compiler (`ikac`), but it will invoke `i686-w64-mingw32-gcc`, so a 32-bit MinGW must be installed and in your PATH.
+
+```cmd
+REM From the project root:
+mkdir build\debug
+cd build\debug
+cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug ../..
+cmake --build .
+
+REM For release build:
+cd ..\..
+mkdir build\release
+cd build\release
+cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release ../..
+cmake --build .
+```
+
+The compiler executable (`ikac.exe`) will be placed in `build/<cfg>/bin/`.
 
 ---
 
