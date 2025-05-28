@@ -1714,7 +1714,6 @@ void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena) {
 }
 
 ASTNode* parser_parse(ParserState* parser, SourceState* src) {
-    arena_reset(parser->arena);
     parser->src = src;
     parser->line = 0;
     parser->pos = 0;

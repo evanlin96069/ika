@@ -14,6 +14,8 @@
 #include "symbol_table.h"
 #include "utils.h"
 
+#define ARENA_SIZE (1 << 14)
+
 void usage(void) {
     fprintf(stderr,
             "Usage: ikac [options] file\n"
@@ -55,11 +57,11 @@ int main(int argc, char* argv[]) {
 
     src_path = *argv;
 
-    Arena pp_arena;
-    arena_init(&pp_arena, 1 << 10, NULL);
+    Arena arena;
+    arena_init(&arena, ARENA_SIZE, NULL);
 
     SourceState src;
-    pp_init(&src, &pp_arena);
+    pp_init(&src, &arena);
 
     // Read input file
 
@@ -89,19 +91,15 @@ int main(int argc, char* argv[]) {
             fclose(pp_out);
         }
 
-        arena_deinit(&pp_arena);
+        arena_deinit(&arena);
         pp_deinit(&src);
         return 0;
     }
 
     // Parse
-    Arena sym_arena;
-    arena_init(&sym_arena, 1 << 10, NULL);
     SymbolTable sym;
-    symbol_table_init(&sym, 0, NULL, 1, &sym_arena);
+    symbol_table_init(&sym, 0, NULL, 1, &arena);
 
-    Arena arena;
-    arena_init(&arena, 1 << 10, NULL);
     ParserState parser;
     parser_init(&parser, &sym, &arena);
 
@@ -145,9 +143,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    arena_deinit(&pp_arena);
     arena_deinit(&arena);
-    arena_deinit(&sym_arena);
     pp_deinit(&src);
 
     // Invoke cc
