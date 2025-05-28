@@ -85,7 +85,7 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
 
     char* src = read_entire_file(filename);
     if (!src) {
-        return error(state->files[last_include].pos, "%s", strerror(errno));
+        return error(state->files[last_include].pos, "failed to read file: %s", strerror(errno));
     }
     state->files[curr_file_index].is_open = 1;
 
@@ -108,6 +108,11 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
         line.content = arena_alloc(state->arena, line_len + 1);
         memcpy(line.content, src + start_pos, line_len);
         line.content[line_len] = '\0';
+
+        // fix CRLF
+        if (line.content[line_len - 1] == '\r') {
+            line.content[line_len - 1] = '\0';
+        }
 
         if (c != '\0') {
             pos++;

@@ -35,7 +35,7 @@ void ika_log(int level, const char* fmt, ...) {
 }
 
 char* read_entire_file(const char* path) {
-    FILE* fp = fopen(path, "r");
+    FILE* fp = fopen(path, "rb");
     if (!fp) {
         return NULL;
     }
