@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    paths-ignore:
+        - '.gitignore'
+        - '*.md'
+        - 'LICENSE'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: |
+        cmake -S . -B build \
+          -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build ikac
+      run: |
+        cmake --build build --config Release -- -j $(nproc)
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure
+
+    - name: Upload ikac binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: ikac-release
+        path: build/bin/ikac
