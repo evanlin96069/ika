@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
     if (!s_flag) {
 #ifdef _WIN32
         char cmd[1024];
-        sprintf(cmd, "i686-w64-mingw32-gcc -o \"%s\" \"%s\"", out_path,
+        sprintf(cmd, "gcc -m32 -o \"%s\" \"%s\"", out_path,
                 asm_out_path);
         if (system(cmd) != 0) {
             ika_log(LOG_ERROR, "failed to compile %s into %s\n", asm_out_path,

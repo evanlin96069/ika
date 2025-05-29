@@ -29,7 +29,8 @@ The compiler executable (`ikac`) will be placed in `build/<cfg>/bin/`.
 
 ### Windows
 
-The project currently supports Windows builds using the MinGW toolchain. You may build a 64-bit compiler (`ikac`), but it will invoke `i686-w64-mingw32-gcc`, so a 32-bit MinGW must be installed and in your PATH.
+The project currently supports Windows builds using the MinGW toolchain.
+You need a 32-bit MinGW gcc.
 
 ```cmd
 REM From the project root:
