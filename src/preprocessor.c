@@ -85,7 +85,8 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
 
     char* src = read_entire_file(filename);
     if (!src) {
-        return error(state->files[last_include].pos, "failed to read file: %s", strerror(errno));
+        return error(state->files[last_include].pos, "failed to read file: %s",
+                     strerror(errno));
     }
     state->files[curr_file_index].is_open = 1;
 

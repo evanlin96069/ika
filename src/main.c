@@ -17,6 +17,7 @@
 #include "opt.h"
 #include "parser.h"
 #include "preprocessor.h"
+#include "sema.h"
 #include "symbol_table.h"
 #include "utils.h"
 
@@ -116,7 +117,18 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // codegen
+    // Semantic analysis
+    SemaState sema_state = {
+        .arena = &arena,
+    };
+
+    err = sema(&sema_state, node, &sym);
+    if (err != NULL) {
+        print_err(&src, err);
+        return 1;
+    }
+
+    // Code generation
     if (s_flag) {
         asm_out_path = out_path;
     }
@@ -140,18 +152,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    CodegenState state = {
+    CodegenState codegen_state = {
         .out = out,
         .arena = &arena,
     };
 
-    err = codegen(&state, node, &sym);
+    codegen(&codegen_state, node, &sym);
     fclose(out);
-
-    if (err != NULL) {
-        print_err(&src, err);
-        return 1;
-    }
 
     arena_deinit(&arena);
     pp_deinit(&src);
@@ -160,8 +167,7 @@ int main(int argc, char* argv[]) {
     if (!s_flag) {
 #ifdef _WIN32
         char cmd[1024];
-        sprintf(cmd, "gcc -m32 -o \"%s\" \"%s\"", out_path,
-                asm_out_path);
+        sprintf(cmd, "gcc -m32 -o \"%s\" \"%s\"", out_path, asm_out_path);
         if (system(cmd) != 0) {
             ika_log(LOG_ERROR, "failed to compile %s into %s\n", asm_out_path,
                     out_path);

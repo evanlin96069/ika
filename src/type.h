@@ -55,6 +55,11 @@ struct Type {
     const struct Type* inner_type;
 };
 
+typedef struct TypeInfo {
+    int is_lvalue;
+    Type type;
+} TypeInfo;
+
 static inline int is_ptr(const Type* type) {
     return type->type == METADATA_POINTER;
 }

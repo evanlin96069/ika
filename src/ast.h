@@ -30,11 +30,20 @@ typedef enum ASTNodeType {
 typedef struct ASTNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
 } ASTNode;
+
+typedef struct TypedASTNode {
+    ASTNodeType type;
+    SourcePos pos;
+    TypeInfo type_info;
+} TypedASTNode;
 
 typedef struct IntLitNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     int val;
     PrimitiveType data_type;
 } IntLitNode;
@@ -42,12 +51,16 @@ typedef struct IntLitNode {
 typedef struct StrLitNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     Str val;
 } StrLitNode;
 
 typedef struct BinaryOpNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     TkType op;
     ASTNode* left;
     ASTNode* right;
@@ -56,6 +69,8 @@ typedef struct BinaryOpNode {
 typedef struct UnaryOpNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     TkType op;
     ASTNode* node;
 } UnaryOpNode;
@@ -63,12 +78,16 @@ typedef struct UnaryOpNode {
 typedef struct VarNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     SymbolTableEntry* ste;
 } VarNode;
 
 typedef struct AssignNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     ASTNode* left;
     ASTNode* right;
 } AssignNode;
@@ -76,6 +95,7 @@ typedef struct AssignNode {
 typedef struct IfStatementNode {
     ASTNodeType type;
     SourcePos pos;
+
     ASTNode* expr;
     ASTNode* then_block;
     ASTNode* else_block;
@@ -84,6 +104,7 @@ typedef struct IfStatementNode {
 typedef struct WhileNode {
     ASTNodeType type;
     SourcePos pos;
+
     ASTNode* expr;
     ASTNode* inc;
     ASTNode* block;
@@ -92,12 +113,14 @@ typedef struct WhileNode {
 typedef struct GotoNode {
     ASTNodeType type;
     SourcePos pos;
+
     TkType op;
 } GotoNode;
 
 typedef struct ErrorNode {
     ASTNodeType type;
     SourcePos pos;
+
     Error* val;
 } ErrorNode;
 
@@ -110,6 +133,7 @@ struct ASTNodeList {
 typedef struct StatementListNode {
     ASTNodeType type;
     SourcePos pos;
+
     ASTNodeList* stmts;
     ASTNodeList* _tail;
 } StatementListNode;
@@ -117,6 +141,8 @@ typedef struct StatementListNode {
 typedef struct CallNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     ASTNode* node;
     ASTNodeList* args;
 } CallNode;
@@ -124,6 +150,7 @@ typedef struct CallNode {
 typedef struct PrintNode {
     ASTNodeType type;
     SourcePos pos;
+
     Str fmt;
     ASTNodeList* args;
 } PrintNode;
@@ -131,12 +158,15 @@ typedef struct PrintNode {
 typedef struct ReturnNode {
     ASTNodeType type;
     SourcePos pos;
+
     ASTNode* expr;
 } ReturnNode;
 
 typedef struct IndexOfNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     ASTNode* left;
     ASTNode* right;
 } IndexOfNode;
@@ -144,6 +174,8 @@ typedef struct IndexOfNode {
 typedef struct FieldNode {
     ASTNodeType type;
     SourcePos pos;
+    TypeInfo type_info;
+
     ASTNode* node;
     Str ident;
 } FieldNode;
@@ -151,7 +183,25 @@ typedef struct FieldNode {
 typedef struct TypeNode {
     ASTNodeType type;
     SourcePos pos;
+
     const Type* data_type;
 } TypeNode;
+
+static inline TypedASTNode* as_typed_ast(ASTNode* node) {
+    switch (node->type) {
+        case NODE_INTLIT:
+        case NODE_STRLIT:
+        case NODE_BINARYOP:
+        case NODE_UNARYOP:
+        case NODE_VAR:
+        case NODE_CALL:
+        case NODE_ASSIGN:
+        case NODE_INDEXOF:
+        case NODE_FIELD:
+            return (TypedASTNode*)node;
+        default:
+            UNREACHABLE();
+    }
+}
 
 #endif
