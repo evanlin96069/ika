@@ -3,11 +3,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#include "lexer.h"
-#include "parser.h"
-#include "symbol_table.h"
-#include "type.h"
-
 #ifdef CODEGEN_DBG
 
 #define GEN(out, ...)                                   \
@@ -38,6 +33,22 @@
 #else
 #define OS_SYM_PREFIX ""
 #endif
+
+
+typedef enum { RESULT_OK, RESULT_ERROR } ResultType;
+
+typedef struct TypeInfo {
+    int is_lvalue;
+    Type type;
+} TypeInfo;
+
+typedef struct EmitResult {
+    ResultType type;
+    union {
+        TypeInfo info;
+        Error* error;
+    };
+} EmitResult;
 
 static inline int add_label(CodegenState* state) {
     return state->label_count++;
@@ -1201,14 +1212,14 @@ static EmitResult emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
 Error* codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
     EmitResult result;
 
-    SymbolTableEntry* curr = sym->ste;
 
     // Global variables
-    SymbolTableEntry* ste = sym->ste;
     genf(".data");
-    while (ste) {
-        if (ste->type == SYM_VAR) {
-            VarSymbolTableEntry* var = (VarSymbolTableEntry*)ste;
+
+    SymbolTableEntry* curr = sym->ste;
+    while (curr) {
+        if (curr->type == SYM_VAR) {
+            VarSymbolTableEntry* var = (VarSymbolTableEntry*)curr;
             if (var->is_extern == 0) {
                 int size = var->data_type->size;
                 int padding =
@@ -1217,11 +1228,13 @@ Error* codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
                 genf("    .zero %d", size + padding);
             }
         }
-        ste = ste->next;
+        curr = curr->next;
     }
 
     // Functions
     genf(".text");
+
+    curr = sym->ste;
     while (curr) {
         if (curr->type == SYM_FUNC) {
             FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;

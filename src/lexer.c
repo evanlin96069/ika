@@ -1,6 +1,7 @@
 #include "lexer.h"
 
 #include "parser.h"
+#include "preprocessor.h"
 
 static inline int is_digit(char c) { return c >= '0' && c <= '9'; }
 

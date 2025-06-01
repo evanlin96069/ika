@@ -1,7 +1,5 @@
 #include "symbol_table.h"
 
-#include "type.h"
-
 static inline int djb2_hash(Str s) {
     int hash = 5381;
     for (int i = 0; i < s.len; i++) {

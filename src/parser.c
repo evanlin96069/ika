@@ -4,11 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "lexer.h"
-#include "str.h"
-#include "symbol_table.h"
-#include "type.h"
-
 static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* data_type(ParserState* parser, int allow_incomplete);
