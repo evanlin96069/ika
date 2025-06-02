@@ -141,6 +141,10 @@ static ASTNode* primary(ParserState* parser) {
                     }
                 } break;
 
+                case SYM_TYPE:
+                    return error(parser, parser->post_token_pos,
+                             "expected an expression", tk.str.len, tk.str.ptr);
+
                 default:
                     UNREACHABLE();
             }
