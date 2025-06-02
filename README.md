@@ -65,9 +65,6 @@ ctest --output-on-failure
 ```bash
 # Run only the 'basic' tests:
 ctest -L basic
-
-# Run 'function' tests in Release mode:
-ctest -C Release -L function
 ```
 
 ---

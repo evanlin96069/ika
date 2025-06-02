@@ -15,6 +15,7 @@
 - [Arrays](#arrays)
 - [struct](#struct)
 - [sizeof](#sizeof)
+- [as](#as)
 - [Defines](#defines)
    * [const](#const)
    * [enum](#enum)
