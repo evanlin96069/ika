@@ -388,6 +388,10 @@ vec_scale(&v, 3);
 
 `sizeof(T)` returns the size of `T` in bytes as a `u32`. The size of T must be known at compile time.
 
+## as
+
+`as(T, expr)` cast the expression to type `T`.
+
 ## Defines
 
 ### const

@@ -667,6 +667,11 @@ static void emit_indexof(CodegenState* state, IndexOfNode* idxof) {
     genf("    addl %%ecx, %%eax");
 }
 
+static void emit_cast(CodegenState* state, CastNode* cast) {
+    UNUSED(state);
+    emit_node(state, cast->expr);
+}
+
 static void emit_node(CodegenState* state, ASTNode* node) {
     switch (node->type) {
         case NODE_STMTS:
@@ -727,6 +732,10 @@ static void emit_node(CodegenState* state, ASTNode* node) {
 
         case NODE_INDEXOF:
             emit_indexof(state, (IndexOfNode*)node);
+            break;
+
+        case NODE_CAST:
+            emit_cast(state, (CastNode*)node);
             break;
 
         default:

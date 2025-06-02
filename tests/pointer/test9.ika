@@ -1,0 +1,10 @@
+var n: [2]i32;
+n[0] = 34;
+n[1] = 0;
+
+var a: u32 = as(u32, &n) + sizeof(i32);
+
+var ptr: *i32 = as(*i32, a);
+*ptr = 35;
+
+"%d %d\n", n[0], n[1];

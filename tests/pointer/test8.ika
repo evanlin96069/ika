@@ -1,0 +1,21 @@
+struct Base {
+    x: i32,
+    y: i32,
+};
+
+struct Derived {
+    x: i32,
+    y: i32,
+    z: i32,
+};
+
+var data: Derived;
+data.x = 33;
+data.y = 34;
+data.z = 69;
+
+var ptr: *Base = as(*Base, &data);
+ptr.x = 0;
+ptr.y = 0;
+
+"%d %d %d\n", data.x, data.y, data.z;

@@ -25,6 +25,7 @@ typedef enum ASTNodeType {
     NODE_TYPE,
     NODE_INDEXOF,
     NODE_FIELD,
+    NODE_CAST,
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -187,6 +188,15 @@ typedef struct TypeNode {
     const Type* data_type;
 } TypeNode;
 
+typedef struct CastNode {
+    ASTNodeType type;
+    SourcePos pos;
+    TypeInfo type_info;
+
+    const Type* data_type;
+    ASTNode* expr;
+} CastNode;
+
 static inline TypedASTNode* as_typed_ast(ASTNode* node) {
     switch (node->type) {
         case NODE_INTLIT:
@@ -198,6 +208,7 @@ static inline TypedASTNode* as_typed_ast(ASTNode* node) {
         case NODE_ASSIGN:
         case NODE_INDEXOF:
         case NODE_FIELD:
+        case NODE_CAST:
             return (TypedASTNode*)node;
         default:
             UNREACHABLE();

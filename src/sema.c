@@ -564,6 +564,36 @@ static Error* type_check_indexof(SemaState* state, IndexOfNode* idxof) {
     return NULL;
 }
 
+static Error* type_check_cast(SemaState* state, CastNode* cast) {
+    Error* err = type_check_node(state, cast->expr);
+    if (err != NULL) {
+        return err;
+    }
+
+    TypedASTNode* node = as_typed_ast(cast->expr);
+    const Type* type = &node->type_info.type;
+
+    if (is_int(cast->data_type)) {
+        if (is_int(type) || is_ptr_like(type)) {
+            cast->type_info.type = *cast->data_type;
+            cast->type_info.is_lvalue = node->type_info.is_lvalue;
+        } else {
+            return error(cast->pos, "cannot convert to a integer type");
+        }
+    } else if (is_ptr_like(cast->data_type)) {
+        if (is_int(type) || is_ptr_like(type)) {
+            cast->type_info.type = *cast->data_type;
+            cast->type_info.is_lvalue = node->type_info.is_lvalue;
+        } else {
+            return error(cast->pos, "cannot convert to a pointer type");
+        }
+    } else {
+        return error(cast->pos, "invalid type conversion");
+    }
+
+    return NULL;
+}
+
 static Error* type_check_node(SemaState* state, ASTNode* node) {
     switch (node->type) {
         case NODE_STMTS:
@@ -622,6 +652,9 @@ static Error* type_check_node(SemaState* state, ASTNode* node) {
 
         case NODE_INDEXOF:
             return type_check_indexof(state, (IndexOfNode*)node);
+
+        case NODE_CAST:
+            return type_check_cast(state, (CastNode*)node);
 
         default:
             UNREACHABLE();

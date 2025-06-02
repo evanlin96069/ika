@@ -1,0 +1,4 @@
+var a: i8 = 123;
+var b: u16 = as(u32, a);
+
+"%d %d\n", a, b;

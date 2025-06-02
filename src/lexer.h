@@ -22,7 +22,9 @@ typedef enum TkType {
     TK_WHILE,
     TK_BREAK,
     TK_CONTINUE,
+
     TK_SIZEOF,
+    TK_CAST,
 
     TK_MUL,
     TK_DIV,

@@ -46,6 +46,7 @@ static StrToken str_tk[] = {
     {"u16", TK_U16},       {"u32", TK_U32},     {"i8", TK_I8},
     {"i16", TK_I16},       {"i32", TK_I32},     {"bool", TK_BOOL},
     {"true", TK_TRUE},     {"false", TK_FALSE}, {"null", TK_NULL},
+    {"as", TK_CAST},
 };
 
 Token next_token_internal(ParserState* parser, int peek) {

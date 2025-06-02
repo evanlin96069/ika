@@ -95,6 +95,42 @@ static ASTNode* primary(ParserState* parser) {
             node = (ASTNode*)intlit;
         } break;
 
+        case TK_CAST: {
+            CastNode* cast = arena_alloc(parser->arena, sizeof(CastNode));
+            cast->type = NODE_CAST;
+            cast->pos = parser->post_token_pos;
+            tk = next_token(parser);
+            if (tk.type != TK_LPAREN) {
+                return error(parser, parser->pre_token_pos, "expected '('");
+            }
+
+            TypeNode* type_node = (TypeNode*)data_type(parser, 0);
+            if (type_node->type == NODE_ERR) {
+                return (ASTNode*)type_node;
+            }
+            assert(type_node->type == NODE_TYPE);
+
+            cast->data_type = type_node->data_type;
+
+            tk = next_token(parser);
+            if (tk.type != TK_COMMA) {
+                return error(parser, parser->pre_token_pos, "expected ','");
+            }
+
+            ASTNode* expr_node = expr(parser, 1);
+            if (expr_node->type == NODE_ERR) {
+                return expr_node;
+            }
+            cast->expr = expr_node;
+
+            tk = next_token(parser);
+            if (tk.type != TK_RPAREN) {
+                return error(parser, parser->pre_token_pos, "expected ')'");
+            }
+
+            node = (ASTNode*)cast;
+        } break;
+
         case TK_STR: {
             StrLitNode* strlit = arena_alloc(parser->arena, sizeof(StrLitNode));
             strlit->type = NODE_STRLIT;
@@ -143,7 +179,8 @@ static ASTNode* primary(ParserState* parser) {
 
                 case SYM_TYPE:
                     return error(parser, parser->post_token_pos,
-                             "expected an expression", tk.str.len, tk.str.ptr);
+                                 "expected an expression", tk.str.len,
+                                 tk.str.ptr);
 
                 default:
                     UNREACHABLE();
