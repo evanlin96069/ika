@@ -728,7 +728,11 @@ static Error* type_check_global(SemaState* state, StatementListNode* stmts) {
 Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym, Str entry_sym) {
     Error* err;
 
-    int has_user_defined_entry = (symbol_table_find(sym, entry_sym, 1) != NULL);
+    SymbolTableEntry* entry_func = symbol_table_find(sym, entry_sym, 1);
+    int has_user_defined_entry = (entry_func != NULL);
+    if (has_user_defined_entry && entry_func->type != SYM_FUNC) {
+        return error(entry_func->pos, "entry should be a function");
+    }
 
     // Functions
     SymbolTableEntry* curr = sym->ste;

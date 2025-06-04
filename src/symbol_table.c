@@ -32,13 +32,15 @@ static inline void symbol_table_append(SymbolTable* sym,
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              int is_arg, int is_extern,
-                                             const Type* data_type) {
+                                             const Type* data_type,
+                                             SourcePos pos) {
     VarSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(VarSymbolTableEntry));
     ste->type = SYM_VAR;
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+    ste->pos = pos;
 
     ste->is_extern = is_extern;
     ste->is_global = sym->is_global;
@@ -92,13 +94,15 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
 }
 
 FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
-                                                 const Type* data_type) {
+                                                 const Type* data_type,
+                                                 SourcePos pos) {
     FieldSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(FieldSymbolTableEntry));
     ste->type = SYM_FIELD;
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+    ste->pos = pos;
 
     ste->data_type = data_type;
 
@@ -127,13 +131,15 @@ FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
 }
 
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
-                                             DefSymbolValue val) {
+                                             DefSymbolValue val,
+                                             SourcePos pos) {
     DefSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(DefSymbolTableEntry));
     ste->type = SYM_DEF;
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+    ste->pos = pos;
 
     ste->val = val;
 
@@ -143,13 +149,14 @@ DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
 }
 
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
-                                               int is_extern) {
+                                               int is_extern, SourcePos pos) {
     FuncSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(FuncSymbolTableEntry));
     ste->type = SYM_FUNC;
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+    ste->pos = pos;
 
     ste->is_extern = is_extern;
     // ste->func_data = func_data; // fill in during parsing
@@ -162,13 +169,15 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
     return ste;
 }
 
-TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident) {
+TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident,
+                                               SourcePos pos) {
     TypeSymbolTableEntry* ste =
         arena_alloc(sym->arena, sizeof(TypeSymbolTableEntry));
     ste->type = SYM_TYPE;
 
     ste->ident = ident;
     ste->hash = djb2_hash(ident);
+    ste->pos = pos;
 
     ste->incomplete = 1;
     ste->size = 0;

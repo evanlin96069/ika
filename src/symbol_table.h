@@ -2,6 +2,7 @@
 #define SYMBOL_TABLE_H
 
 #include "arena.h"
+#include "preprocessor.h"
 #include "str.h"
 #include "type.h"
 
@@ -27,6 +28,7 @@ typedef struct TypeSymbolTableEntry TypeSymbolTableEntry;
 struct SymbolTableEntry {
     Str ident;
     int hash;
+    SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
 };
@@ -34,6 +36,7 @@ struct SymbolTableEntry {
 struct VarSymbolTableEntry {
     Str ident;
     int hash;
+    SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
 
@@ -47,6 +50,7 @@ struct VarSymbolTableEntry {
 struct FieldSymbolTableEntry {
     Str ident;
     int hash;
+    SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
 
@@ -66,6 +70,7 @@ typedef struct DefSymbolValue {
 struct DefSymbolTableEntry {
     Str ident;
     int hash;
+    SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
 
@@ -75,6 +80,7 @@ struct DefSymbolTableEntry {
 struct FuncSymbolTableEntry {
     Str ident;
     int hash;
+    SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
 
@@ -88,6 +94,7 @@ struct FuncSymbolTableEntry {
 struct TypeSymbolTableEntry {
     Str ident;
     int hash;
+    SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
 
@@ -112,14 +119,17 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              int is_arg, int is_extern,
-                                             const Type* data_type);
+                                             const Type* data_type,
+                                             SourcePos pos);
 FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
-                                                 const Type* data_type);
+                                                 const Type* data_type,
+                                                 SourcePos pos);
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
-                                             DefSymbolValue val);
+                                             DefSymbolValue val, SourcePos pos);
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
-                                               int is_extern);
-TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident);
+                                               int is_extern, SourcePos pos);
+TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident,
+                                               SourcePos pos);
 
 SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope);

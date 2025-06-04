@@ -989,15 +989,15 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
     assert(tk.type == TK_DECL);
 
     tk = next_token(parser);
-
     if (tk.type != TK_IDENT) {
         return error(parser, parser->post_token_pos, "expected an identifier");
     }
 
     Str ident = tk.str;
+    SourcePos ident_pos = parser->post_token_pos;
     if (symbol_table_find(parser->sym, ident, 1) != NULL) {
-        return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
-                     tk.str.len, tk.str.ptr);
+        return error(parser, ident_pos, "redefinition of '%.*s'", tk.str.len,
+                     tk.str.ptr);
     }
 
     tk = next_token(parser);
@@ -1011,8 +1011,9 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
     }
     assert(var_type->type == NODE_TYPE);
 
-    VarSymbolTableEntry* ste = symbol_table_append_var(
-        parser->sym, ident, 0, is_extern, ((TypeNode*)var_type)->data_type);
+    VarSymbolTableEntry* ste =
+        symbol_table_append_var(parser->sym, ident, 0, is_extern,
+                                ((TypeNode*)var_type)->data_type, ident_pos);
 
     tk = peek_token(parser);
     if (tk.type == TK_ASSIGN) {
@@ -1059,9 +1060,10 @@ static ASTNode* def_decl(ParserState* parser) {
     }
 
     Str ident = tk.str;
+    SourcePos ident_pos = parser->post_token_pos;
     if (symbol_table_find(parser->sym, ident, 1) != NULL) {
-        return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
-                     tk.str.len, tk.str.ptr);
+        return error(parser, ident_pos, "redefinition of '%.*s'", tk.str.len,
+                     tk.str.ptr);
     }
 
     tk = next_token(parser);
@@ -1093,7 +1095,7 @@ static ASTNode* def_decl(ParserState* parser) {
                      "or string literal");
     }
 
-    symbol_table_append_def(parser->sym, ident, def_val);
+    symbol_table_append_def(parser->sym, ident, def_val, ident_pos);
 
     return NULL;
 }
@@ -1109,16 +1111,17 @@ static ASTNode* struct_decl(ParserState* parser) {
     }
 
     Str ident = tk.str;
+    SourcePos ident_pos = parser->post_token_pos;
     SymbolTableEntry* ste = symbol_table_find(parser->sym, ident, 1);
     TypeSymbolTableEntry* type_ste;
     if (ste == NULL) {
-        type_ste = symbol_table_append_type(parser->sym, ident);
+        type_ste = symbol_table_append_type(parser->sym, ident, ident_pos);
     } else if (ste->type == SYM_TYPE &&
                ((TypeSymbolTableEntry*)ste)->incomplete) {
         type_ste = (TypeSymbolTableEntry*)ste;
     } else {
-        return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
-                     tk.str.len, tk.str.ptr);
+        return error(parser, ident_pos, "redefinition of '%.*s'", tk.str.len,
+                     tk.str.ptr);
     }
 
     tk = peek_token(parser);
@@ -1147,10 +1150,10 @@ static ASTNode* struct_decl(ParserState* parser) {
         }
 
         Str ident = tk.str;
-
+        SourcePos ident_pos = parser->post_token_pos;
         if (symbol_table_find(name_space, ident, 1)) {
-            return error(parser, parser->post_token_pos,
-                         "redefinition of '%.*s'", tk.str.len, tk.str.ptr);
+            return error(parser, ident_pos, "redefinition of '%.*s'",
+                         tk.str.len, tk.str.ptr);
         }
 
         tk = next_token(parser);
@@ -1165,7 +1168,7 @@ static ASTNode* struct_decl(ParserState* parser) {
         assert(type_node->type == NODE_TYPE);
 
         const Type* type = ((TypeNode*)type_node)->data_type;
-        symbol_table_append_field(name_space, ident, type);
+        symbol_table_append_field(name_space, ident, type, ident_pos);
         if (type->alignment > alignment) {
             alignment = type->alignment;
         }
@@ -1211,10 +1214,10 @@ static ASTNode* enum_decl(ParserState* parser) {
         }
 
         Str ident = tk.str;
+        SourcePos ident_pos = parser->post_token_pos;
         if (symbol_table_find(parser->sym, ident, 1) != NULL) {
-            return error(parser, parser->post_token_pos,
-                         "redefinition of identifier '%.*s'", tk.str.len,
-                         tk.str.ptr);
+            return error(parser, ident_pos, "redefinition of identifier '%.*s'",
+                         tk.str.len, tk.str.ptr);
         }
 
         Token peek = peek_token(parser);
@@ -1241,7 +1244,7 @@ static ASTNode* enum_decl(ParserState* parser) {
             .val = enum_val,
             .data_type = get_intlit_type(enum_val),
         };
-        symbol_table_append_def(parser->sym, ident, def_val);
+        symbol_table_append_def(parser->sym, ident, def_val, ident_pos);
         enum_val++;
 
         tk = next_token(parser);
@@ -1270,18 +1273,20 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
     }
 
     Str ident = tk.str;
+    SourcePos ident_pos = parser->post_token_pos;
     SymbolTableEntry* ste = symbol_table_find(parser->global_sym, ident, 1);
 
     FuncSymbolTableEntry* func;
     if (ste == NULL) {
-        func = symbol_table_append_func(parser->sym, ident, is_extern);
+        func =
+            symbol_table_append_func(parser->sym, ident, is_extern, ident_pos);
     } else if (ste->type == SYM_FUNC &&
                ((FuncSymbolTableEntry*)ste)->node == NULL) {
         // forward declaration
         func = (FuncSymbolTableEntry*)ste;
     } else {
-        return error(parser, parser->post_token_pos, "redefinition of '%.*s'",
-                     tk.str.len, tk.str.ptr);
+        return error(parser, ident_pos, "redefinition of '%.*s'", tk.str.len,
+                     tk.str.ptr);
     }
 
     tk = next_token(parser);
@@ -1320,9 +1325,10 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
             }
 
             ident = tk.str;
+            ident_pos = parser->post_token_pos;
             if (symbol_table_find(parser->sym, ident, 1) != NULL) {
-                return error(parser, parser->post_token_pos,
-                             "redefinition of '%.*s'", tk.str.len, tk.str.ptr);
+                return error(parser, ident_pos, "redefinition of '%.*s'",
+                             tk.str.len, tk.str.ptr);
             }
 
             tk = next_token(parser);
@@ -1337,7 +1343,8 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
             assert(arg_type->type == NODE_TYPE);
 
             symbol_table_append_var(parser->sym, ident, 1, 0,
-                                    ((TypeNode*)arg_type)->data_type);
+                                    ((TypeNode*)arg_type)->data_type,
+                                    ident_pos);
 
             ArgList* arg = arena_alloc(parser->arena, sizeof(ArgList));
             arg->next = func_data.args;
