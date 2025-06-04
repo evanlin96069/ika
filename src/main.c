@@ -31,10 +31,12 @@ void usage(void) {
             "link.\n"
             "  -S               Compile only; do not assemble or link.\n"
             "  -o <file>        Place the output into <file>.\n"
+            "  -e <name>        Use the name as entrypoint.\n"
             "  -?               Display this information.\n");
 }
 
 int main(int argc, char* argv[]) {
+    const char* entrypoint = "main";
     const char* src_path;
     const char* out_path = NULL;
     const char* asm_out_path = NULL;
@@ -51,6 +53,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'E':
             e_flag = 1;
+            break;
+        case 'e':
+            entrypoint = OPTARG(argc, argv);
             break;
         case '?':
             usage();
@@ -117,12 +122,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    Str entry_sym = str(entrypoint);
+
     // Semantic analysis
     SemaState sema_state = {
         .arena = &arena,
     };
 
-    err = sema(&sema_state, node, &sym);
+    err = sema(&sema_state, node, &sym, entry_sym);
     if (err != NULL) {
         print_err(&src, err);
         return 1;
@@ -157,7 +164,7 @@ int main(int argc, char* argv[]) {
         .arena = &arena,
     };
 
-    codegen(&codegen_state, node, &sym);
+    codegen(&codegen_state, node, &sym, entry_sym);
     fclose(out);
 
     arena_deinit(&arena);

@@ -91,6 +91,7 @@ typedef struct AssignNode {
 
     ASTNode* left;
     ASTNode* right;
+    int from_decl;
 } AssignNode;
 
 typedef struct IfStatementNode {

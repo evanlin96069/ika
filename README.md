@@ -105,8 +105,6 @@ fn main() void {
         "%d\n", fib(i);
     }
 }
-
-main();
 ```
 
 See more examples in the `examples` and `tests` folder.

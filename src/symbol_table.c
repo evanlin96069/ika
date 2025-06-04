@@ -44,6 +44,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
     ste->is_global = sym->is_global;
 
     ste->data_type = data_type;
+    ste->init_val = NULL;
 
     int size = data_type->size;
     int alignment = data_type->alignment;

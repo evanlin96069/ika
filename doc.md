@@ -26,12 +26,20 @@
 "Hello world!\n";
 ```
 
-ika programs execute sequentially from top to bottom like a script.
+ika programs can execute sequentially from top to bottom like a script.
 
 String literals on their own will be sent to `printf`. You can also pass additional arguments.
 
 ```zig
 "Hello %s\n", "world";
+```
+
+If the entry point is defined (the default is `main`), the compiler will execute from the entry point.
+
+```zig
+fn main() void {
+    "Hello world!\n";
+}
 ```
 
 ## Comments

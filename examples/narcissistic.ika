@@ -34,5 +34,3 @@ fn main() void {
         }
     }
 }
-
-main();

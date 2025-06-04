@@ -25,6 +25,7 @@ typedef struct CodegenState {
     int continue_label;
 } CodegenState;
 
-void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym);
+void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
+             Str entry_sym);
 
 #endif

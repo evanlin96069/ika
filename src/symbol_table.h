@@ -41,6 +41,7 @@ struct VarSymbolTableEntry {
     int is_global;
     int offset;
     const Type* data_type;
+    struct ASTNode* init_val;  // only used for global variable
 };
 
 struct FieldSymbolTableEntry {

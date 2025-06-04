@@ -63,7 +63,7 @@ static inline void emit_intlit(CodegenState* state, IntLitNode* lit) {
 }
 
 static inline void emit_strlit(CodegenState* state, StrLitNode* lit) {
-    genf("    movl $DAT_%d, %%eax", add_data(state, lit->val));
+    genf("    movl $.LC%d, %%eax", add_data(state, lit->val));
 }
 
 // load the value into register if size is 4 bytes, 2 bytes, or 1 byte,
@@ -354,14 +354,9 @@ static void emit_var(CodegenState* state, VarNode* var) {
         case SYM_VAR: {
             // Variable
             VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
-            if (var_ste->is_extern) {
-                // Extern variable
+            if (var_ste->is_extern || var_ste->is_global) {
                 genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
                      var_ste->ident.len, var_ste->ident.ptr);
-            } else if (var_ste->is_global) {
-                // Global variable
-                genf("    movl $VAR_%.*s, %%eax", var_ste->ident.len,
-                     var_ste->ident.ptr);
             } else {
                 // Local variable
                 genf("    leal %d(%%ebp), %%eax", var_ste->offset);
@@ -370,15 +365,8 @@ static void emit_var(CodegenState* state, VarNode* var) {
         case SYM_FUNC: {
             // Function pointer
             FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
-            if (func_ste->is_extern || func_ste->node == NULL) {
-                // Extern function
-                genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
-                     func_ste->ident.len, func_ste->ident.ptr);
-            } else {
-                // ika function
-                genf("    movl $FUNC_%.*s, %%eax", func_ste->ident.len,
-                     func_ste->ident.ptr);
-            }
+            genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax", func_ste->ident.len,
+                 func_ste->ident.ptr);
         } break;
         default:
             UNREACHABLE();
@@ -600,7 +588,7 @@ static void emit_print(CodegenState* state, PrintNode* print_node) {
         curr = curr->next;
     }
 
-    genf("    pushl $DAT_%d", add_data(state, print_node->fmt));
+    genf("    pushl $.LC%d", add_data(state, print_node->fmt));
     arg_count++;
 
     genf("    call " OS_SYM_PREFIX "printf");
@@ -772,7 +760,7 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     assert(func->node);
     assert(func->is_extern == 0);
 
-    genf("FUNC_%.*s:", func->ident.len, func->ident.ptr);
+    genf(OS_SYM_PREFIX "%.*s:", func->ident.len, func->ident.ptr);
     emit_func_start(state, *func->sym->stack_size);
 
     emit_node(state, func->node);
@@ -783,7 +771,10 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     state->ret_type = prev_ret_type;
 }
 
-void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
+void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
+             Str entry_sym) {
+    int has_user_defined_entry = (symbol_table_find(sym, entry_sym, 1) != NULL);
+
     // Global variables
     genf(".data");
 
@@ -792,11 +783,27 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
         if (curr->type == SYM_VAR) {
             VarSymbolTableEntry* var = (VarSymbolTableEntry*)curr;
             if (var->is_extern == 0) {
-                int size = var->data_type->size;
-                int padding =
-                    (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
-                genf("VAR_%.*s:", var->ident.len, var->ident.ptr);
-                genf("    .zero %d", size + padding);
+                genf(OS_SYM_PREFIX "%.*s:", var->ident.len, var->ident.ptr);
+                if (var->init_val) {
+                    switch (var->init_val->type) {
+                        case NODE_INTLIT: {
+                            IntLitNode* intlit = (IntLitNode*)var->init_val;
+                            genf("    .long %d", intlit->val);
+                        } break;
+                        case NODE_STRLIT: {
+                            StrLitNode* strlit = (StrLitNode*)var->init_val;
+                            genf("    .long .LC%d",
+                                 add_data(state, strlit->val));
+                        } break;
+                        default:
+                            UNREACHABLE();
+                    }
+                } else {
+                    int size = var->data_type->size;
+                    int padding = (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) %
+                                  MAX_ALIGNMENT;
+                    genf("    .zero %d", size + padding);
+                }
             }
         }
         curr = curr->next;
@@ -817,33 +824,29 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym) {
         curr = curr->next;
     }
 
-    // main
-    state->ret_label = add_label(state);
-    state->ret_type = get_primitive_type(TYPE_I32);
+    // entry function
+    if (!has_user_defined_entry) {
+        state->ret_label = add_label(state);
+        state->ret_type = get_primitive_type(TYPE_I32);
 
-    genf(".global " OS_SYM_PREFIX "main");
-    genf(OS_SYM_PREFIX "main:");
-    emit_func_start(state, *sym->stack_size);
+        genf(OS_SYM_PREFIX "%.*s:", entry_sym.len, entry_sym.ptr);
+        emit_func_start(state, *sym->stack_size);
+        emit_node(state, node);
+        genf("    xorl %%eax, %%eax");
+        emit_func_exit(state);
+    }
 
-    genf("    movl 8(%%ebp), %%eax");
-    genf("    movl %%eax, VAR_argc");
-    genf("    movl 12(%%ebp), %%eax");
-    genf("    movl %%eax, VAR_argv");
-
-    emit_node(state, node);
-
-    genf("    xorl %%eax, %%eax");
-    emit_func_exit(state);
-
+    genf(".global " OS_SYM_PREFIX "%.*s", entry_sym.len, entry_sym.ptr);
 #ifndef _WIN32
-    genf(".type main, @function");
+    genf(".type %.*s, @function", entry_sym.len, entry_sym.ptr);
 #endif
+
     fprintf(state->out, "\n");
 
     // Strings
     genf(".data");
     for (int i = 0; i < state->data_count; i++) {
-        genf("DAT_%d:", i);
-        genf("    .asciz \"%.*s\"", state->data[i].len, state->data[i].ptr);
+        genf(".LC%d:", i);
+        genf("    .string  \"%.*s\"", state->data[i].len, state->data[i].ptr);
     }
 }

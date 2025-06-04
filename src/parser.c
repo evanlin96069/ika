@@ -467,6 +467,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                 assign->pos = parser->post_token_pos;
                 assign->left = node;
                 assign->right = expr(parser, next_precedence);
+                assign->from_decl = 0;
                 if (assign->right->type == NODE_ERR) {
                     return assign->right;
                 }
@@ -488,6 +489,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                 assign->type = NODE_ASSIGN;
                 assign->pos = parser->post_token_pos;
                 assign->left = node;
+                assign->from_decl = 0;
 
                 BinaryOpNode* binop =
                     arena_alloc(parser->arena, sizeof(BinaryOpNode));
@@ -1032,6 +1034,7 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
         assign->pos = parser->post_token_pos;
         assign->left = (ASTNode*)var;
         assign->right = expr(parser, 0);
+        assign->from_decl = 1;
         if (assign->right->type == NODE_ERR) {
             return assign->right;
         }
@@ -1753,19 +1756,6 @@ ASTNode* parser_parse(ParserState* parser, SourceState* src) {
     parser->src = src;
     parser->line = 0;
     parser->pos = 0;
-
-    // argc: i32
-    const Type* argc_type = get_primitive_type(TYPE_I32);
-    symbol_table_append_var(parser->sym, str("argc"), 0, 0, argc_type);
-
-    // argv: [][]u8
-    Type* argv_type = arena_alloc(parser->arena, sizeof(Type));
-    argv_type->type = METADATA_ARRAY;
-    argv_type->array_size = 0;
-    argv_type->size = PTR_SIZE;
-    argv_type->alignment = PTR_SIZE;
-    argv_type->inner_type = get_string_type();
-    symbol_table_append_var(parser->sym, str("argv"), 0, 0, argv_type);
 
     return stmt_list(parser, 0);
 }

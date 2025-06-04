@@ -678,8 +678,57 @@ static Error* type_check_func(SemaState* state, FuncSymbolTableEntry* func) {
     return NULL;
 }
 
-Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym) {
+static Error* type_check_global(SemaState* state, StatementListNode* stmts) {
+    ASTNodeList* iter = stmts->stmts;
+    while (iter) {
+        if (iter->node->type != NODE_ASSIGN ||
+            !((AssignNode*)iter->node)->from_decl) {
+            return error(iter->node->pos, "expected declaration");
+        }
+
+        AssignNode* assign = (AssignNode*)iter->node;
+
+        assert(assign->left->type == NODE_VAR);
+        VarNode* var_node = (VarNode*)assign->left;
+        type_check_var(state, var_node);
+
+        const TypedASTNode* l_node = as_typed_ast(assign->left);
+        Error* err = type_check_node(state, assign->right);
+        if (err != NULL) {
+            return err;
+        }
+
+        // TODO: more compile-time evaluation
+        if (assign->right->type != NODE_INTLIT &&
+            assign->right->type != NODE_STRLIT) {
+            return error(
+                assign->pos,
+                "initialized element is not a compile-time constant integer "
+                "or string literal");
+        }
+
+        const TypedASTNode* r_node = as_typed_ast(assign->right);
+        const Type* l_type = &l_node->type_info.type;
+        const Type* r_type = &r_node->type_info.type;
+
+        if (!is_allowed_type_convert(l_type, r_type)) {
+            return error(assign->pos, "type is not assignable");
+        }
+
+        assert(var_node->ste->type == SYM_VAR);
+        VarSymbolTableEntry* ste = (VarSymbolTableEntry*)var_node->ste;
+        ste->init_val = assign->right;
+
+        iter = iter->next;
+    }
+
+    return NULL;
+}
+
+Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym, Str entry_sym) {
     Error* err;
+
+    int has_user_defined_entry = (symbol_table_find(sym, entry_sym, 1) != NULL);
 
     // Functions
     SymbolTableEntry* curr = sym->ste;
@@ -696,11 +745,20 @@ Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym) {
         curr = curr->next;
     }
 
-    state->ret_type = get_primitive_type(TYPE_I32);
-
-    err = type_check_node(state, node);
-    if (err != NULL) {
-        return err;
+    assert(node->type == NODE_STMTS);
+    StatementListNode* stmts = (StatementListNode*)node;
+    if (has_user_defined_entry) {
+        err = type_check_global(state, stmts);
+        if (err != NULL) {
+            return err;
+        }
+    } else {
+        // as script mode
+        state->ret_type = get_primitive_type(TYPE_I32);
+        err = type_check_stmts(state, stmts);
+        if (err != NULL) {
+            return err;
+        }
     }
 
     return NULL;

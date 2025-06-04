@@ -13,5 +13,3 @@ fn main() void {
     "%d %d %d\n", arr[0], arr[1], arr[2];
     "%d\n", n;
 }
-
-main();

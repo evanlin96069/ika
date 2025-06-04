@@ -6,5 +6,3 @@ fn main() void {
     n = c1 + c2;
     "%d %d %d\n", c1, c2, n;
 }
-
-main();

@@ -17,6 +17,6 @@ typedef struct SemaState {
     int in_loop;
 } SemaState;
 
-Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym);
+Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym, Str entry_sym);
 
 #endif
