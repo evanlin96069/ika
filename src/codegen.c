@@ -836,11 +836,7 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
         emit_func_exit(state);
     }
 
-    genf(".global " OS_SYM_PREFIX "%.*s", entry_sym.len, entry_sym.ptr);
-#ifndef _WIN32
-    genf(".type %.*s, @function", entry_sym.len, entry_sym.ptr);
-#endif
-
+    genf(".globl " OS_SYM_PREFIX "%.*s", entry_sym.len, entry_sym.ptr);
     fprintf(state->out, "\n");
 
     // Strings
