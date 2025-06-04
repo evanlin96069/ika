@@ -296,10 +296,10 @@ static inline int is_allowed_type_convert(const Type* left, const Type* right) {
     }
 
     // void pointer conversion
-    if (is_ptr_like(right) && is_void_ptr(left)) {
+    if ((is_ptr_like(right) || is_func_ptr(right)) && is_void_ptr(left)) {
         return 1;
     }
-    if (is_ptr_like(left) && is_void_ptr(right)) {
+    if ((is_ptr_like(left) || is_func_ptr(left)) && is_void_ptr(right)) {
         return 1;
     }
 
@@ -574,14 +574,14 @@ static Error* type_check_cast(SemaState* state, CastNode* cast) {
     const Type* type = &node->type_info.type;
 
     if (is_int(cast->data_type)) {
-        if (is_int(type) || is_ptr_like(type)) {
+        if (is_int(type) || is_ptr_like(type) || is_func_ptr(type)) {
             cast->type_info.type = *cast->data_type;
             cast->type_info.is_lvalue = node->type_info.is_lvalue;
         } else {
             return error(cast->pos, "cannot convert to a integer type");
         }
-    } else if (is_ptr_like(cast->data_type)) {
-        if (is_int(type) || is_ptr_like(type)) {
+    } else if (is_ptr_like(cast->data_type) || is_func_ptr(cast->data_type)) {
+        if (is_int(type) || is_ptr_like(type) || is_func_ptr(type)) {
             cast->type_info.type = *cast->data_type;
             cast->type_info.is_lvalue = node->type_info.is_lvalue;
         } else {

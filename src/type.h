@@ -55,7 +55,7 @@ struct Type {
         PrimitiveType primitive_type;           // METADATA_PRIMITIVE
         struct TypeSymbolTableEntry* type_ste;  // METADATA_TYPE
         int array_size;                         // METADATA_ARRAY
-        int pointer_level;                      // METADATA_ARRAY
+        int pointer_level;                      // METADATA_POINTER
         FuncMetadata func_data;                 // METADATA_FUNC
     };
 
@@ -69,6 +69,10 @@ typedef struct TypeInfo {
 
 static inline int is_ptr(const Type* type) {
     return type->type == METADATA_POINTER;
+}
+
+static inline int is_func_ptr(const Type* type) {
+    return type->type == METADATA_FUNC;
 }
 
 static inline int is_array_ptr(const Type* type) {
