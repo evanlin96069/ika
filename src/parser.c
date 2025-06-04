@@ -766,6 +766,17 @@ static inline PrimitiveType primitive_type_token_to_type(Token tk) {
     }
 }
 
+typedef struct StrCallConv {
+    const char* s;
+    CallConvType call_type;
+} StrCallConv;
+
+static StrCallConv str_callconv[] = {
+    {"cdecl", CALLCONV_CDECL},
+    {"stdcall", CALLCONV_STDCALL},
+    {"thiscall", CALLCONV_THISCALL},
+};
+
 static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
     Token tk = next_token(parser);
 
@@ -914,13 +925,37 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
             type->size = PTR_SIZE;
             type->alignment = PTR_SIZE;
 
-            type->func_data.args = NULL;
-            type->func_data.has_va_args = 0;
+            CallConvType call_type = CALLCONV_CDECL;
+            SourcePos callconv_pos = parser->post_token_pos;
+            if (tk.type == TK_STR) {
+                int found = 0;
+                for (unsigned int i = 0;
+                     i < sizeof(str_callconv) / sizeof(str_callconv[0]); i++) {
+                    if (str_eql(str(str_callconv[i].s), tk.str)) {
+                        call_type = str_callconv[i].call_type;
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found) {
+                    return error(parser, callconv_pos,
+                                 "unknown calling convention");
+                }
+                tk = next_token(parser);
+            }
 
             tk = next_token(parser);
             if (tk.type != TK_LPAREN) {
                 return error(parser, parser->pre_token_pos, "expected '('");
             }
+
+            FuncMetadata func_data;
+            func_data.args = NULL;
+            func_data.callconv = call_type;
+            func_data.has_va_args = 0;
+
+            int has_thisptr = 0;
+            int first_arg = 1;
 
             tk = peek_token(parser);
             if (tk.type == TK_RPAREN) {
@@ -929,13 +964,18 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
                 while (tk.type != TK_RPAREN) {
                     tk = next_token(parser);
                     if (tk.type == TK_ARGS) {
-                        type->func_data.has_va_args = 1;
+                        if (call_type != CALLCONV_CDECL) {
+                            return error(parser, parser->pre_token_pos,
+                                         "vararg is not allowed in this "
+                                         "calling convention");
+                        }
+                        func_data.has_va_args = 1;
                         tk = next_token(parser);
                         if (tk.type != TK_RPAREN) {
                             return error(parser, parser->pre_token_pos,
                                          "expected ')'");
                         }
-                        continue;
+                        break;
                     }
                     if (tk.type != TK_IDENT) {
                         return error(parser, parser->post_token_pos,
@@ -954,10 +994,15 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
                     }
                     assert(arg_type->type == NODE_TYPE);
 
+                    if (first_arg) {
+                        first_arg = 0;
+                        has_thisptr = is_ptr(((TypeNode*)arg_type)->data_type);
+                    }
+
                     ArgList* arg = arena_alloc(parser->arena, sizeof(ArgList));
-                    arg->next = type->func_data.args;
+                    arg->next = func_data.args;
                     arg->type = ((TypeNode*)arg_type)->data_type;
-                    type->func_data.args = arg;
+                    func_data.args = arg;
 
                     tk = next_token(parser);
                     if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
@@ -966,13 +1011,25 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
                     }
                 }
             }
-            ASTNode* return_type = data_type(parser, 0);
-            if (return_type->type == NODE_ERR) {
-                return return_type;
-            }
-            assert(return_type->type == NODE_TYPE);
-            type->func_data.return_type = ((TypeNode*)return_type)->data_type;
 
+            if (call_type == CALLCONV_THISCALL && !has_thisptr) {
+                return error(parser, callconv_pos, "thiscall requires thisptr");
+            }
+
+            tk = peek_token(parser);
+            if (tk.type == TK_VOID) {
+                next_token(parser);
+                func_data.return_type = get_primitive_type(TYPE_VOID);
+            } else {
+                ASTNode* return_type = data_type(parser, 0);
+                if (return_type->type == NODE_ERR) {
+                    return return_type;
+                }
+                assert(return_type->type == NODE_TYPE);
+                func_data.return_type = ((TypeNode*)return_type)->data_type;
+            }
+
+            type->func_data = func_data;
         } break;
 
         default:
@@ -1267,6 +1324,23 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
     assert(tk.type == TK_FUNC);
 
     tk = next_token(parser);
+    CallConvType call_type = CALLCONV_CDECL;
+    SourcePos callconv_pos = parser->post_token_pos;
+    if (tk.type == TK_STR) {
+        int found = 0;
+        for (unsigned int i = 0;
+             i < sizeof(str_callconv) / sizeof(str_callconv[0]); i++) {
+            if (str_eql(str(str_callconv[i].s), tk.str)) {
+                call_type = str_callconv[i].call_type;
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            return error(parser, callconv_pos, "unknown calling convention");
+        }
+        tk = next_token(parser);
+    }
 
     if (tk.type != TK_IDENT) {
         return error(parser, parser->post_token_pos, "expected an identifier");
@@ -1303,7 +1377,11 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
     FuncMetadata func_data;
     func_data.args = NULL;
+    func_data.callconv = call_type;
     func_data.has_va_args = 0;
+
+    int has_thisptr = 0;
+    int first_arg = 1;
 
     tk = peek_token(parser);
     if (tk.type == TK_RPAREN) {
@@ -1312,6 +1390,11 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
         while (tk.type != TK_RPAREN) {
             tk = next_token(parser);
             if (tk.type == TK_ARGS) {
+                if (call_type != CALLCONV_CDECL) {
+                    return error(
+                        parser, parser->pre_token_pos,
+                        "vararg is not allowed in this calling convention");
+                }
                 func_data.has_va_args = 1;
                 tk = next_token(parser);
                 if (tk.type != TK_RPAREN) {
@@ -1342,6 +1425,11 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
             }
             assert(arg_type->type == NODE_TYPE);
 
+            if (first_arg) {
+                first_arg = 0;
+                has_thisptr = is_ptr(((TypeNode*)arg_type)->data_type);
+            }
+
             symbol_table_append_var(parser->sym, ident, 1, 0,
                                     ((TypeNode*)arg_type)->data_type,
                                     ident_pos);
@@ -1357,6 +1445,10 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
                              "expected ',' or ')'");
             }
         }
+    }
+
+    if (call_type == CALLCONV_THISCALL && !has_thisptr) {
+        return error(parser, callconv_pos, "thiscall requires thisptr");
     }
 
     tk = peek_token(parser);

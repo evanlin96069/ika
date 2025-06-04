@@ -25,6 +25,12 @@ typedef enum TypeMetadataType {
 
 typedef struct Type Type;
 
+typedef enum CallConvType {
+    CALLCONV_CDECL,
+    CALLCONV_STDCALL,
+    CALLCONV_THISCALL,
+} CallConvType;
+
 typedef struct ArgList {
     struct ArgList* next;
     const Type* type;
@@ -33,6 +39,7 @@ typedef struct ArgList {
 typedef struct FuncMetadata {
     const Type* return_type;  // NULL if return void
     ArgList* args;
+    CallConvType callconv;
     int has_va_args;
 } FuncMetadata;
 

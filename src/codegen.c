@@ -349,6 +349,25 @@ static void emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
     }
 }
 
+static int get_func_arg_size(const FuncMetadata* func_data) {
+    assert(func_data->callconv != CALLCONV_CDECL);
+
+    ArgList* curr = func_data->args;
+    int arg_size = 0;
+    while (curr) {
+        if (func_data->callconv == CALLCONV_THISCALL && curr->next == NULL) {
+            // skip thisptr
+            break;
+        }
+        int size = curr->type->size;
+        int padding = (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
+        arg_size += size + padding;
+
+        curr = curr->next;
+    }
+    return arg_size;
+}
+
 static void emit_var(CodegenState* state, VarNode* var) {
     switch (var->ste->type) {
         case SYM_VAR: {
@@ -365,8 +384,15 @@ static void emit_var(CodegenState* state, VarNode* var) {
         case SYM_FUNC: {
             // Function pointer
             FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
-            genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax", func_ste->ident.len,
-                 func_ste->ident.ptr);
+            const FuncMetadata* func_data = &func_ste->func_data;
+            if (func_data->callconv == CALLCONV_STDCALL) {
+                genf("    movl $" OS_SYM_PREFIX "%.*s@%d, %%eax",
+                     func_ste->ident.len, func_ste->ident.ptr,
+                     get_func_arg_size(func_data));
+            } else {
+                genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
+                     func_ste->ident.len, func_ste->ident.ptr);
+            }
         } break;
         default:
             UNREACHABLE();
@@ -528,6 +554,7 @@ static void emit_call(CodegenState* state, CallNode* call) {
 
     const TypedASTNode* func_node = as_typed_ast(call->node);
     const Type* func_type = &func_node->type_info.type;
+    assert(func_type->type == METADATA_FUNC);
 
     ASTNodeList* curr = call->args;
     int args_size = 0;
@@ -565,9 +592,13 @@ static void emit_call(CodegenState* state, CallNode* call) {
         emit_rvalify(state, func_type);
     }
 
+    if (func_type->func_data.callconv == CALLCONV_THISCALL) {
+        genf("    popl %%ecx");
+    }
+
     genf("    call *%%eax");
 
-    if (args_size > 0) {
+    if (func_type->func_data.callconv == CALLCONV_CDECL && args_size > 0) {
         genf("    addl $%d, %%esp", args_size);
     }
 }
@@ -742,13 +773,17 @@ static inline void emit_func_start(CodegenState* state, int stack_size) {
     }
 }
 
-static inline void emit_func_exit(CodegenState* state) {
+static inline void emit_func_exit(CodegenState* state, int cleanup_size) {
     genf("LAB_%d:", state->ret_label);
     // genf("    popl %%ebx");
     // genf("    popl %%esi");
     // genf("    popl %%edi");
     genf("    leave");
-    genf("    ret");
+    if (cleanup_size > 0) {
+        genf("    ret %d", cleanup_size);
+    } else {
+        genf("    ret");
+    }
 }
 
 static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
@@ -761,11 +796,22 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     assert(func->is_extern == 0);
 
     genf(OS_SYM_PREFIX "%.*s:", func->ident.len, func->ident.ptr);
+
+    if (func->func_data.callconv == CALLCONV_THISCALL) {
+        genf("    popl %%eax");  // return address
+        genf("    pushl %%ecx");
+        genf("    pushl %%eax");
+    }
+
     emit_func_start(state, *func->sym->stack_size);
 
     emit_node(state, func->node);
 
-    emit_func_exit(state);
+    int cleanup_size = 0;
+    if (func->func_data.callconv != CALLCONV_CDECL) {
+        cleanup_size = get_func_arg_size(&func->func_data);
+    }
+    emit_func_exit(state, cleanup_size);
 
     state->ret_label = prev_ret_label;
     state->ret_type = prev_ret_type;
@@ -833,7 +879,7 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
         emit_func_start(state, *sym->stack_size);
         emit_node(state, node);
         genf("    xorl %%eax, %%eax");
-        emit_func_exit(state);
+        emit_func_exit(state, 0);
     }
 
     genf(".globl " OS_SYM_PREFIX "%.*s", entry_sym.len, entry_sym.ptr);
