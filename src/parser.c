@@ -925,6 +925,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
             type->size = PTR_SIZE;
             type->alignment = PTR_SIZE;
 
+            tk = next_token(parser);
             CallConvType call_type = CALLCONV_CDECL;
             SourcePos callconv_pos = parser->post_token_pos;
             if (tk.type == TK_STR) {
@@ -944,7 +945,6 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
                 tk = next_token(parser);
             }
 
-            tk = next_token(parser);
             if (tk.type != TK_LPAREN) {
                 return error(parser, parser->pre_token_pos, "expected '('");
             }

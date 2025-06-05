@@ -1,0 +1,14 @@
+fn is_zero(n: i32) bool {
+    return n == 0;
+}
+
+fn f(n: i32) void {
+    if (!is_zero(n)) {
+        "return\n";
+        return;
+    }
+    "pass\n";
+}
+
+f(1);
+f(0);

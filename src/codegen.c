@@ -634,12 +634,12 @@ static void emit_ret(CodegenState* state, ReturnNode* ret) {
         if (expr_node->type_info.is_lvalue) {
             emit_rvalify(state, &expr_node->type_info.type);
         }
-    }
 
-    const Type* ret_type = &(as_typed_ast(ret->expr)->type_info.type);
-    if (ret_type->size > 4) {
-        // TODO: returning large type is not implemented yet
-        assert(0);
+        const Type* ret_type = &(as_typed_ast(ret->expr)->type_info.type);
+        if (ret_type->size > 4) {
+            // TODO: returning large type is not implemented yet
+            assert(0);
+        }
     }
 
     genf("    jmp LAB_%d", state->ret_label);
