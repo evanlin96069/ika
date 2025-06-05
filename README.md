@@ -20,7 +20,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug ../..
 cmake --build .
 
 # For release build:
-cd ..\..
+cd ../..
 mkdir -p build/release && cd build/release
 cmake -DCMAKE_BUILD_TYPE=Release ../..
 cmake --build .
