@@ -63,7 +63,10 @@ static inline void emit_intlit(CodegenState* state, IntLitNode* lit) {
 }
 
 static inline void emit_strlit(CodegenState* state, StrLitNode* lit) {
-    genf("    movl $.LC%d, %%eax", add_data(state, lit->val));
+    int label_id = add_data(state, lit->val);
+    genf("    call 1f");
+    genf("1:  popl %%eax");
+    genf("    addl $.LC%d - 1b, %%eax", label_id);
 }
 
 // load the value into register if size is 4 bytes, 2 bytes, or 1 byte,
@@ -349,51 +352,59 @@ static void emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
     }
 }
 
-static int get_func_arg_size(const FuncMetadata* func_data) {
+static int get_func_args_size(const FuncMetadata* func_data) {
     assert(func_data->callconv != CALLCONV_CDECL);
 
     ArgList* curr = func_data->args;
-    int arg_size = 0;
+    int args_size = 0;
     while (curr) {
+        /*
         if (func_data->callconv == CALLCONV_THISCALL && curr->next == NULL) {
             // skip thisptr
             break;
         }
+        */
         int size = curr->type->size;
         int padding = (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
-        arg_size += size + padding;
+        args_size += size + padding;
 
         curr = curr->next;
     }
-    return arg_size;
+    return args_size;
 }
 
 static void emit_var(CodegenState* state, VarNode* var) {
     switch (var->ste->type) {
         case SYM_VAR: {
-            // Variable
             VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
             if (var_ste->is_extern || var_ste->is_global) {
-                genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
+                // Load address of global/extern variable
+                genf("    call 1f");
+                genf("1:  popl %%eax");
+                genf("    addl $" OS_SYM_PREFIX "%.*s - 1b, %%eax",
                      var_ste->ident.len, var_ste->ident.ptr);
             } else {
-                // Local variable
                 genf("    leal %d(%%ebp), %%eax", var_ste->offset);
             }
         } break;
+
         case SYM_FUNC: {
-            // Function pointer
             FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
             const FuncMetadata* func_data = &func_ste->func_data;
+
+            genf("    call 1f");
+            genf("1:  popl %%eax");
+
             if (func_data->callconv == CALLCONV_STDCALL) {
-                genf("    movl $" OS_SYM_PREFIX "%.*s@%d, %%eax",
+                genf("    addl $" OS_SYM_PREFIX "%.*s@%d - 1b, %%eax",
                      func_ste->ident.len, func_ste->ident.ptr,
-                     get_func_arg_size(func_data));
+                     get_func_args_size(func_data));
             } else {
-                genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
+                genf("    addl $" OS_SYM_PREFIX "%.*s - 1b, %%eax",
                      func_ste->ident.len, func_ste->ident.ptr);
             }
         } break;
+
         default:
             UNREACHABLE();
     }
@@ -619,7 +630,11 @@ static void emit_print(CodegenState* state, PrintNode* print_node) {
         curr = curr->next;
     }
 
-    genf("    pushl $.LC%d", add_data(state, print_node->fmt));
+    genf("    call 1f");
+    genf("1:  popl %%eax");
+    genf("    addl $.LC%d - 1b, %%eax", add_data(state, print_node->fmt));
+    genf("    pushl %%eax");
+
     arg_count++;
 
     genf("    call " OS_SYM_PREFIX "printf");
@@ -765,22 +780,17 @@ static void emit_node(CodegenState* state, ASTNode* node) {
 static inline void emit_func_start(CodegenState* state, int stack_size) {
     genf("    pushl %%ebp");
     genf("    movl %%esp, %%ebp");
-    // genf("    pushl %%edi");
-    // genf("    pushl %%esi");
-    // genf("    pushl %%ebx");
     if (stack_size) {
         genf("    subl $%d, %%esp", stack_size);
     }
 }
 
-static inline void emit_func_exit(CodegenState* state, int cleanup_size) {
+static inline void emit_func_exit(CodegenState* state, int args_size) {
     genf("LAB_%d:", state->ret_label);
-    // genf("    popl %%ebx");
-    // genf("    popl %%esi");
-    // genf("    popl %%edi");
     genf("    leave");
-    if (cleanup_size > 0) {
-        genf("    ret %d", cleanup_size);
+
+    if (args_size > 0) {
+        genf("    ret $%d", args_size);
     } else {
         genf("    ret");
     }
@@ -807,14 +817,23 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
 
     emit_node(state, func->node);
 
-    int cleanup_size = 0;
-    if (func->func_data.callconv != CALLCONV_CDECL) {
-        cleanup_size = get_func_arg_size(&func->func_data);
+    const FuncMetadata* func_data = &func->func_data;
+
+    int args_size = 0;
+    if (func_data->callconv != CALLCONV_CDECL) {
+        args_size = get_func_args_size(func_data);
     }
-    emit_func_exit(state, cleanup_size);
+    emit_func_exit(state, args_size);
 
     state->ret_label = prev_ret_label;
     state->ret_type = prev_ret_type;
+
+    if (func_data->callconv == CALLCONV_STDCALL) {
+        genf(".globl " OS_SYM_PREFIX "%.*s@%d", func->ident.len,
+             func->ident.ptr, args_size);
+    } else {
+        genf(".globl " OS_SYM_PREFIX "%.*s", func->ident.len, func->ident.ptr);
+    }
 }
 
 void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
@@ -850,6 +869,10 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
                                   MAX_ALIGNMENT;
                     genf("    .zero %d", size + padding);
                 }
+
+                genf(".globl " OS_SYM_PREFIX "%.*s", var->ident.len,
+                     var->ident.ptr);
+                fprintf(state->out, "\n");
             }
         }
         curr = curr->next;
@@ -880,9 +903,10 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
         emit_node(state, node);
         genf("    xorl %%eax, %%eax");
         emit_func_exit(state, 0);
+
+        genf(".globl " OS_SYM_PREFIX "%.*s", entry_sym.len, entry_sym.ptr);
     }
 
-    genf(".globl " OS_SYM_PREFIX "%.*s", entry_sym.len, entry_sym.ptr);
     fprintf(state->out, "\n");
 
     // Strings

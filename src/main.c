@@ -184,9 +184,7 @@ int main(int argc, char* argv[]) {
         _unlink(asm_out_path);
 #else
         char* const args[] = {
-            "gcc", "-m32",          "-no-pie",
-            "-o",  (char*)out_path, (char*)asm_out_path,
-            NULL,
+            "gcc", "-m32", "-o", (char*)out_path, (char*)asm_out_path, NULL,
         };
 
         pid_t pid = fork();
