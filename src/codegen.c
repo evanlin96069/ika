@@ -350,8 +350,6 @@ static void emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
 }
 
 static int get_func_args_size(const FuncMetadata* func_data) {
-    assert(func_data->callconv != CALLCONV_CDECL);
-
     ArgList* curr = func_data->args;
     int args_size = 0;
     while (curr) {
@@ -386,8 +384,15 @@ static void emit_var(CodegenState* state, VarNode* var) {
         case SYM_FUNC: {
             // Function pointer
             FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
-            genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax", func_ste->ident.len,
-                 func_ste->ident.ptr);
+            const FuncMetadata* func_data = &func_ste->func_data;
+            if (func_data->callconv == CALLCONV_STDCALL) {
+                int args_size = get_func_args_size(func_data);
+                genf("    movl $" OS_SYM_PREFIX "%.*s@%d, %%eax",
+                     func_ste->ident.len, func_ste->ident.ptr, args_size);
+            } else {
+                genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
+                     func_ste->ident.len, func_ste->ident.ptr);
+            }
         } break;
         default:
             UNREACHABLE();
@@ -786,7 +791,14 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     assert(func->node);
     assert(func->is_extern == 0);
 
-    genf(OS_SYM_PREFIX "%.*s:", func->ident.len, func->ident.ptr);
+    const FuncMetadata* func_data = &func->func_data;
+    int args_size = get_func_args_size(func_data);
+    if (func_data->callconv == CALLCONV_STDCALL) {
+        genf(OS_SYM_PREFIX "%.*s@%d:", func->ident.len, func->ident.ptr,
+             args_size);
+    } else {
+        genf(OS_SYM_PREFIX "%.*s:", func->ident.len, func->ident.ptr);
+    }
 
     if (func->func_data.callconv == CALLCONV_THISCALL) {
         genf("    popl %%eax");  // return address
@@ -798,13 +810,11 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
 
     emit_node(state, func->node);
 
-    const FuncMetadata* func_data = &func->func_data;
-
-    int args_size = 0;
-    if (func_data->callconv != CALLCONV_CDECL) {
-        args_size = get_func_args_size(func_data);
+    if (func_data->callconv == CALLCONV_CDECL) {
+        emit_func_exit(state, 0);
+    } else {
+        emit_func_exit(state, args_size);
     }
-    emit_func_exit(state, args_size);
 
     state->ret_label = prev_ret_label;
     state->ret_type = prev_ret_type;
