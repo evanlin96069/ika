@@ -496,7 +496,6 @@ static Error* type_check_ret(SemaState* state, ReturnNode* ret) {
         ret_type = &(as_typed_ast(ret->expr)->type_info.type);
     }
 
-
     if (!is_allowed_type_convert(state->ret_type, ret_type)) {
         return error(ret->pos, "invalid return type");
     }

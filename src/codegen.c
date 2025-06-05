@@ -601,6 +601,36 @@ static void emit_call(CodegenState* state, CallNode* call) {
     if (func_type->func_data.callconv == CALLCONV_CDECL && args_size > 0) {
         genf("    addl $%d, %%esp", args_size);
     }
+
+    const Type* ret_type = func_type->func_data.return_type;
+    if (ret_type->type != METADATA_PRIMITIVE) {
+        return;
+    }
+
+    if (is_void(ret_type)) {
+        return;
+    }
+
+    switch (ret_type->size) {
+        case 4:
+            break;
+        case 2:
+            if (ret_type->primitive_type == TYPE_I16) {
+                genf("    movswl %%ax, %%eax");
+            } else {
+                genf("    movzwl %%ax, %%eax");
+            }
+            break;
+        case 1:
+            if (ret_type->primitive_type == TYPE_I8) {
+                genf("    movsbl %%al, %%eax");
+            } else {
+                genf("    movzbl %%al, %%eax");
+            }
+            break;
+        default:
+            UNREACHABLE();
+    }
 }
 
 static void emit_print(CodegenState* state, PrintNode* print_node) {

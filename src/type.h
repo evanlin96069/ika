@@ -37,7 +37,7 @@ typedef struct ArgList {
 } ArgList;
 
 typedef struct FuncMetadata {
-    const Type* return_type;  // NULL if return void
+    const Type* return_type;
     ArgList* args;
     CallConvType callconv;
     int has_va_args;
