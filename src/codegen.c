@@ -63,10 +63,7 @@ static inline void emit_intlit(CodegenState* state, IntLitNode* lit) {
 }
 
 static inline void emit_strlit(CodegenState* state, StrLitNode* lit) {
-    int label_id = add_data(state, lit->val);
-    genf("    call 1f");
-    genf("1:  popl %%eax");
-    genf("    addl $.LC%d - 1b, %%eax", label_id);
+    genf("    movl $.LC%d, %%eax", add_data(state, lit->val));
 }
 
 // load the value into register if size is 4 bytes, 2 bytes, or 1 byte,
@@ -376,35 +373,22 @@ static int get_func_args_size(const FuncMetadata* func_data) {
 static void emit_var(CodegenState* state, VarNode* var) {
     switch (var->ste->type) {
         case SYM_VAR: {
+            // Variable
             VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
             if (var_ste->is_extern || var_ste->is_global) {
-                // Load address of global/extern variable
-                genf("    call 1f");
-                genf("1:  popl %%eax");
-                genf("    addl $" OS_SYM_PREFIX "%.*s - 1b, %%eax",
+                genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
                      var_ste->ident.len, var_ste->ident.ptr);
             } else {
+                // Local variable
                 genf("    leal %d(%%ebp), %%eax", var_ste->offset);
             }
         } break;
-
         case SYM_FUNC: {
+            // Function pointer
             FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
-            const FuncMetadata* func_data = &func_ste->func_data;
-
-            genf("    call 1f");
-            genf("1:  popl %%eax");
-
-            if (func_data->callconv == CALLCONV_STDCALL) {
-                genf("    addl $" OS_SYM_PREFIX "%.*s@%d - 1b, %%eax",
-                     func_ste->ident.len, func_ste->ident.ptr,
-                     get_func_args_size(func_data));
-            } else {
-                genf("    addl $" OS_SYM_PREFIX "%.*s - 1b, %%eax",
-                     func_ste->ident.len, func_ste->ident.ptr);
-            }
+            genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax", func_ste->ident.len,
+                 func_ste->ident.ptr);
         } break;
-
         default:
             UNREACHABLE();
     }
@@ -630,10 +614,7 @@ static void emit_print(CodegenState* state, PrintNode* print_node) {
         curr = curr->next;
     }
 
-    genf("    call 1f");
-    genf("1:  popl %%eax");
-    genf("    addl $.LC%d - 1b, %%eax", add_data(state, print_node->fmt));
-    genf("    pushl %%eax");
+    genf("    pushl $.LC%d", add_data(state, print_node->fmt));
 
     arg_count++;
 
