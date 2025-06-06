@@ -764,6 +764,11 @@ static void emit_indexof(CodegenState* state, IndexOfNode* idxof) {
 static void emit_cast(CodegenState* state, CastNode* cast) {
     UNUSED(state);
     emit_node(state, cast->expr);
+
+    const TypedASTNode* expr = as_typed_ast(cast->expr);
+    if (expr->type_info.is_lvalue) {
+        emit_rvalify(state, &expr->type_info.type);
+    }
 }
 
 static void emit_node(CodegenState* state, ASTNode* node) {

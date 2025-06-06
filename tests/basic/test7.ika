@@ -1,0 +1,83 @@
+// Implicit Casts
+
+// i8 -> i32 (sign extend)
+{
+    var b: i8 = -1;
+    var a: i32;
+    a = b;
+    "%d\n", a; // expected: -1
+}
+
+// u8 -> i32 (zero extend)
+{
+    var b: u8 = 255;
+    var a: i32;
+    a = b;
+    "%d\n", a; // expected: 255
+}
+
+// i16 -> u32 (sign extend then implicitly zero truncation)
+{
+    var b: i16 = -1234;
+    var a: u32;
+    a = b;
+    "%u\n", a; // expected: 4294966062 (0xFFFFFB2E)
+}
+
+// i32 -> u8 (truncate)
+{
+    var b: i32 = 511;
+    var a: u8;
+    a = b;
+    "%u\n", a; // expected: 255 (511 & 0xFF)
+}
+
+// u32 -> i16 (truncate)
+{
+    var b: u32 = 0xFFFF;
+    var a: i16;
+    a = b;
+    "%d\n", a; // expected: -1
+}
+
+// Explicit Casts
+
+// i8 -> i32 (sign extend)
+{
+    var b: i8 = -1;
+    var a: i32;
+    a = as(i32, b);
+    "%d\n", a; // expected: -1
+}
+
+// u8 -> i32 (zero extend)
+{
+    var b: u8 = 255;
+    var a: i32;
+    a = as(i32, b);
+    "%d\n", a; // expected: 255
+}
+
+// i16 -> u8 (truncate)
+{
+    var b: i16 = -1;
+    var a: u8;
+    a = as(u8, b);
+    "%u\n", a; // expected: 255
+}
+
+// i32 -> u16 (truncate)
+{
+    var b: i32 = 65537;
+    var a: u16;
+    a = as(u16, b);
+    "%u\n", a; // expected: 1
+}
+
+// u32 -> i8 (truncate)
+{
+    var b: u32 = 0xFF;
+    var a: i8;
+    a = as(i8, b);
+    "%d\n", a; // expected: -1
+}

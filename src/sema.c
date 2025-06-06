@@ -575,14 +575,14 @@ static Error* type_check_cast(SemaState* state, CastNode* cast) {
     if (is_int(cast->data_type)) {
         if (is_int(type) || is_ptr_like(type) || is_func_ptr(type)) {
             cast->type_info.type = *cast->data_type;
-            cast->type_info.is_lvalue = node->type_info.is_lvalue;
+            cast->type_info.is_lvalue = 0;
         } else {
             return error(cast->pos, "cannot convert to a integer type");
         }
     } else if (is_ptr_like(cast->data_type) || is_func_ptr(cast->data_type)) {
         if (is_int(type) || is_ptr_like(type) || is_func_ptr(type)) {
             cast->type_info.type = *cast->data_type;
-            cast->type_info.is_lvalue = node->type_info.is_lvalue;
+            cast->type_info.is_lvalue = 0;
         } else {
             return error(cast->pos, "cannot convert to a pointer type");
         }
