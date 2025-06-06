@@ -34,6 +34,9 @@
 #define OS_SYM_PREFIX ""
 #endif
 
+#define NO_MEMCPY
+#define INLINE_COPY_LIMIT 16
+
 static inline int add_label(CodegenState* state) {
     return state->label_count++;
 }
@@ -399,6 +402,56 @@ static void emit_var(CodegenState* state, VarNode* var) {
     }
 }
 
+// src/dest cannot be %edx, %esi, %edi, %esp
+static void emit_memcpy(CodegenState* state, const char* dest, const char* src,
+                        int size) {
+    assert(size > 4);
+
+#ifdef NO_MEMCPY
+    if (size <= INLINE_COPY_LIMIT) {
+        for (int offset = 0; offset < size; offset += 4) {
+            if (size - offset >= 4) {
+                genf("    movl %d(%s), %%edx", offset, src);
+                genf("    movl %%edx, %d(%s)", offset, dest);
+            } else if (size - offset >= 2) {
+                genf("    movw %d(%s), %%dx", offset, src);
+                genf("    movw %%dx, %d(%s)", offset, dest);
+                offset += 2;
+                if (size - offset == 1) {
+                    genf("    movb %d(%s), %%dl", offset, src);
+                    genf("    movb %%dl, %d(%s)", offset, dest);
+                }
+                break;
+            } else {
+                genf("    movb %d(%s), %%dl", offset, src);
+                genf("    movb %%dl, %d(%s)", offset, dest);
+            }
+        }
+    } else {
+        genf("    push %%esi");
+        genf("    push %%edi");
+        genf("    push %%ecx");
+
+        genf("    movl %s, %%esi", src);
+        genf("    movl %s, %%edi", dest);
+        genf("    movl $%d, %%ecx", size);
+        genf("    cld");
+        genf("    rep movsb");
+
+        genf("    pop %%ecx");
+        genf("    pop %%edi");
+        genf("    pop %%esi");
+    }
+#else
+    genf("    movl $%d, %%edx", size);
+    genf("    pushl %%edx");     // n
+    genf("    push %s", src);    // src
+    genf("    pushl %s", dest);  // dest
+    genf("    call " OS_SYM_PREFIX "memcpy");
+    genf("    addl $12, %%esp");
+#endif
+}
+
 static void emit_assign(CodegenState* state, AssignNode* assign) {
     emit_node(state, assign->left);
 
@@ -415,7 +468,7 @@ static void emit_assign(CodegenState* state, AssignNode* assign) {
 
     genf("    popl %%ecx");
 
-    // left address on ecx, right value in eax
+    // ecx = left addr, eax = right
     switch (l_type->size) {
         case 4:
             genf("    movl %%eax, (%%ecx)");
@@ -430,14 +483,9 @@ static void emit_assign(CodegenState* state, AssignNode* assign) {
         case 1:
             genf("    movb %%al, (%%ecx)");
             break;
-        default:
-            genf("    movl $%d, %%edx", l_type->size);
-            genf("    pushl %%edx");  // n
-            genf("    push %%eax");   // src
-            genf("    pushl %%ecx");  // dest
-            genf("    call " OS_SYM_PREFIX "memcpy");
-            genf("    addl $12, %%esp");
-            break;
+        default: {
+            emit_memcpy(state, "%ecx", "%eax", l_type->size);
+        } break;
     }
 
     genf("    movl %%ecx, %%eax");
@@ -567,22 +615,18 @@ static void emit_call(CodegenState* state, CallNode* call) {
         }
 
         int size = node->type_info.type.size;
-        int padding = (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
+        // padding
+        size += (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
 
         if (size <= 4) {
             genf("    pushl %%eax");
         } else {
-            genf("    subl $%d, %%esp", size + padding);
-            genf("    movl %%esp, %%edx");
-            genf("    movl $%d, %%ecx", size);
-            genf("    pushl %%ecx");  // n
-            genf("    pushl %%eax");  // src
-            genf("    pushl %%edx");  // dest
-            genf("    call " OS_SYM_PREFIX "memcpy");
-            genf("    addl $12, %%esp");
+            genf("    subl $%d, %%esp", size);
+            genf("    movl %%esp, %%ecx");
+            emit_memcpy(state, "%ecx", "%eax", size);
         }
 
-        args_size += size + padding;
+        args_size += size;
         curr = curr->next;
     }
 
