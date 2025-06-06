@@ -140,10 +140,10 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
             int label = add_label(state);
             if (binop->op == TK_LOR) {
                 genf("    testl %%eax, %%eax");
-                genf("    jnz LAB_%d", label);
+                genf("    jnz .L%d", label);
             } else if (binop->op == TK_LAND) {
                 genf("    testl %%eax, %%eax");
-                genf("    jz LAB_%d", label);
+                genf("    jz .L%d", label);
             } else {
                 UNREACHABLE();
             }
@@ -153,7 +153,7 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
                 emit_rvalify(state, r_type);
             }
 
-            genf("LAB_%d:", label);
+            genf(".L%d:", label);
         }
     } else {
         switch (binop->op) {
@@ -463,18 +463,18 @@ static void emit_if(CodegenState* state, IfStatementNode* if_node) {
     }
 
     genf("    testl %%eax, %%eax");
-    genf("    jz LAB_%d", else_label);
+    genf("    jz .L%d", else_label);
 
     emit_node(state, if_node->then_block);
 
-    genf("    jmp LAB_%d", end_label);
-    genf("LAB_%d:", else_label);
+    genf("    jmp .L%d", end_label);
+    genf(".L%d:", else_label);
 
     if (if_node->else_block) {
         emit_node(state, if_node->else_block);
     }
 
-    genf("LAB_%d:", end_label);
+    genf(".L%d:", end_label);
 }
 
 static void emit_while(CodegenState* state, WhileNode* while_node) {
@@ -493,7 +493,7 @@ static void emit_while(CodegenState* state, WhileNode* while_node) {
     int inc_label = add_label(state);
     int end_label = add_label(state);
 
-    genf("LAB_%d:", loop_label);
+    genf(".L%d:", loop_label);
 
     emit_node(state, while_node->expr);
     const TypedASTNode* expr_node = as_typed_ast(while_node->expr);
@@ -502,7 +502,7 @@ static void emit_while(CodegenState* state, WhileNode* while_node) {
     }
 
     genf("    testl %%eax, %%eax");
-    genf("    jz LAB_%d", end_label);
+    genf("    jz .L%d", end_label);
 
     int prev_in_loop = state->in_loop;
     int prev_break_label = state->break_label;
@@ -518,22 +518,22 @@ static void emit_while(CodegenState* state, WhileNode* while_node) {
     state->break_label = prev_break_label;
     state->continue_label = prev_continue_label;
 
-    genf("LAB_%d:", inc_label);
+    genf(".L%d:", inc_label);
     if (while_node->inc) {
         emit_node(state, while_node->inc);
     }
 
-    genf("    jmp LAB_%d", loop_label);
-    genf("LAB_%d:", end_label);
+    genf("    jmp .L%d", loop_label);
+    genf(".L%d:", end_label);
 }
 
 static inline void emit_goto(CodegenState* state, GotoNode* node) {
     switch (node->op) {
         case TK_BREAK:
-            genf("    jmp LAB_%d", state->break_label);
+            genf("    jmp .L%d", state->break_label);
             break;
         case TK_CONTINUE:
-            genf("    jmp LAB_%d", state->continue_label);
+            genf("    jmp .L%d", state->continue_label);
             break;
         default:
             UNREACHABLE();
@@ -672,7 +672,7 @@ static void emit_ret(CodegenState* state, ReturnNode* ret) {
         }
     }
 
-    genf("    jmp LAB_%d", state->ret_label);
+    genf("    jmp .L%d", state->ret_label);
 }
 
 static void emit_field(CodegenState* state, FieldNode* field) {
@@ -802,7 +802,7 @@ static inline void emit_func_start(CodegenState* state, int stack_size) {
 }
 
 static inline void emit_func_exit(CodegenState* state, int args_size) {
-    genf("LAB_%d:", state->ret_label);
+    genf(".L%d:", state->ret_label);
     genf("    leave");
 
     if (args_size > 0) {
