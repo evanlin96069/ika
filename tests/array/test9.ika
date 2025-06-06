@@ -1,0 +1,39 @@
+const sz1 = 10;
+
+fn sum1(arr: [sz1]u8) i32 {
+    var result: i32 = 0;
+    var i: i32 = 0;
+    while (i < sz1) : (i += 1) {
+        result += arr[i];
+    }
+    return result;
+}
+
+var a1: [sz1]u8;
+
+var i: i32 = 0;
+while (i < sz1) : (i += 1) {
+    a1[i] = i + 1;
+}
+
+"%d\n", sum1(a1);
+
+const sz2 = 100;
+
+fn sum2(arr: [sz2]u8) i32 {
+    var result: i32 = 0;
+    var i: i32 = 0;
+    while (i < sz2) : (i += 1) {
+        result += arr[i];
+    }
+    return result;
+}
+
+var a2: [sz2]u8;
+
+i = 0;
+while (i < sz2) : (i += 1) {
+    a2[i] = i + 1;
+}
+
+"%d\n", sum2(a2);

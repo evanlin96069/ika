@@ -1,0 +1,30 @@
+struct Small {
+    x: u32,
+    y: u32,
+};
+
+var s: Small;
+s.x = 34;
+s.y = 35;
+
+var s1: Small = s;
+"%d %d\n", s.x, s.y;
+
+struct Large {
+    s1: Small,
+    s2: Small,
+    n: u32,
+};
+
+var l: Large;
+l.s1.x = 12;
+l.s1.y = 34;
+l.s2.x = 56;
+l.s2.y = 78;
+l.n = 90;
+
+var l1: Large = l;
+
+"%d %d %d %d %d\n", l1.s1.x, l1.s1.y,
+                    l1.s2.x, l1.s2.y,
+                    l1.n;
