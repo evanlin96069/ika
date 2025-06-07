@@ -2,9 +2,7 @@
 
 #include <stdlib.h>
 
-#define CODEGEN_DBG
-
-#ifdef CODEGEN_DBG
+#ifndef NDEBUG
 
 #define GEN(out, ...)                                   \
     do {                                                \
@@ -72,7 +70,7 @@ static inline void emit_strlit(CodegenState* state, StrLitNode* lit) {
 
 // load the value into register if size is 4 bytes, 2 bytes, or 1 byte,
 // else do nothing.
-static void emit_rvalify(CodegenState* state, const Type* type) {
+static void emit_load_address(CodegenState* state, const Type* type) {
     switch (type->size) {
         case 4:
             genf("    movl (%%eax), %%eax");
@@ -115,14 +113,14 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
     const Type* r_type = &r_node->type_info.type;
 
     if (l_node->type_info.is_address) {
-        emit_rvalify(state, l_type);
+        emit_load_address(state, l_type);
     }
 
     genf("    pushl %%eax");
 
     emit_node(state, binop->right);
     if (r_node->type_info.is_address) {
-        emit_rvalify(state, r_type);
+        emit_load_address(state, r_type);
     }
 
     genf("    movl %%eax, %%ecx");
@@ -154,7 +152,7 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
 
             emit_node(state, binop->right);
             if (r_node->type_info.is_address) {
-                emit_rvalify(state, r_type);
+                emit_load_address(state, r_type);
             }
 
             genf(".L%d:", label);
@@ -311,27 +309,27 @@ static void emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
     switch (unaryop->op) {
         case TK_ADD:
             if (is_address) {
-                emit_rvalify(state, type);
+                emit_load_address(state, type);
             }
             break;
 
         case TK_SUB:
             if (is_address) {
-                emit_rvalify(state, type);
+                emit_load_address(state, type);
             }
             genf("    negl %%eax");
             break;
 
         case TK_NOT:
             if (is_address) {
-                emit_rvalify(state, type);
+                emit_load_address(state, type);
             }
             genf("    notl %%eax");
             break;
 
         case TK_LNOT:
             if (is_address) {
-                emit_rvalify(state, type);
+                emit_load_address(state, type);
             }
 
             genf("    testl %%eax, %%eax");
@@ -341,7 +339,7 @@ static void emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
 
         case TK_MUL:
             if (is_address) {
-                emit_rvalify(state, type);
+                emit_load_address(state, type);
             }
             break;
 
@@ -478,7 +476,7 @@ static void emit_assign(CodegenState* state, AssignNode* assign) {
     emit_node(state, assign->right);
     const TypedASTNode* r_node = as_typed_ast(assign->right);
     if (r_node->type_info.is_address) {
-        emit_rvalify(state, &r_node->type_info.type);
+        emit_load_address(state, &r_node->type_info.type);
     }
 
     genf("    popl %%ecx");
@@ -522,7 +520,7 @@ static void emit_if(CodegenState* state, IfStatementNode* if_node) {
     emit_node(state, if_node->expr);
     const TypedASTNode* expr_node = as_typed_ast(if_node->expr);
     if (expr_node->type_info.is_address) {
-        emit_rvalify(state, &expr_node->type_info.type);
+        emit_load_address(state, &expr_node->type_info.type);
     }
 
     genf("    testl %%eax, %%eax");
@@ -561,7 +559,7 @@ static void emit_while(CodegenState* state, WhileNode* while_node) {
     emit_node(state, while_node->expr);
     const TypedASTNode* expr_node = as_typed_ast(while_node->expr);
     if (expr_node->type_info.is_address) {
-        emit_rvalify(state, &expr_node->type_info.type);
+        emit_load_address(state, &expr_node->type_info.type);
     }
 
     genf("    testl %%eax, %%eax");
@@ -626,7 +624,7 @@ static void emit_call(CodegenState* state, CallNode* call) {
 
         const TypedASTNode* node = as_typed_ast(curr->node);
         if (node->type_info.is_address) {
-            emit_rvalify(state, &node->type_info.type);
+            emit_load_address(state, &node->type_info.type);
         }
 
         int size = node->type_info.type.size;
@@ -655,7 +653,7 @@ static void emit_call(CodegenState* state, CallNode* call) {
     emit_node(state, call->node);
 
     if (func_node->type_info.is_address) {
-        emit_rvalify(state, func_type);
+        emit_load_address(state, func_type);
     }
 
     if (func_type->func_data.callconv == CALLCONV_THISCALL) {
@@ -707,7 +705,7 @@ static void emit_print(CodegenState* state, PrintNode* print_node) {
 
         TypedASTNode* node = as_typed_ast(curr->node);
         if (node->type_info.is_address) {
-            emit_rvalify(state, &node->type_info.type);
+            emit_load_address(state, &node->type_info.type);
         }
 
         genf("    pushl %%eax");
@@ -728,7 +726,7 @@ static void emit_ret(CodegenState* state, ReturnNode* ret) {
         emit_node(state, ret->expr);
         const TypedASTNode* expr_node = as_typed_ast(ret->expr);
         if (expr_node->type_info.is_address) {
-            emit_rvalify(state, &expr_node->type_info.type);
+            emit_load_address(state, &expr_node->type_info.type);
         }
 
         const Type* return_type = &(as_typed_ast(ret->expr)->type_info.type);
@@ -748,7 +746,7 @@ static void emit_field(CodegenState* state, FieldNode* field) {
     const Type* l_type = &(as_typed_ast(field->node)->type_info.type);
     if (l_type->type == METADATA_POINTER && l_type->pointer_level == 1) {
         // member access through pointer
-        emit_rvalify(state, l_type);
+        emit_load_address(state, l_type);
         l_type = l_type->inner_type;
     }
 
@@ -766,7 +764,7 @@ static void emit_indexof(CodegenState* state, IndexOfNode* idxof) {
     const TypedASTNode* l_node = as_typed_ast(idxof->left);
     const Type* l_type = &l_node->type_info.type;
     if (l_node->type_info.is_address && l_type->array_size == 0) {
-        emit_rvalify(state, &l_node->type_info.type);
+        emit_load_address(state, &l_node->type_info.type);
     }
 
     genf("    pushl %%eax");
@@ -775,7 +773,7 @@ static void emit_indexof(CodegenState* state, IndexOfNode* idxof) {
 
     const TypedASTNode* r_node = as_typed_ast(idxof->right);
     if (r_node->type_info.is_address) {
-        emit_rvalify(state, &r_node->type_info.type);
+        emit_load_address(state, &r_node->type_info.type);
     }
 
     genf("    popl %%ecx");
@@ -790,7 +788,7 @@ static void emit_cast(CodegenState* state, CastNode* cast) {
 
     const TypedASTNode* expr = as_typed_ast(cast->expr);
     if (expr->type_info.is_address) {
-        emit_rvalify(state, &expr->type_info.type);
+        emit_load_address(state, &expr->type_info.type);
     }
 }
 
