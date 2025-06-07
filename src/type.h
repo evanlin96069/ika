@@ -1,6 +1,7 @@
 #ifndef TYPE_H
 #define TYPE_H
 
+#define REGISTER_SIZE 4
 #define MAX_ALIGNMENT 4
 #define PTR_SIZE 4
 
@@ -64,6 +65,7 @@ struct Type {
 
 typedef struct TypeInfo {
     int is_lvalue;
+    int is_address;
     Type type;
 } TypeInfo;
 

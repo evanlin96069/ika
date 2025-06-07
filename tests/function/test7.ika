@@ -1,0 +1,31 @@
+struct Point {
+    x: i32,
+    y: i32,
+};
+
+fn make_point(x: i32, y :i32) Point {
+    var p: Point;
+    p.x = x;
+    p.y = y;
+    return p;
+}
+
+const size = 10;
+
+fn make_points() [size]Point {
+    var points: [size]Point;
+    var i: i32 = 0;
+    while (i < size) : (i += 1) {
+        points[i].x = i;
+        points[i].y = i + 1;
+    }
+    return points;
+}
+
+fn main() void {
+    var p: Point = make_point(1, 2);
+    "%d %d\n", p.x, p.y;
+    var y: i32 = make_point(7, 8).y;
+    "%d\n", y;
+    "%d\n", make_points()[5].y;
+}

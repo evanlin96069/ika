@@ -1,14 +1,15 @@
 #include "codegen.h"
 
-#include <stdarg.h>
 #include <stdlib.h>
+
+#define CODEGEN_DBG
 
 #ifdef CODEGEN_DBG
 
 #define GEN(out, ...)                                   \
     do {                                                \
         fprintf(out, __VA_ARGS__);                      \
-        fprintf(out, " # %s:%d\n", __FILE__, __LINE__); \
+        fprintf(out, " # %s:%d\n", __func__, __LINE__); \
     } while (0)
 
 #else
@@ -113,14 +114,14 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
     const TypedASTNode* r_node = as_typed_ast(binop->right);
     const Type* r_type = &r_node->type_info.type;
 
-    if (l_node->type_info.is_lvalue) {
+    if (l_node->type_info.is_address) {
         emit_rvalify(state, l_type);
     }
 
     genf("    pushl %%eax");
 
     emit_node(state, binop->right);
-    if (r_node->type_info.is_lvalue) {
+    if (r_node->type_info.is_address) {
         emit_rvalify(state, r_type);
     }
 
@@ -152,7 +153,7 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
             }
 
             emit_node(state, binop->right);
-            if (r_node->type_info.is_lvalue) {
+            if (r_node->type_info.is_address) {
                 emit_rvalify(state, r_type);
             }
 
@@ -304,32 +305,32 @@ static void emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
     emit_node(state, unaryop->node);
 
     const TypedASTNode* node = as_typed_ast(unaryop->node);
-    int is_lvalue = node->type_info.is_lvalue;
+    int is_address = node->type_info.is_address;
     const Type* type = &node->type_info.type;
 
     switch (unaryop->op) {
         case TK_ADD:
-            if (is_lvalue) {
+            if (is_address) {
                 emit_rvalify(state, type);
             }
             break;
 
         case TK_SUB:
-            if (is_lvalue) {
+            if (is_address) {
                 emit_rvalify(state, type);
             }
             genf("    negl %%eax");
             break;
 
         case TK_NOT:
-            if (is_lvalue) {
+            if (is_address) {
                 emit_rvalify(state, type);
             }
             genf("    notl %%eax");
             break;
 
         case TK_LNOT:
-            if (is_lvalue) {
+            if (is_address) {
                 emit_rvalify(state, type);
             }
 
@@ -339,7 +340,7 @@ static void emit_unaryop(CodegenState* state, UnaryOpNode* unaryop) {
             break;
 
         case TK_MUL:
-            if (is_lvalue) {
+            if (is_address) {
                 emit_rvalify(state, type);
             }
             break;
@@ -356,6 +357,8 @@ static int get_func_args_size(const FuncMetadata* func_data) {
     ArgList* curr = func_data->args;
     int args_size = 0;
     while (curr) {
+        // For thiscall, we actually push the ECX back on stack and pretend it's
+        // stdcall so we need to also count thisptr here
         /*
         if (func_data->callconv == CALLCONV_THISCALL && curr->next == NULL) {
             // skip thisptr
@@ -368,6 +371,14 @@ static int get_func_args_size(const FuncMetadata* func_data) {
 
         curr = curr->next;
     }
+
+    if (func_data->return_type->size > REGISTER_SIZE) {
+        // We use System V ABI for returning struct (a pointer to the space as
+        // the hidden first arguemnt) This will be wrong for MSVC ABI like
+        // stdcall or thiscall
+        args_size += PTR_SIZE;
+    }
+
     return args_size;
 }
 
@@ -379,9 +390,13 @@ static void emit_var(CodegenState* state, VarNode* var) {
             if (var_ste->is_extern || var_ste->is_global) {
                 genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
                      var_ste->ident.len, var_ste->ident.ptr);
+            } else if (var_ste->is_arg) {
+                // Argument
+                genf("    leal %d(%%ebp), %%eax",
+                     var_ste->offset + var_ste->sym->arg_offset);
             } else {
                 // Local variable
-                genf("    leal %d(%%ebp), %%eax", var_ste->offset);
+                genf("    leal -%d(%%ebp), %%eax", var_ste->offset);
             }
         } break;
         case SYM_FUNC: {
@@ -405,7 +420,7 @@ static void emit_var(CodegenState* state, VarNode* var) {
 // src/dest cannot be %edx, %esi, %edi, %esp
 static void emit_memcpy(CodegenState* state, const char* dest, const char* src,
                         int size) {
-    assert(size > 4);
+    assert(size > REGISTER_SIZE);
 
 #ifdef NO_MEMCPY
     if (size <= INLINE_COPY_LIMIT) {
@@ -462,7 +477,7 @@ static void emit_assign(CodegenState* state, AssignNode* assign) {
 
     emit_node(state, assign->right);
     const TypedASTNode* r_node = as_typed_ast(assign->right);
-    if (r_node->type_info.is_lvalue) {
+    if (r_node->type_info.is_address) {
         emit_rvalify(state, &r_node->type_info.type);
     }
 
@@ -506,7 +521,7 @@ static void emit_if(CodegenState* state, IfStatementNode* if_node) {
 
     emit_node(state, if_node->expr);
     const TypedASTNode* expr_node = as_typed_ast(if_node->expr);
-    if (expr_node->type_info.is_lvalue) {
+    if (expr_node->type_info.is_address) {
         emit_rvalify(state, &expr_node->type_info.type);
     }
 
@@ -545,7 +560,7 @@ static void emit_while(CodegenState* state, WhileNode* while_node) {
 
     emit_node(state, while_node->expr);
     const TypedASTNode* expr_node = as_typed_ast(while_node->expr);
-    if (expr_node->type_info.is_lvalue) {
+    if (expr_node->type_info.is_address) {
         emit_rvalify(state, &expr_node->type_info.type);
     }
 
@@ -610,7 +625,7 @@ static void emit_call(CodegenState* state, CallNode* call) {
         emit_node(state, curr->node);
 
         const TypedASTNode* node = as_typed_ast(curr->node);
-        if (node->type_info.is_lvalue) {
+        if (node->type_info.is_address) {
             emit_rvalify(state, &node->type_info.type);
         }
 
@@ -618,7 +633,7 @@ static void emit_call(CodegenState* state, CallNode* call) {
         // padding
         size += (MAX_ALIGNMENT - (size % MAX_ALIGNMENT)) % MAX_ALIGNMENT;
 
-        if (size <= 4) {
+        if (size <= REGISTER_SIZE) {
             genf("    pushl %%eax");
         } else {
             genf("    subl $%d, %%esp", size);
@@ -630,9 +645,16 @@ static void emit_call(CodegenState* state, CallNode* call) {
         curr = curr->next;
     }
 
+    const Type* return_type = func_type->func_data.return_type;
+    if (return_type->size > REGISTER_SIZE) {
+        genf("    leal -%d(%%ebp), %%eax", state->temp_struct_stack_offset);
+        genf("    pushl %%eax");
+        args_size += PTR_SIZE;
+    }
+
     emit_node(state, call->node);
 
-    if (func_node->type_info.is_lvalue) {
+    if (func_node->type_info.is_address) {
         emit_rvalify(state, func_type);
     }
 
@@ -646,27 +668,27 @@ static void emit_call(CodegenState* state, CallNode* call) {
         genf("    addl $%d, %%esp", args_size);
     }
 
-    const Type* ret_type = func_type->func_data.return_type;
-    if (ret_type->type != METADATA_PRIMITIVE) {
+    // Return value
+    if (is_void(return_type)) {
         return;
     }
 
-    if (is_void(ret_type)) {
+    if (return_type->type != METADATA_PRIMITIVE) {
         return;
     }
 
-    switch (ret_type->size) {
+    switch (return_type->size) {
         case 4:
             break;
         case 2:
-            if (ret_type->primitive_type == TYPE_I16) {
+            if (return_type->primitive_type == TYPE_I16) {
                 genf("    movswl %%ax, %%eax");
             } else {
                 genf("    movzwl %%ax, %%eax");
             }
             break;
         case 1:
-            if (ret_type->primitive_type == TYPE_I8) {
+            if (return_type->primitive_type == TYPE_I8) {
                 genf("    movsbl %%al, %%eax");
             } else {
                 genf("    movzbl %%al, %%eax");
@@ -684,7 +706,7 @@ static void emit_print(CodegenState* state, PrintNode* print_node) {
         emit_node(state, curr->node);
 
         TypedASTNode* node = as_typed_ast(curr->node);
-        if (node->type_info.is_lvalue) {
+        if (node->type_info.is_address) {
             emit_rvalify(state, &node->type_info.type);
         }
 
@@ -698,25 +720,26 @@ static void emit_print(CodegenState* state, PrintNode* print_node) {
     arg_count++;
 
     genf("    call " OS_SYM_PREFIX "printf");
-    genf("    addl $%d, %%esp", arg_count * 4);
+    genf("    addl $%d, %%esp", arg_count * REGISTER_SIZE);
 }
 
 static void emit_ret(CodegenState* state, ReturnNode* ret) {
     if (ret->expr) {
         emit_node(state, ret->expr);
         const TypedASTNode* expr_node = as_typed_ast(ret->expr);
-        if (expr_node->type_info.is_lvalue) {
+        if (expr_node->type_info.is_address) {
             emit_rvalify(state, &expr_node->type_info.type);
         }
 
-        const Type* ret_type = &(as_typed_ast(ret->expr)->type_info.type);
-        if (ret_type->size > 4) {
-            // TODO: returning large type is not implemented yet
-            assert(0);
+        const Type* return_type = &(as_typed_ast(ret->expr)->type_info.type);
+        if (return_type->size > REGISTER_SIZE) {
+            genf("    movl 8(%%ebp), %%ecx");
+            emit_memcpy(state, "%ecx", "%eax", return_type->size);
+            genf("    movl 8(%%ebp), %%eax");
         }
     }
 
-    genf("    jmp .L%d", state->ret_label);
+    genf("    jmp .L%d", state->return_label);
 }
 
 static void emit_field(CodegenState* state, FieldNode* field) {
@@ -742,7 +765,7 @@ static void emit_indexof(CodegenState* state, IndexOfNode* idxof) {
 
     const TypedASTNode* l_node = as_typed_ast(idxof->left);
     const Type* l_type = &l_node->type_info.type;
-    if (l_node->type_info.is_lvalue && l_type->array_size == 0) {
+    if (l_node->type_info.is_address && l_type->array_size == 0) {
         emit_rvalify(state, &l_node->type_info.type);
     }
 
@@ -751,7 +774,7 @@ static void emit_indexof(CodegenState* state, IndexOfNode* idxof) {
     emit_node(state, idxof->right);
 
     const TypedASTNode* r_node = as_typed_ast(idxof->right);
-    if (r_node->type_info.is_lvalue) {
+    if (r_node->type_info.is_address) {
         emit_rvalify(state, &r_node->type_info.type);
     }
 
@@ -766,7 +789,7 @@ static void emit_cast(CodegenState* state, CastNode* cast) {
     emit_node(state, cast->expr);
 
     const TypedASTNode* expr = as_typed_ast(cast->expr);
-    if (expr->type_info.is_lvalue) {
+    if (expr->type_info.is_address) {
         emit_rvalify(state, &expr->type_info.type);
     }
 }
@@ -845,13 +868,13 @@ static void emit_node(CodegenState* state, ASTNode* node) {
 static inline void emit_func_start(CodegenState* state, int stack_size) {
     genf("    pushl %%ebp");
     genf("    movl %%esp, %%ebp");
-    if (stack_size) {
+    if (stack_size > 0) {
         genf("    subl $%d, %%esp", stack_size);
     }
 }
 
 static inline void emit_func_exit(CodegenState* state, int args_size) {
-    genf(".L%d:", state->ret_label);
+    genf(".L%d:", state->return_label);
     genf("    leave");
 
     if (args_size > 0) {
@@ -861,14 +884,16 @@ static inline void emit_func_exit(CodegenState* state, int args_size) {
     }
 }
 
-static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
-    int prev_ret_label = state->ret_label;
-    const Type* prev_ret_type = state->ret_type;
-    state->ret_label = add_label(state);
-    state->ret_type = func->func_data.return_type;
+static inline void setup_func_state(CodegenState* state,
+                                    const Type* return_type,
+                                    const SymbolTable* sym) {
+    state->return_label = add_label(state);
+    state->return_type = return_type;
+    state->temp_struct_stack_offset = *sym->stack_size;
+}
 
-    assert(func->node);
-    assert(func->is_extern == 0);
+static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
+    setup_func_state(state, func->func_data.return_type, func->func_sym);
 
     const FuncMetadata* func_data = &func->func_data;
     int args_size = get_func_args_size(func_data);
@@ -880,23 +905,28 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     }
 
     if (func->func_data.callconv == CALLCONV_THISCALL) {
-        genf("    popl %%eax");  // return address
-        genf("    pushl %%ecx");
-        genf("    pushl %%eax");
+        genf("    popl %%edx");   // return address
+        genf("    pushl %%ecx");  // thisptr
+        if (func_data->return_type->size > REGISTER_SIZE) {
+            genf("    pushl %%eax");  // return value address
+        }
+        genf("    pushl %%edx");
     }
 
-    emit_func_start(state, *func->sym->stack_size);
+    emit_func_start(state, *func->func_sym->stack_size);
 
     emit_node(state, func->node);
+
+    if (func->func_data.return_type->size > REGISTER_SIZE) {
+        // Just in case function has no return but has return type
+        genf("    movl 8(%%ebp), %%eax");
+    }
 
     if (func_data->callconv == CALLCONV_CDECL) {
         emit_func_exit(state, 0);
     } else {
         emit_func_exit(state, args_size);
     }
-
-    state->ret_label = prev_ret_label;
-    state->ret_type = prev_ret_type;
 
     if (func_data->callconv == CALLCONV_STDCALL) {
         genf(".globl " OS_SYM_PREFIX "%.*s@%d", func->ident.len,
@@ -965,8 +995,8 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
 
     // entry function
     if (!has_user_defined_entry) {
-        state->ret_label = add_label(state);
-        state->ret_type = get_primitive_type(TYPE_I32);
+        setup_func_state(state, get_primitive_type(TYPE_I32), sym);
+        ;
 
         genf(OS_SYM_PREFIX "%.*s:", entry_sym.len, entry_sym.ptr);
         emit_func_start(state, *sym->stack_size);

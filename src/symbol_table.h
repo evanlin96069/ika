@@ -31,6 +31,7 @@ struct SymbolTableEntry {
     SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
+    SymbolTable* sym;  // refernece back to the symbol table
 };
 
 struct VarSymbolTableEntry {
@@ -39,7 +40,9 @@ struct VarSymbolTableEntry {
     SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
+    SymbolTable* sym;
 
+    int is_arg;
     int is_extern;
     int is_global;
     int offset;
@@ -53,6 +56,7 @@ struct FieldSymbolTableEntry {
     SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
+    SymbolTable* sym;
 
     int offset;
     const Type* data_type;
@@ -73,6 +77,7 @@ struct DefSymbolTableEntry {
     SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
+    SymbolTable* sym;
 
     DefSymbolValue val;
 };
@@ -83,12 +88,13 @@ struct FuncSymbolTableEntry {
     SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
+    SymbolTable* sym;
 
     int is_extern;
     FuncMetadata func_data;
 
     struct ASTNode* node;
-    SymbolTable* sym;
+    SymbolTable* func_sym;
 };
 
 struct TypeSymbolTableEntry {
@@ -97,6 +103,7 @@ struct TypeSymbolTableEntry {
     SourcePos pos;
     SymbolTableEntry* next;
     SymbolType type;
+    SymbolTable* sym;
 
     int incomplete;
     int size;
@@ -108,10 +115,13 @@ struct SymbolTable {
     SymbolTable* parent;
     Arena* arena;
     SymbolTableEntry* ste;
-    int* stack_size;
-    int is_global;
-    int offset;
-    int arg_size;
+    int* stack_size;  // total stack size
+    int is_global;    // is global symbol table
+    int offset;       // offset for local variables
+    int arg_size;     // total size of arguments
+    int arg_offset;   // offset for the arguments (usually saved ebp + return
+                      // address = 8)
+    int max_struct_return_size;  // size of the max return type in this function
 };
 
 void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,

@@ -11,8 +11,9 @@
 typedef struct SemaState {
     Arena* arena;
 
-    int ret_label;
-    const Type* ret_type;
+    int return_label;
+    const Type* return_type;
+    int max_struct_return_size;
 
     int in_loop;
 } SemaState;

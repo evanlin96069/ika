@@ -1462,6 +1462,10 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
         }
         assert(return_type->type == NODE_TYPE);
         func_data.return_type = ((TypeNode*)return_type)->data_type;
+        if (func_data.return_type->size > REGISTER_SIZE) {
+            // space for hidden arguemnt (return struct address)
+            parser->sym->arg_offset += PTR_SIZE;
+        }
     }
 
     func->func_data = func_data;
@@ -1486,7 +1490,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
     parser->sym = parser->global_sym;
 
-    func->sym = sym;
+    func->func_sym = sym;
 
     return NULL;
 }

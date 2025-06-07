@@ -16,16 +16,21 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
     sym->parent = NULL;
     sym->arena = arena;
     sym->ste = NULL;
+
     if (!stack_size) {
         stack_size = arena_alloc(arena, sizeof(int));
         *stack_size = 0;
     }
     sym->stack_size = stack_size;
-    sym->arg_size = 0;  // fill in during parsing
+
+    sym->arg_size = 0;                // fill in during parsing
+    sym->arg_offset = 8;              // saved ebp + return address
+    sym->max_struct_return_size = 0;  // fill in during type check
 }
 
 static inline void symbol_table_append(SymbolTable* sym,
                                        SymbolTableEntry* ste) {
+    ste->sym = sym;
     ste->next = sym->ste;
     sym->ste = ste;
 }
@@ -42,6 +47,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
     ste->hash = djb2_hash(ident);
     ste->pos = pos;
 
+    ste->is_arg = is_arg;
     ste->is_extern = is_extern;
     ste->is_global = sym->is_global;
 
@@ -53,6 +59,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
 
     if (is_extern == 0) {
         if (is_arg) {
+            // Arguments
             if (size < 4) {
                 size = 4;
             }
@@ -61,10 +68,10 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
             if (alignment_off != 0) {
                 sym->arg_size += alignment - alignment_off;
             }
-            ste->offset = sym->arg_size + 8;
+            ste->offset = sym->arg_size;
             sym->arg_size += size;
         } else {
-            // local variable
+            // Variables
             int alignment_off = sym->offset % alignment;
             if (alignment_off != 0) {
                 sym->offset += alignment - alignment_off;
@@ -74,7 +81,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                 ste->offset = sym->offset;
                 sym->offset += size;
             } else {
-                ste->offset = -sym->offset - size;
+                ste->offset = sym->offset + size;  // this is negative offset
                 sym->offset += size;
             }
         }
@@ -161,8 +168,8 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
     ste->is_extern = is_extern;
     // ste->func_data = func_data; // fill in during parsing
 
-    ste->node = NULL;  // fill in during parsing
-    ste->sym = NULL;   // fill in during parsing
+    ste->node = NULL;      // fill in during parsing
+    ste->func_sym = NULL;  // fill in during parsing
 
     symbol_table_append(sym, (SymbolTableEntry*)ste);
 

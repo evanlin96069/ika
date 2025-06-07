@@ -17,8 +17,9 @@ typedef struct CodegenState {
     int data_count;
     Str data[MAX_DATA_COUNT];
 
-    int ret_label;
-    const Type* ret_type;
+    int return_label;
+    const Type* return_type;
+    int temp_struct_stack_offset;
 
     int in_loop;
     int break_label;

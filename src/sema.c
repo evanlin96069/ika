@@ -82,6 +82,7 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
             }
         }
         binop->type_info.is_lvalue = 0;
+        binop->type_info.is_address = 0;
         binop->type_info.type = *get_primitive_type(TYPE_BOOL);
     } else {
         err = type_check_node(state, binop->right);
@@ -170,6 +171,7 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
             }
         }
         binop->type_info.is_lvalue = 0;
+        binop->type_info.is_address = 0;
     }
 
     return NULL;
@@ -186,6 +188,7 @@ static Error* type_check_unaryop(SemaState* state, UnaryOpNode* unaryop) {
     const Type* type = &node->type_info.type;
 
     unaryop->type_info.is_lvalue = 0;
+    unaryop->type_info.is_address = 0;
     unaryop->type_info.type = *type;
 
     switch (unaryop->op) {
@@ -234,6 +237,7 @@ static Error* type_check_unaryop(SemaState* state, UnaryOpNode* unaryop) {
             }
 
             unaryop->type_info.is_lvalue = 1;
+            unaryop->type_info.is_address = 1;
             break;
 
         case TK_AND:
@@ -270,12 +274,14 @@ static Error* type_check_var(SemaState* state, VarNode* var) {
             // Variable
             VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
             var->type_info.is_lvalue = 1;
+            var->type_info.is_address = 1;
             var->type_info.type = *var_ste->data_type;
         } break;
         case SYM_FUNC: {
             // Function pointer
             FuncSymbolTableEntry* func_ste = (FuncSymbolTableEntry*)var->ste;
             var->type_info.is_lvalue = 0;
+            var->type_info.is_address = 0;
             var->type_info.type.type = METADATA_FUNC;
             var->type_info.type.func_data = func_ste->func_data;
         } break;
@@ -342,6 +348,7 @@ static Error* type_check_assign(SemaState* state, AssignNode* assign) {
     }
 
     assign->type_info.is_lvalue = 1;
+    assign->type_info.is_address = 1;
     assign->type_info.type = *l_type;
     return NULL;
 }
@@ -462,8 +469,18 @@ static Error* type_check_call(SemaState* state, CallNode* call) {
         return error(call->pos, "too few arguments");
     }
 
+    const Type* return_type = func_type->func_data.return_type;
+
     call->type_info.is_lvalue = 0;
-    call->type_info.type = *func_type->func_data.return_type;
+    call->type_info.is_address = 0;
+    call->type_info.type = *return_type;
+
+    if (return_type->size > REGISTER_SIZE) {
+        call->type_info.is_address = 1;
+        state->max_struct_return_size =
+            MAX(state->max_struct_return_size, return_type->size);
+    }
+
     return NULL;
 }
 
@@ -475,7 +492,7 @@ static Error* type_check_print(SemaState* state, PrintNode* print_node) {
             return err;
         }
 
-        if (as_typed_ast(curr->node)->type_info.type.size > 4) {
+        if (as_typed_ast(curr->node)->type_info.type.size > REGISTER_SIZE) {
             return error(curr->node->pos, "passing argument with invalid type");
         }
 
@@ -486,17 +503,17 @@ static Error* type_check_print(SemaState* state, PrintNode* print_node) {
 }
 
 static Error* type_check_ret(SemaState* state, ReturnNode* ret) {
-    const Type* ret_type = get_primitive_type(TYPE_VOID);
+    const Type* return_type = get_primitive_type(TYPE_VOID);
 
     if (ret->expr) {
         Error* err = type_check_node(state, ret->expr);
         if (err != NULL) {
             return err;
         }
-        ret_type = &(as_typed_ast(ret->expr)->type_info.type);
+        return_type = &(as_typed_ast(ret->expr)->type_info.type);
     }
 
-    if (!is_allowed_type_convert(state->ret_type, ret_type)) {
+    if (!is_allowed_type_convert(state->return_type, return_type)) {
         return error(ret->pos, "invalid return type");
     }
 
@@ -529,7 +546,8 @@ static Error* type_check_field(SemaState* state, FieldNode* field) {
                      field->ident.ptr);
     }
 
-    field->type_info.is_lvalue = 1;
+    field->type_info.is_lvalue = node->type_info.is_lvalue;
+    field->type_info.is_address = 1;
     field->type_info.type = *ste->data_type;
     return NULL;
 }
@@ -558,7 +576,8 @@ static Error* type_check_indexof(SemaState* state, IndexOfNode* idxof) {
         return error(idxof->pos, "array subscript is not an integer");
     }
 
-    idxof->type_info.is_lvalue = 1;
+    idxof->type_info.is_lvalue = l_node->type_info.is_lvalue;
+    idxof->type_info.is_address = 1;
     idxof->type_info.type = *l_type->inner_type;
     return NULL;
 }
@@ -576,6 +595,7 @@ static Error* type_check_cast(SemaState* state, CastNode* cast) {
         if (is_int(type) || is_ptr_like(type) || is_func_ptr(type)) {
             cast->type_info.type = *cast->data_type;
             cast->type_info.is_lvalue = 0;
+            cast->type_info.is_address = 0;
         } else {
             return error(cast->pos, "cannot convert to a integer type");
         }
@@ -583,6 +603,7 @@ static Error* type_check_cast(SemaState* state, CastNode* cast) {
         if (is_int(type) || is_ptr_like(type) || is_func_ptr(type)) {
             cast->type_info.type = *cast->data_type;
             cast->type_info.is_lvalue = 0;
+            cast->type_info.is_address = 0;
         } else {
             return error(cast->pos, "cannot convert to a pointer type");
         }
@@ -601,6 +622,7 @@ static Error* type_check_node(SemaState* state, ASTNode* node) {
         case NODE_INTLIT: {
             IntLitNode* lit = (IntLitNode*)node;
             lit->type_info.is_lvalue = 0;
+            lit->type_info.is_address = 0;
             if (lit->data_type == TYPE_VOID) {
                 lit->type_info.type = *get_void_ptr_type();
             } else {
@@ -612,6 +634,7 @@ static Error* type_check_node(SemaState* state, ASTNode* node) {
         case NODE_STRLIT: {
             StrLitNode* lit = (StrLitNode*)node;
             lit->type_info.is_lvalue = 0;
+            lit->type_info.is_address = 0;
             lit->type_info.type = *get_string_type();
         }
             return NULL;
@@ -660,24 +683,33 @@ static Error* type_check_node(SemaState* state, ASTNode* node) {
     }
 }
 
-static Error* type_check_func(SemaState* state, FuncSymbolTableEntry* func) {
-    const Type* prev_ret_type = state->ret_type;
-    state->ret_type = func->func_data.return_type;
+static Error* type_check_func(SemaState* state, ASTNode* func,
+                              const Type* return_type, SymbolTable* sym) {
+    state->return_type = return_type;
+    state->max_struct_return_size = 0;
 
-    assert(func->node);
-    assert(func->is_extern == 0);
-
-    Error* err = type_check_node(state, func->node);
+    Error* err = type_check_node(state, func);
     if (err != NULL) {
         return err;
     }
 
-    state->ret_type = prev_ret_type;
+    // Make sure it's aligned
+    int max_struct_return_size = state->max_struct_return_size;
+    int alignment_off = max_struct_return_size % MAX_ALIGNMENT;
+    if (alignment_off != 0) {
+        max_struct_return_size += MAX_ALIGNMENT - alignment_off;
+    }
+
+    sym->max_struct_return_size = max_struct_return_size;
+    *sym->stack_size += max_struct_return_size;
 
     return NULL;
 }
 
-static Error* type_check_global(SemaState* state, StatementListNode* stmts) {
+static Error* type_check_global(SemaState* state, ASTNode* node) {
+    assert(node->type == NODE_STMTS);
+    StatementListNode* stmts = (StatementListNode*)node;
+
     ASTNodeList* iter = stmts->stmts;
     while (iter) {
         if (iter->node->type != NODE_ASSIGN ||
@@ -739,7 +771,9 @@ Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym, Str entry_sym) {
         if (curr->type == SYM_FUNC) {
             FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)curr;
             if (func->node) {
-                err = type_check_func(state, func);
+                err = type_check_func(state, func->node,
+                                      func->func_data.return_type,
+                                      func->func_sym);
                 if (err != NULL) {
                     return err;
                 }
@@ -748,20 +782,18 @@ Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym, Str entry_sym) {
         curr = curr->next;
     }
 
-    assert(node->type == NODE_STMTS);
-    StatementListNode* stmts = (StatementListNode*)node;
     if (has_user_defined_entry) {
-        err = type_check_global(state, stmts);
+        err = type_check_global(state, node);
         if (err != NULL) {
             return err;
         }
     } else {
-        // as script mode
-        state->ret_type = get_primitive_type(TYPE_I32);
-        err = type_check_stmts(state, stmts);
+        // Script mode
+        err = type_check_func(state, node, get_primitive_type(TYPE_I32), sym);
         if (err != NULL) {
             return err;
         }
+        sym->max_struct_return_size = state->max_struct_return_size;
     }
 
     return NULL;
