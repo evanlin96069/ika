@@ -55,7 +55,7 @@ static ASTNode* primary(ParserState* parser) {
         case TK_NULL: {
             IntLitNode* intlit = arena_alloc(parser->arena, sizeof(IntLitNode));
             intlit->type = NODE_INTLIT;
-            intlit->pos = parser->post_token_pos;
+            intlit->pos = parser->token_start;
             if (tk.type == TK_INT) {
                 intlit->data_type = get_intlit_type(tk.val);
                 intlit->val = tk.val;
@@ -72,10 +72,10 @@ static ASTNode* primary(ParserState* parser) {
         case TK_SIZEOF: {
             IntLitNode* intlit = arena_alloc(parser->arena, sizeof(IntLitNode));
             intlit->type = NODE_INTLIT;
-            intlit->pos = parser->post_token_pos;
+            intlit->pos = parser->token_start;
             tk = next_token(parser);
             if (tk.type != TK_LPAREN) {
-                return error(parser, parser->pre_token_pos, "expected '('");
+                return error(parser, parser->prev_token_end, "expected '('");
             }
 
             ASTNode* type_node = data_type(parser, 0);
@@ -85,7 +85,7 @@ static ASTNode* primary(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_RPAREN) {
-                return error(parser, parser->pre_token_pos, "expected ')'");
+                return error(parser, parser->prev_token_end, "expected ')'");
             }
 
             intlit->data_type = TYPE_U32;
@@ -98,10 +98,10 @@ static ASTNode* primary(ParserState* parser) {
         case TK_CAST: {
             CastNode* cast = arena_alloc(parser->arena, sizeof(CastNode));
             cast->type = NODE_CAST;
-            cast->pos = parser->post_token_pos;
+            cast->pos = parser->token_start;
             tk = next_token(parser);
             if (tk.type != TK_LPAREN) {
-                return error(parser, parser->pre_token_pos, "expected '('");
+                return error(parser, parser->prev_token_end, "expected '('");
             }
 
             TypeNode* type_node = (TypeNode*)data_type(parser, 0);
@@ -114,7 +114,7 @@ static ASTNode* primary(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_COMMA) {
-                return error(parser, parser->pre_token_pos, "expected ','");
+                return error(parser, parser->prev_token_end, "expected ','");
             }
 
             ASTNode* expr_node = expr(parser, 1);
@@ -125,7 +125,7 @@ static ASTNode* primary(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_RPAREN) {
-                return error(parser, parser->pre_token_pos, "expected ')'");
+                return error(parser, parser->prev_token_end, "expected ')'");
             }
 
             node = (ASTNode*)cast;
@@ -134,7 +134,7 @@ static ASTNode* primary(ParserState* parser) {
         case TK_STR: {
             StrLitNode* strlit = arena_alloc(parser->arena, sizeof(StrLitNode));
             strlit->type = NODE_STRLIT;
-            strlit->pos = parser->post_token_pos;
+            strlit->pos = parser->token_start;
             strlit->val = tk.str;
             node = (ASTNode*)strlit;
         } break;
@@ -142,8 +142,8 @@ static ASTNode* primary(ParserState* parser) {
         case TK_IDENT: {
             SymbolTableEntry* ste = symbol_table_find(parser->sym, tk.str, 0);
             if (!ste) {
-                return error(parser, parser->post_token_pos,
-                             "'%.*s' undeclared", tk.str.len, tk.str.ptr);
+                return error(parser, parser->token_start, "'%.*s' undeclared",
+                             tk.str.len, tk.str.ptr);
             }
 
             switch (ste->type) {
@@ -152,7 +152,7 @@ static ASTNode* primary(ParserState* parser) {
                     VarNode* var_node =
                         arena_alloc(parser->arena, sizeof(VarNode));
                     var_node->type = NODE_VAR;
-                    var_node->pos = parser->post_token_pos;
+                    var_node->pos = parser->token_start;
                     var_node->ste = ste;
                     node = (ASTNode*)var_node;
                 } break;
@@ -163,14 +163,14 @@ static ASTNode* primary(ParserState* parser) {
                         StrLitNode* strlit =
                             arena_alloc(parser->arena, sizeof(StrLitNode));
                         strlit->type = NODE_STRLIT;
-                        strlit->pos = parser->post_token_pos;
+                        strlit->pos = parser->token_start;
                         strlit->val = def->val.str;
                         node = (ASTNode*)strlit;
                     } else {
                         IntLitNode* intlit =
                             arena_alloc(parser->arena, sizeof(IntLitNode));
                         intlit->type = NODE_INTLIT;
-                        intlit->pos = parser->post_token_pos;
+                        intlit->pos = parser->token_start;
                         intlit->data_type = def->val.data_type;
                         intlit->val = def->val.val;
                         node = (ASTNode*)intlit;
@@ -178,7 +178,7 @@ static ASTNode* primary(ParserState* parser) {
                 } break;
 
                 case SYM_TYPE:
-                    return error(parser, parser->post_token_pos,
+                    return error(parser, parser->token_start,
                                  "expected an expression", tk.str.len,
                                  tk.str.ptr);
 
@@ -194,7 +194,7 @@ static ASTNode* primary(ParserState* parser) {
             }
             tk = next_token(parser);
             if (tk.type != TK_RPAREN) {
-                return error(parser, parser->pre_token_pos, "expected ')'");
+                return error(parser, parser->prev_token_end, "expected ')'");
             }
         } break;
 
@@ -240,7 +240,7 @@ static ASTNode* primary(ParserState* parser) {
                 UnaryOpNode* unary_node =
                     arena_alloc(parser->arena, sizeof(UnaryOpNode));
                 unary_node->type = NODE_UNARYOP;
-                unary_node->pos = parser->post_token_pos;
+                unary_node->pos = parser->token_start;
                 unary_node->op = tk.type;
                 unary_node->node = right;
                 node = (ASTNode*)unary_node;
@@ -248,11 +248,11 @@ static ASTNode* primary(ParserState* parser) {
         } break;
 
         case TK_ERR:
-            return error(parser, parser->post_token_pos, "%.*s", tk.str.len,
+            return error(parser, parser->token_end, "%.*s", tk.str.len,
                          tk.str.ptr);
 
         default:
-            return error(parser, parser->post_token_pos, "unexpected token");
+            return error(parser, parser->token_start, "unexpected token");
     }
 
     int is_trailing_operator = 1;
@@ -264,11 +264,11 @@ static ASTNode* primary(ParserState* parser) {
                 FieldNode* field =
                     arena_alloc(parser->arena, sizeof(FieldNode));
                 field->type = NODE_FIELD;
-                field->pos = parser->post_token_pos;
+                field->pos = parser->token_start;
                 field->node = node;
                 tk = next_token(parser);
                 if (tk.type != TK_IDENT) {
-                    return error(parser, parser->pre_token_pos,
+                    return error(parser, parser->prev_token_end,
                                  "expected an identifier");
                 }
                 field->ident = tk.str;
@@ -280,7 +280,7 @@ static ASTNode* primary(ParserState* parser) {
                 IndexOfNode* indexof =
                     arena_alloc(parser->arena, sizeof(IndexOfNode));
                 indexof->type = NODE_INDEXOF;
-                indexof->pos = parser->post_token_pos;
+                indexof->pos = parser->token_start;
                 indexof->left = node;
                 indexof->right = expr(parser, 0);
                 if (indexof->right->type == NODE_ERR) {
@@ -290,7 +290,8 @@ static ASTNode* primary(ParserState* parser) {
 
                 tk = next_token(parser);
                 if (tk.type != TK_RBRACKET) {
-                    return error(parser, parser->pre_token_pos, "expected ']'");
+                    return error(parser, parser->prev_token_end,
+                                 "expected ']'");
                 }
             } break;
 
@@ -299,7 +300,7 @@ static ASTNode* primary(ParserState* parser) {
                 CallNode* call_node =
                     arena_alloc(parser->arena, sizeof(CallNode));
                 call_node->type = NODE_CALL;
-                call_node->pos = parser->post_token_pos;
+                call_node->pos = parser->token_start;
                 call_node->node = node;
                 call_node->args = NULL;
 
@@ -321,7 +322,7 @@ static ASTNode* primary(ParserState* parser) {
 
                         tk = next_token(parser);
                         if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
-                            return error(parser, parser->pre_token_pos,
+                            return error(parser, parser->prev_token_end,
                                          "expected ',' or ')'");
                         }
                     }
@@ -464,7 +465,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                 AssignNode* assign =
                     arena_alloc(parser->arena, sizeof(AssignNode));
                 assign->type = NODE_ASSIGN;
-                assign->pos = parser->post_token_pos;
+                assign->pos = parser->token_start;
                 assign->left = node;
                 assign->right = expr(parser, next_precedence);
                 assign->from_decl = 0;
@@ -487,14 +488,14 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
                 AssignNode* assign =
                     arena_alloc(parser->arena, sizeof(AssignNode));
                 assign->type = NODE_ASSIGN;
-                assign->pos = parser->post_token_pos;
+                assign->pos = parser->token_start;
                 assign->left = node;
                 assign->from_decl = 0;
 
                 BinaryOpNode* binop =
                     arena_alloc(parser->arena, sizeof(BinaryOpNode));
                 binop->type = NODE_BINARYOP;
-                binop->pos = parser->post_token_pos;
+                binop->pos = parser->token_start;
                 switch (tk.type) {
                     case TK_AADD:
                         binop->op = TK_ADD;
@@ -540,7 +541,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
             } break;
 
             default: {
-                SourcePos pos = parser->post_token_pos;
+                SourcePos pos = parser->token_start;
                 ASTNode* out = NULL;
                 ASTNode* left = node;
                 ASTNode* right = expr(parser, next_precedence);
@@ -782,14 +783,14 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
 
     TypeNode* type_node = arena_alloc(parser->arena, sizeof(TypeNode));
     type_node->type = NODE_TYPE;
-    type_node->pos = parser->post_token_pos;
+    type_node->pos = parser->token_start;
 
     if (is_primitive_type(tk)) {
         // Primitive type
         PrimitiveType primitive = primitive_type_token_to_type(tk);
         if (primitive == TYPE_VOID) {
             if (!allow_incomplete) {
-                return error(parser, parser->post_token_pos,
+                return error(parser, parser->token_start,
                              "incomplete type is not allowed");
             }
         }
@@ -869,8 +870,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
 
                 tk = next_token(parser);
                 if (tk.type != TK_RBRACKET) {
-                    return error(parser, parser->post_token_pos,
-                                 "expected ']'");
+                    return error(parser, parser->token_start, "expected ']'");
                 }
 
                 ASTNode* inner = data_type(parser, 0);
@@ -894,11 +894,11 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
             SymbolTableEntry* ste =
                 symbol_table_find(parser->global_sym, ident, 0);
             if (ste == NULL) {
-                return error(parser, parser->post_token_pos,
-                             "'%.*s' undeclared", tk.str.len, tk.str.ptr);
+                return error(parser, parser->token_start, "'%.*s' undeclared",
+                             tk.str.len, tk.str.ptr);
             }
             if (ste->type != SYM_TYPE) {
-                return error(parser, parser->post_token_pos,
+                return error(parser, parser->token_start,
                              "'%.*s' is not a type", tk.str.len, tk.str.ptr);
             }
 
@@ -912,7 +912,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
             } else if (allow_incomplete) {
                 type->incomplete = 1;
             } else {
-                return error(parser, parser->post_token_pos,
+                return error(parser, parser->token_start,
                              "incomplete type is not allowed");
             }
         } break;
@@ -927,7 +927,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
 
             tk = next_token(parser);
             CallConvType call_type = CALLCONV_CDECL;
-            SourcePos callconv_pos = parser->post_token_pos;
+            SourcePos callconv_pos = parser->token_start;
             if (tk.type == TK_STR) {
                 int found = 0;
                 for (unsigned int i = 0;
@@ -946,7 +946,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
             }
 
             if (tk.type != TK_LPAREN) {
-                return error(parser, parser->pre_token_pos, "expected '('");
+                return error(parser, parser->prev_token_end, "expected '('");
             }
 
             FuncMetadata func_data;
@@ -965,26 +965,26 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
                     tk = next_token(parser);
                     if (tk.type == TK_ARGS) {
                         if (call_type != CALLCONV_CDECL) {
-                            return error(parser, parser->pre_token_pos,
+                            return error(parser, parser->prev_token_end,
                                          "vararg is not allowed in this "
                                          "calling convention");
                         }
                         func_data.has_va_args = 1;
                         tk = next_token(parser);
                         if (tk.type != TK_RPAREN) {
-                            return error(parser, parser->pre_token_pos,
+                            return error(parser, parser->prev_token_end,
                                          "expected ')'");
                         }
                         break;
                     }
                     if (tk.type != TK_IDENT) {
-                        return error(parser, parser->post_token_pos,
+                        return error(parser, parser->token_start,
                                      "expected an identifier");
                     }
 
                     tk = next_token(parser);
                     if (tk.type != TK_COLON) {
-                        return error(parser, parser->pre_token_pos,
+                        return error(parser, parser->prev_token_end,
                                      "expected ':'");
                     }
 
@@ -1006,7 +1006,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
 
                     tk = next_token(parser);
                     if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
-                        return error(parser, parser->pre_token_pos,
+                        return error(parser, parser->prev_token_end,
                                      "expected ',' or ')'");
                     }
                 }
@@ -1033,7 +1033,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
         } break;
 
         default:
-            return error(parser, parser->post_token_pos, "expected a type");
+            return error(parser, parser->token_start, "expected a type");
     }
 
     type_node->data_type = type;
@@ -1047,11 +1047,11 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
 
     tk = next_token(parser);
     if (tk.type != TK_IDENT) {
-        return error(parser, parser->post_token_pos, "expected an identifier");
+        return error(parser, parser->token_start, "expected an identifier");
     }
 
     Str ident = tk.str;
-    SourcePos ident_pos = parser->post_token_pos;
+    SourcePos ident_pos = parser->token_start;
     if (symbol_table_find(parser->sym, ident, 1) != NULL) {
         return error(parser, ident_pos, "redefinition of '%.*s'", tk.str.len,
                      tk.str.ptr);
@@ -1059,7 +1059,7 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
 
     tk = next_token(parser);
     if (tk.type != TK_COLON) {
-        return error(parser, parser->post_token_pos, "expected ':'");
+        return error(parser, parser->token_start, "expected ':'");
     }
 
     ASTNode* var_type = data_type(parser, 0);
@@ -1076,20 +1076,20 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
     if (tk.type == TK_ASSIGN) {
         if (is_extern) {
             next_token(parser);
-            return error(parser, parser->post_token_pos,
+            return error(parser, parser->token_start,
                          "initializing extern variable is not allowed");
         }
 
         VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
         var->type = NODE_VAR;
-        var->pos = parser->post_token_pos;
+        var->pos = parser->token_start;
         var->ste = (SymbolTableEntry*)ste;
 
         next_token(parser);
 
         AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
         assign->type = NODE_ASSIGN;
-        assign->pos = parser->post_token_pos;
+        assign->pos = parser->token_start;
         assign->left = (ASTNode*)var;
         assign->right = expr(parser, 0);
         assign->from_decl = 1;
@@ -1099,7 +1099,7 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
         return (ASTNode*)assign;
     } else if (tk.type != TK_SEMICOLON) {
         next_token(parser);
-        return error(parser, parser->pre_token_pos,
+        return error(parser, parser->prev_token_end,
                      "expected '=' or ';' after declaration");
     }
 
@@ -1113,11 +1113,11 @@ static ASTNode* def_decl(ParserState* parser) {
     tk = next_token(parser);
 
     if (tk.type != TK_IDENT) {
-        return error(parser, parser->post_token_pos, "expected an identifier");
+        return error(parser, parser->token_start, "expected an identifier");
     }
 
     Str ident = tk.str;
-    SourcePos ident_pos = parser->post_token_pos;
+    SourcePos ident_pos = parser->token_start;
     if (symbol_table_find(parser->sym, ident, 1) != NULL) {
         return error(parser, ident_pos, "redefinition of '%.*s'", tk.str.len,
                      tk.str.ptr);
@@ -1125,11 +1125,11 @@ static ASTNode* def_decl(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_ASSIGN) {
-        return error(parser, parser->pre_token_pos,
+        return error(parser, parser->prev_token_end,
                      "expected '=' after define");
     }
 
-    SourcePos pos = parser->pre_token_pos;
+    SourcePos pos = parser->prev_token_end;
 
     ASTNode* val_node = expr(parser, 0);
     if (val_node->type == NODE_ERR) {
@@ -1164,11 +1164,11 @@ static ASTNode* struct_decl(ParserState* parser) {
     tk = next_token(parser);
 
     if (tk.type != TK_IDENT) {
-        return error(parser, parser->post_token_pos, "expected an identifier");
+        return error(parser, parser->token_start, "expected an identifier");
     }
 
     Str ident = tk.str;
-    SourcePos ident_pos = parser->post_token_pos;
+    SourcePos ident_pos = parser->token_start;
     SymbolTableEntry* ste = symbol_table_find(parser->sym, ident, 1);
     TypeSymbolTableEntry* type_ste;
     if (ste == NULL) {
@@ -1188,7 +1188,7 @@ static ASTNode* struct_decl(ParserState* parser) {
     }
 
     if (tk.type != TK_LBRACE) {
-        return error(parser, parser->post_token_pos, "expected '{'");
+        return error(parser, parser->token_start, "expected '{'");
     }
 
     tk = next_token(parser);
@@ -1202,12 +1202,12 @@ static ASTNode* struct_decl(ParserState* parser) {
     tk = next_token(parser);
     while (tk.type != TK_RBRACE) {
         if (tk.type != TK_IDENT) {
-            return error(parser, parser->post_token_pos,
+            return error(parser, parser->token_start,
                          "expected an identifier or '}'");
         }
 
         Str ident = tk.str;
-        SourcePos ident_pos = parser->post_token_pos;
+        SourcePos ident_pos = parser->token_start;
         if (symbol_table_find(name_space, ident, 1)) {
             return error(parser, ident_pos, "redefinition of '%.*s'",
                          tk.str.len, tk.str.ptr);
@@ -1215,7 +1215,7 @@ static ASTNode* struct_decl(ParserState* parser) {
 
         tk = next_token(parser);
         if (tk.type != TK_COLON) {
-            return error(parser, parser->post_token_pos, "expected ':'");
+            return error(parser, parser->token_start, "expected ':'");
         }
 
         ASTNode* type_node = data_type(parser, 0);
@@ -1234,7 +1234,7 @@ static ASTNode* struct_decl(ParserState* parser) {
         if (tk.type == TK_COMMA) {
             tk = next_token(parser);
         } else if (tk.type != TK_RBRACE) {
-            return error(parser, parser->post_token_pos, "expected ',' or '}'");
+            return error(parser, parser->token_start, "expected ',' or '}'");
         }
     }
 
@@ -1258,7 +1258,7 @@ static ASTNode* enum_decl(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_LBRACE) {
-        return error(parser, parser->post_token_pos, "expected '{'");
+        return error(parser, parser->token_start, "expected '{'");
     }
 
     int enum_val = 0;
@@ -1266,12 +1266,11 @@ static ASTNode* enum_decl(ParserState* parser) {
     tk = next_token(parser);
     while (tk.type != TK_RBRACE) {
         if (tk.type != TK_IDENT) {
-            return error(parser, parser->post_token_pos,
-                         "expected an identifier");
+            return error(parser, parser->token_start, "expected an identifier");
         }
 
         Str ident = tk.str;
-        SourcePos ident_pos = parser->post_token_pos;
+        SourcePos ident_pos = parser->token_start;
         if (symbol_table_find(parser->sym, ident, 1) != NULL) {
             return error(parser, ident_pos, "redefinition of identifier '%.*s'",
                          tk.str.len, tk.str.ptr);
@@ -1280,7 +1279,7 @@ static ASTNode* enum_decl(ParserState* parser) {
         Token peek = peek_token(parser);
         if (peek.type == TK_ASSIGN) {
             next_token(parser);
-            SourcePos pos = parser->pre_token_pos;
+            SourcePos pos = parser->prev_token_end;
             ASTNode* lit_node = expr(parser, 1);
             if (lit_node->type == NODE_ERR) {
                 return lit_node;
@@ -1311,7 +1310,7 @@ static ASTNode* enum_decl(ParserState* parser) {
                 break;
             }
         } else if (tk.type != TK_RBRACE) {
-            return error(parser, parser->post_token_pos,
+            return error(parser, parser->token_start,
                          "expected ',' or '}' after identifier");
         }
     }
@@ -1325,7 +1324,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
     tk = next_token(parser);
     CallConvType call_type = CALLCONV_CDECL;
-    SourcePos callconv_pos = parser->post_token_pos;
+    SourcePos callconv_pos = parser->token_start;
     if (tk.type == TK_STR) {
         int found = 0;
         for (unsigned int i = 0;
@@ -1343,11 +1342,11 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
     }
 
     if (tk.type != TK_IDENT) {
-        return error(parser, parser->post_token_pos, "expected an identifier");
+        return error(parser, parser->token_start, "expected an identifier");
     }
 
     Str ident = tk.str;
-    SourcePos ident_pos = parser->post_token_pos;
+    SourcePos ident_pos = parser->token_start;
     SymbolTableEntry* ste = symbol_table_find(parser->global_sym, ident, 1);
 
     FuncSymbolTableEntry* func;
@@ -1365,7 +1364,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
     tk = next_token(parser);
     if (tk.type != TK_LPAREN) {
-        return error(parser, parser->pre_token_pos, "expected '('");
+        return error(parser, parser->prev_token_end, "expected '('");
     }
 
     SymbolTable* sym =
@@ -1392,23 +1391,24 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
             if (tk.type == TK_ARGS) {
                 if (call_type != CALLCONV_CDECL) {
                     return error(
-                        parser, parser->pre_token_pos,
+                        parser, parser->prev_token_end,
                         "vararg is not allowed in this calling convention");
                 }
                 func_data.has_va_args = 1;
                 tk = next_token(parser);
                 if (tk.type != TK_RPAREN) {
-                    return error(parser, parser->pre_token_pos, "expected ')'");
+                    return error(parser, parser->prev_token_end,
+                                 "expected ')'");
                 }
                 break;
             }
             if (tk.type != TK_IDENT) {
-                return error(parser, parser->post_token_pos,
+                return error(parser, parser->token_start,
                              "expected an identifier");
             }
 
             ident = tk.str;
-            ident_pos = parser->post_token_pos;
+            ident_pos = parser->token_start;
             if (symbol_table_find(parser->sym, ident, 1) != NULL) {
                 return error(parser, ident_pos, "redefinition of '%.*s'",
                              tk.str.len, tk.str.ptr);
@@ -1416,7 +1416,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
             tk = next_token(parser);
             if (tk.type != TK_COLON) {
-                return error(parser, parser->pre_token_pos, "expected ':'");
+                return error(parser, parser->prev_token_end, "expected ':'");
             }
 
             ASTNode* arg_type = data_type(parser, 0);
@@ -1441,7 +1441,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
             tk = next_token(parser);
             if (tk.type != TK_COMMA && tk.type != TK_RPAREN) {
-                return error(parser, parser->pre_token_pos,
+                return error(parser, parser->prev_token_end,
                              "expected ',' or ')'");
             }
         }
@@ -1474,7 +1474,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
     if (tk.type == TK_LBRACE) {
         if (func->is_extern) {
             next_token(parser);
-            return error(parser, parser->post_token_pos,
+            return error(parser, parser->token_start,
                          "implementing extern function is not allowed");
         }
 
@@ -1485,7 +1485,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
         func->node = node;
     } else if (tk.type != TK_SEMICOLON) {
         next_token(parser);
-        return error(parser, parser->pre_token_pos, "expected '{' or ';'");
+        return error(parser, parser->prev_token_end, "expected '{' or ';'");
     }
 
     parser->sym = parser->global_sym;
@@ -1502,7 +1502,7 @@ static ASTNode* return_stmt(ParserState* parser) {
     tk = peek_token(parser);
     ReturnNode* ret_node = arena_alloc(parser->arena, sizeof(ReturnNode));
     ret_node->type = NODE_RET;
-    ret_node->pos = parser->post_token_pos;
+    ret_node->pos = parser->token_start;
     if (tk.type == TK_SEMICOLON) {
         ret_node->expr = NULL;
     } else {
@@ -1525,7 +1525,7 @@ static ASTNode* if_stmt(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_LPAREN) {
-        return error(parser, parser->pre_token_pos, "expected '('");
+        return error(parser, parser->prev_token_end, "expected '('");
     }
 
     if_node->expr = expr(parser, 0);
@@ -1535,7 +1535,7 @@ static ASTNode* if_stmt(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_RPAREN) {
-        return error(parser, parser->pre_token_pos, "expected ')'");
+        return error(parser, parser->prev_token_end, "expected ')'");
     }
 
     if_node->then_block = stmt(parser);
@@ -1564,11 +1564,11 @@ static ASTNode* while_stmt(ParserState* parser) {
 
     WhileNode* while_node = arena_alloc(parser->arena, sizeof(WhileNode));
     while_node->type = NODE_WHILE;
-    while_node->pos = parser->post_token_pos;
+    while_node->pos = parser->token_start;
 
     tk = next_token(parser);
     if (tk.type != TK_LPAREN) {
-        return error(parser, parser->pre_token_pos, "expected '('");
+        return error(parser, parser->prev_token_end, "expected '('");
     }
 
     while_node->expr = expr(parser, 0);
@@ -1578,7 +1578,7 @@ static ASTNode* while_stmt(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_RPAREN) {
-        return error(parser, parser->pre_token_pos, "expected ')'");
+        return error(parser, parser->prev_token_end, "expected ')'");
     }
 
     tk = peek_token(parser);
@@ -1616,7 +1616,7 @@ static ASTNode* scope(ParserState* parser) {
 
     tk = next_token(parser);
     if (tk.type != TK_RBRACE) {
-        return error(parser, parser->pre_token_pos, "expected '}'");
+        return error(parser, parser->prev_token_end, "expected '}'");
     }
 
     parser->sym = sym->parent;
@@ -1639,7 +1639,7 @@ static ASTNode* stmt(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos,
+                return error(parser, parser->prev_token_end,
                              "expected ';' after return statement");
             }
             break;
@@ -1669,7 +1669,7 @@ static ASTNode* stmt(ParserState* parser) {
             node = (ASTNode*)print_node;
 
             print_node->type = NODE_PRINT;
-            print_node->pos = parser->post_token_pos;
+            print_node->pos = parser->token_start;
             print_node->fmt = tk.str;
             print_node->args = NULL;
 
@@ -1689,7 +1689,7 @@ static ASTNode* stmt(ParserState* parser) {
             }
 
             if (tk.type != TK_COMMA && tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos,
+                return error(parser, parser->prev_token_end,
                              "expected ',' or ';' after string literal");
             }
         } break;
@@ -1701,16 +1701,16 @@ static ASTNode* stmt(ParserState* parser) {
             GotoNode* goto_node = arena_alloc(parser->arena, sizeof(GotoNode));
             node = (ASTNode*)goto_node;
             goto_node->type = NODE_GOTO;
-            goto_node->pos = parser->post_token_pos;
+            goto_node->pos = parser->token_start;
             goto_node->op = tk.type;
 
             tk = next_token(parser);
             if (tk.type != TK_SEMICOLON) {
                 if (tk.type == TK_BREAK) {
-                    return error(parser, parser->pre_token_pos,
+                    return error(parser, parser->prev_token_end,
                                  "expected ';' after break statement");
                 } else {
-                    return error(parser, parser->pre_token_pos,
+                    return error(parser, parser->prev_token_end,
                                  "expected ';' after continue statement");
                 }
             }
@@ -1723,7 +1723,7 @@ static ASTNode* stmt(ParserState* parser) {
 
             tk = next_token(parser);
             if (tk.type != TK_SEMICOLON) {
-                return error(parser, parser->pre_token_pos,
+                return error(parser, parser->prev_token_end,
                              "expected ';' after expression");
             }
     }
@@ -1734,7 +1734,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
     StatementListNode* stmts =
         arena_alloc(parser->arena, sizeof(StatementListNode));
     stmts->type = NODE_STMTS;
-    stmts->pos = parser->post_token_pos;
+    stmts->pos = parser->token_start;
     stmts->stmts = NULL;
 
     for (Token tk = peek_token(parser);
@@ -1749,7 +1749,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
             tk = peek_token(parser);
             if (tk.type != TK_FUNC && tk.type != TK_DECL) {
                 next_token(parser);
-                return error(parser, parser->post_token_pos,
+                return error(parser, parser->token_start,
                              "expected function or variable declaration");
             }
             is_extern = 1;
@@ -1759,7 +1759,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
             case TK_FUNC:
                 if (in_scope) {
                     next_token(parser);
-                    return error(parser, parser->post_token_pos,
+                    return error(parser, parser->token_start,
                                  "function definition is not allowed here");
                 }
                 node = func_decl(parser, is_extern);
@@ -1771,7 +1771,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
             case TK_STRUCT:
                 if (in_scope) {
                     next_token(parser);
-                    return error(parser, parser->post_token_pos,
+                    return error(parser, parser->token_start,
                                  "struct definition is not allowed here");
                 }
                 node = struct_decl(parser);
@@ -1781,7 +1781,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
 
                 tk = next_token(parser);
                 if (tk.type != TK_SEMICOLON) {
-                    return error(parser, parser->pre_token_pos,
+                    return error(parser, parser->prev_token_end,
                                  "expected ';' at end of declaration");
                 }
                 break;
@@ -1794,7 +1794,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
 
                 tk = next_token(parser);
                 if (tk.type != TK_SEMICOLON) {
-                    return error(parser, parser->pre_token_pos,
+                    return error(parser, parser->prev_token_end,
                                  "expected ';' at end of declaration");
                 }
                 break;
@@ -1807,7 +1807,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
 
                 tk = next_token(parser);
                 if (tk.type != TK_SEMICOLON) {
-                    return error(parser, parser->pre_token_pos,
+                    return error(parser, parser->prev_token_end,
                                  "expected ';' at end of declaration");
                 }
                 break;
@@ -1820,7 +1820,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
 
                 tk = next_token(parser);
                 if (tk.type != TK_SEMICOLON) {
-                    return error(parser, parser->pre_token_pos,
+                    return error(parser, parser->prev_token_end,
                                  "expected ';' at end of declaration");
                 }
                 break;

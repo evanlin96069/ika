@@ -3,6 +3,9 @@
 #include "parser.h"
 #include "preprocessor.h"
 
+#define STR_DEFAULT_CAPACITY 16
+#define STR_GROWTH_RATE 2
+
 static inline int is_digit(char c) { return c >= '0' && c <= '9'; }
 
 static inline int is_hex_digit(char c) {
@@ -49,6 +52,70 @@ static StrToken str_tk[] = {
     {"as", TK_CAST},
 };
 
+// p: null-terminated string start with '\'
+// size: return the size of the escape sequence
+// Returns TK_INT or TK_ERR
+static inline Token handle_string_escape(char* p, int* size) {
+    assert(*p == '\\');
+    *size = 1;
+
+    p++;
+    (*size)++;
+
+    Token tk;
+    tk.type = TK_INT;
+
+    char c = *p;
+    switch (c) {
+        case '\'':
+        case '"':
+        case '\\':
+            break;
+        case '0':
+            tk.val = '\0';
+            break;
+        case 'n':
+            tk.val = '\n';
+            break;
+        case 'r':
+            tk.val = '\r';
+            break;
+        case 't':
+            tk.val = '\t';
+            break;
+        case 'x': {
+            p++;
+            c = *p;
+            if (!is_hex_digit(c)) {
+                tk.type = TK_ERR;
+                tk.str = str("expected two hex digits after \\x");
+                break;
+            }
+            (*size)++;
+
+            tk.val = hex_digit_to_int(c);
+
+            p++;
+            c = *p;
+            if (!is_hex_digit(c)) {
+                tk.type = TK_ERR;
+                tk.str = str("expected two hex digits after \\x");
+                break;
+            }
+            (*size)++;
+
+            tk.val <<= 4;
+            tk.val += hex_digit_to_int(c);
+        } break;
+
+        default:
+            tk.type = TK_ERR;
+            tk.str = str("invalid escape character");
+    }
+
+    return tk;
+}
+
 Token next_token_internal(ParserState* parser, int peek) {
     Token tk = {0};
 
@@ -62,7 +129,7 @@ Token next_token_internal(ParserState* parser, int peek) {
     size_t line = parser->line;
     size_t pos = parser->pos;
 
-    SourcePos pre_token_pos = {
+    SourcePos prev_token_end = {
         .index = pos,
         .line = lines[line],
     };
@@ -73,6 +140,15 @@ Token next_token_internal(ParserState* parser, int peek) {
         if (*p == '\0' || (*p == '/' && *(p + 1) == '/')) {
             // next line
             if (line + 1 >= parser->src->line_count) {
+                if (!peek) {
+                    SourcePos curr_pos = {
+                        .index = pos,
+                        .line = lines[line],
+                    };
+                    parser->prev_token_end = prev_token_end;
+                    parser->token_start = curr_pos;
+                    parser->token_end = curr_pos;
+                }
                 tk.type = TK_NUL;
                 return tk;
             }
@@ -87,7 +163,7 @@ Token next_token_internal(ParserState* parser, int peek) {
         }
     }
 
-    SourcePos post_token_pos = {
+    SourcePos token_start = {
         .index = pos,
         .line = lines[line],
     };
@@ -302,87 +378,95 @@ Token next_token_internal(ParserState* parser, int peek) {
             break;
 
         case '"': {
+            tk.type = TK_STR;
+
+            char* buf =
+                arena_alloc(parser->arena, STR_DEFAULT_CAPACITY * sizeof(char));
+            int len = 0;
+            int capacity = STR_DEFAULT_CAPACITY;
+
             p++;
             pos++;
-            Str s = {
-                .ptr = p,
-                .len = 0,
-            };
-
-            // TODO: Parse string properly
             while (*p != '"' && *p != '\0') {
+                char c = *p;
                 if (*p == '\\') {
-                    s.len++;
+                    int size;
+                    Token result = handle_string_escape(p, &size);
+                    p += size;
+                    pos += size;
+
+                    if (result.type == TK_ERR) {
+                        tk = result;
+                        break;
+                    }
+
+                    c = result.val;
+                } else {
                     p++;
                     pos++;
                 }
-                s.len++;
-                p++;
-                pos++;
+
+                if (len + 1 > capacity) {
+                    buf = arena_realloc(parser->arena, buf, capacity,
+                                        capacity * STR_GROWTH_RATE);
+                    capacity *= STR_GROWTH_RATE;
+                }
+
+                buf[len] = c;
+                len++;
             }
 
-            pos++;
+            if (tk.type != TK_ERR) {
+                tk.str = (Str){
+                    .ptr = buf,
+                    .len = len,
+                };
 
-            if (*p != '"') {
-                tk.type = TK_ERR;
-                tk.str = str("missing terminating \" character");
-            } else {
-                tk.type = TK_STR;
-                tk.str = s;
+                if (*p != '"') {
+                    tk.type = TK_ERR;
+                    tk.str = str("missing terminating \" character");
+                }
+                pos++;
             }
         } break;
 
-        case '\'': {
+        case '\'':
             tk.type = TK_INT;
             tk.val = 0;
 
             p++;
             pos++;
-            while (*p != '\'') {
-                char c = *p;
+            while (*p != '\'' && *p != '\0') {
+                unsigned char c = *p;
                 if (*p == '\\') {
+                    int size;
+                    Token result = handle_string_escape(p, &size);
+                    p += size;
+                    pos += size;
+
+                    if (result.type == TK_ERR) {
+                        tk = result;
+                        break;
+                    }
+
+                    c = result.val;
+                } else {
                     p++;
                     pos++;
-                    c = *p;
-                    switch (c) {
-                        case '\'':
-                        case '"':
-                        case '?':
-                        case '\\':
-                            break;
-                        case '0':
-                            c = '\0';
-                            break;
-                        case 'a':
-                            c = '\a';
-                            break;
-                        case 'b':
-                            c = '\b';
-                            break;
-                        case 'f':
-                            c = '\f';
-                            break;
-                        case 'n':
-                            c = '\n';
-                            break;
-                        case 'r':
-                            c = '\r';
-                            break;
-                        case 't':
-                            c = '\t';
-                            break;
-                        case 'v':
-                            c = '\v';
-                            break;
-                    }
                 }
+
                 tk.val <<= 8;
                 tk.val += c;
-                p++;
+            }
+
+            if (tk.type != TK_ERR) {
+                if (*p != '\'') {
+                    tk.type = TK_ERR;
+                    tk.str = str("missing terminating ' character");
+                }
                 pos++;
             }
-            pos++;
-        } break;
+            break;
 
         default: {
             if (is_digit(*p)) {
@@ -506,9 +590,15 @@ Token next_token_internal(ParserState* parser, int peek) {
         }
     }
 
+    SourcePos token_end = {
+        .index = pos,
+        .line = lines[line],
+    };
+
     if (!peek) {
-        parser->pre_token_pos = pre_token_pos;
-        parser->post_token_pos = post_token_pos;
+        parser->prev_token_end = prev_token_end;
+        parser->token_start = token_start;
+        parser->token_end = token_end;
         parser->line = line;
         parser->pos = pos;
     }

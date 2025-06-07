@@ -17,8 +17,9 @@ typedef struct ParserState {
     size_t pos;  // current pos
 
     Token token;
-    SourcePos pre_token_pos;   // pos at the end of previous token
-    SourcePos post_token_pos;  // pos at the start of this token
+    SourcePos prev_token_end;
+    SourcePos token_start;
+    SourcePos token_end;
 } ParserState;
 
 void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena);

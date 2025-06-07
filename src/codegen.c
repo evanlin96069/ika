@@ -778,7 +778,9 @@ static void emit_indexof(CodegenState* state, IndexOfNode* idxof) {
 
     genf("    popl %%ecx");
     // ecx = array, eax = index
-    genf("    imull $%d, %%eax", l_type->inner_type->size);
+    if (l_type->inner_type->size != 1) {
+        genf("    imull $%d, %%eax", l_type->inner_type->size);
+    }
     genf("    addl %%ecx, %%eax");
 }
 
@@ -934,6 +936,40 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     }
 }
 
+static inline void emit_string_data(CodegenState* state, Str s) {
+    fprintf(state->out, "    .string \"");
+    for (int i = 0; i < s.len; i++) {
+        unsigned char c = s.ptr[i];
+        switch (c) {
+            case '"':
+                fprintf(state->out, "\\\"");
+                break;
+            case '\\':
+                fprintf(state->out, "\\\\");
+                break;
+            case '\n':
+                fprintf(state->out, "\\n");
+                break;
+            case '\t':
+                fprintf(state->out, "\\t");
+                break;
+            case '\r':
+                fprintf(state->out, "\\r");
+                break;
+            case '\0':
+                fprintf(state->out, "\\000");
+                break;
+            default:
+                if (c < 0x20 || c >= 0x7f) {
+                    fprintf(state->out, "\\%03o", c);
+                } else {
+                    fprintf(state->out, "%c", c);
+                }
+        }
+    }
+    genf("\"");
+}
+
 void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
              Str entry_sym) {
     int has_user_defined_entry = (symbol_table_find(sym, entry_sym, 1) != NULL);
@@ -1011,6 +1047,6 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
     genf(".data");
     for (int i = 0; i < state->data_count; i++) {
         genf(".LC%d:", i);
-        genf("    .string  \"%.*s\"", state->data[i].len, state->data[i].ptr);
+        emit_string_data(state, state->data[i]);
     }
 }
