@@ -9,6 +9,7 @@
    * [if-else](#if-else)
    * [while](#while)
 - [Functions](#functions)
+   * [Calling Convention](#calling-convention)
 - [extern](#extern)
 - [Pointers](#pointers)
    * [Function Pointers](#function-pointers)
@@ -22,6 +23,7 @@
 - [#include](#include)
 
 ## Hello World
+
 ```zig
 "Hello world!\n";
 ```
@@ -43,6 +45,7 @@ fn main() void {
 ```
 
 ## Comments
+
 ```zig
 // This is a comment
 ```
@@ -74,6 +77,7 @@ TODO: Support floating-point numbers and 64-bit integers.
 | `null` | `*void` with value of 0 |
 
 ### Integer Literals
+
 ```zig
 var decimal_int: i32 = 1234;
 var hex_int: i32 = 0xff;
@@ -85,6 +89,7 @@ var c: u8 = 'a';
 Integer literals are type `i32`, or `u32` if they do not fit in `i32`.
 
 ### String Literals
+
 ```zig
 var s: []u8 = "Hello";
 ```
@@ -100,15 +105,16 @@ String literals are pointer to a null-terminated string.
 | `\'` | Single Quote |
 | `\"` | Double Quote |
 | `\0` | Zero Value |
-
-TODO: Add `\xNN`.
+| `\xNN` | Hexadecimal 8-bit byte value (2 digits) |
 
 ## Variables
+
 ```zig
 var: i32 a = 69;
-var: i32 b; // undefined
+var: i32 b; // uninitialized
 b = 420;
 ```
+
 Declare variables using `var`.
 
 Variables declared at the top level are global variables.
@@ -130,6 +136,7 @@ fn func(x: i32) i32 {
 ```
 
 ## Operators
+
 ```zig
 var: i32 a = 35;
 var: i32 b = 34;
@@ -137,8 +144,9 @@ var: i32 c = a + b;
 
 a += b;
 b *= 2;
-b += 1; 
+b += 1;
 ```
+
 ika supports most C operators except for `++` and `--`.
 
 Compound assignment operators such as `+=` and `-=` are available.
@@ -146,6 +154,7 @@ Compound assignment operators such as `+=` and `-=` are available.
 ## Control Flow
 
 ### if-else
+
 ```zig
 var a: i32 = 5;
 var b: i32 = 6;
@@ -160,6 +169,7 @@ if (a == b) {
 ```
 
 ### while
+
 ```zig
 var i: i32 = 0;
 while (i < 3) {
@@ -167,7 +177,9 @@ while (i < 3) {
     i += 1;
 }
 ```
+
 You can also use `break` and `continue` as in C.
+
 ```zig
 var i: i32 = 0;
 while (true) {
@@ -196,6 +208,7 @@ while (a * b < 2000) : (a *= 2, b *= 3) {
 ```
 
 ## Functions
+
 ```zig
 fn add(a: i32, b: i32) i32 {
     return a + b;
@@ -203,9 +216,11 @@ fn add(a: i32, b: i32) i32 {
 
 "%d\n", add(34, 35); // 69
 ```
+
 Declare functions with `fn`.
 
 You can also forward declare a function.
+
 ```zig
 fn greeting() void;
 
@@ -216,9 +231,20 @@ fn greeting() void {
 }
 ```
 
-TODO: Allow functions to return `struct` or array types.
+### Calling Convention
+
+```zig
+extern fn "stdcall" GetCurrentProcess() *void;
+```
+
+Supported calling conventions are "cdecl", "stdcall", and "thiscall".
+
+"cdecl" is the default calling convention.
+
+TODO: Functions return `struct` or array use System V ABI (except if the type can fit into a register, it returns in EAX). Therefore, external functions using MSVC ABI returning a `struct` are likely to break.
 
 ## extern
+
 ```zig
 struct FILE; // Declares an incomplete type
 extern var stderr: *FILE;
@@ -226,6 +252,7 @@ extern fn fprintf(stream: *FILE, format: []u8, ...) i32;
 
 fprintf(stderr, "Hi!\n");
 ```
+
 You can mark variables or functions as extern, meaning they are declared externally.
 
 TODO: Support variadic functions (`...`) for user-defined functions. Currently, they are only available for external functions.
@@ -262,6 +289,7 @@ free(arr);
 ```
 
 ### Function Pointers
+
 ```zig
 fn add(a: i32, b: i32) i32 {
     return a + b;
@@ -282,6 +310,7 @@ func = sub;
 Declare function pointer just like the function signature.
 
 ## Arrays
+
 ```zig
 const N = 10;
 var arr: [N]i32;
@@ -357,6 +386,7 @@ while (i < N) : (i += 1) {
 Note that `&arr` is type `*[10]i32`, but single-item pointer to an array can be convert to many-item pointer (`[]i32`).
 
 ## struct
+
 ```zig
 struct Vec {
     x: i32,
@@ -404,6 +434,7 @@ vec_scale(&v, 3);
 ## Defines
 
 ### const
+
 ```zig
 const a = 35;
 const b = 35;
@@ -411,9 +442,11 @@ const c = a + b - 1; // This is compile-time known
 
 const s = "WAH!"; // A string literal
 ```
+
 Use `const` to define a compile-time constant or a string literal. It expands to its defined value and cannot be modified.
 
 ### enum
+
 ```zig
 enum {
     A, // A = 0
@@ -421,6 +454,7 @@ enum {
     C, // C = 2
 };
 ```
+
 `enum` starts at 0 and increments by 1, but you can set values with `=`.
 
 ```zig
@@ -432,8 +466,10 @@ enum {
 ```
 
 ## Include
+
 ```zig
 #include "libc.ika"
 printf("Hello world!\n");
 ```
+
 `#include "filename.ika"` works like `#include` in C, inserting the contents of another file. The maximum inclusion depth is 15.
