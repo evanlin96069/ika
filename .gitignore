@@ -18,6 +18,10 @@
 # Visual Studio build directory
 /out/
 
+# LSP
+/compile_commands.json
+/compile_flags.txt
+
 # Compiler output
 *.s
 *.out
