@@ -96,7 +96,6 @@ int main(int argc, char* argv[]) {
             }
         }
 
-
         for (size_t i = 0; i < src->line_count; i++) {
             fprintf(pp_out, "%s\n", src->lines[i].content);
         }

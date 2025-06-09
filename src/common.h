@@ -23,4 +23,13 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
+typedef enum LogType {
+    LOG_DEBUG,
+    LOG_NOTE,
+    LOG_WARNING,
+    LOG_ERROR,
+} LogType;
+
+void ika_log(LogType level, const char* fmt, ...);
+
 #endif

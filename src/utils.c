@@ -6,13 +6,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-void ika_log(int level, const char* fmt, ...) {
+void ika_log(LogType level, const char* fmt, ...) {
     switch (level) {
         case LOG_DEBUG:
-#ifdef _DEBUG
-            fprintf(stderr, "\x1b[1mdebug:\x1b[0m ");
-#else
+#ifdef NDEBUG
             return;
+#else
+            fprintf(stderr, "\x1b[1mdebug:\x1b[0m ");
 #endif
             break;
         case LOG_NOTE:
@@ -25,7 +25,7 @@ void ika_log(int level, const char* fmt, ...) {
             fprintf(stderr, "\x1b[1;91merror:\x1b[0m ");
             break;
         default:
-            break;
+            UNREACHABLE();
     }
 
     va_list ap;

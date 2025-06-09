@@ -2,9 +2,13 @@
 
 #include <stdio.h>
 
-#include "utils.h"
+void print_message(LogType level, const SourceState* src, Error* err) {
+#ifdef NDEBUG
+    if (level == LOG_DEBUG) {
+        return;
+    }
+#endif
 
-void print_err(const SourceState* src, Error* err) {
     const SourceFile* file = &src->files[err->pos.line.file_index];
     const char* filename = file->filename;
     const char* line = err->pos.line.content;
@@ -14,7 +18,7 @@ void print_err(const SourceState* src, Error* err) {
 
     if (file->is_open == 0) {
         fprintf(stderr, "%s: ", filename);
-        ika_log(LOG_ERROR, "%s\n", err->msg);
+        ika_log(level, "%s\n", err->msg);
         return;
     }
 
@@ -35,7 +39,7 @@ void print_err(const SourceState* src, Error* err) {
     }
 
     fprintf(stderr, "%s:%d:%d: ", filename, lineno, pos);
-    ika_log(LOG_ERROR, "%s\n", err->msg);
+    ika_log(level, "%s\n", err->msg);
 
     fprintf(stderr, "%5d | %s\n", lineno, line);
 
