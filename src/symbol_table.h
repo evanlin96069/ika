@@ -2,7 +2,7 @@
 #define SYMBOL_TABLE_H
 
 #include "arena.h"
-#include "preprocessor.h"
+#include "source.h"
 #include "str.h"
 #include "type.h"
 

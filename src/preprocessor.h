@@ -2,50 +2,26 @@
 #define PREPROCESSOR_H
 
 #include "arena.h"
+#include "source.h"
 
 #define MAX_INCLUDE_DEPTH 15
 
-typedef struct SourceLine {
-    int file_index;
-    int lineno;
-    char* content;
-} SourceLine;
+struct SymbolTable;
 
-typedef struct SourcePos {
-    SourceLine line;
-    size_t index;
-} SourcePos;
-
-typedef struct SourceFile {
-    char* filename;
-    int is_open;
-    SourcePos pos;
-} SourceFile;
-
-/*
- *  files and lines arrays are allocated using malloc,
- *  the inner memory allocations (filename, content...) are using the arena.
- */
-typedef struct SourceState {
+typedef struct PPState {
     Arena* arena;
-
-    SourceFile* files;
-    size_t file_count;
-    size_t file_capacity;
-
-    SourceLine* lines;
-    size_t line_count;
-    size_t line_capacity;
+    SourceState src;
 
     int last_include;
-} SourceState;
+    struct SymbolTable* sym; // for #define
+} PPState;
 
-void pp_init(SourceState* state, Arena* arena);
+void pp_init(PPState* state, Arena* arena);
 
-void pp_deinit(SourceState* state);
+void pp_deinit(PPState* state);
 
 struct Error;
 
-struct Error* pp_expand(SourceState* state, const char* filename, int depth);
+struct Error* pp_expand(PPState* state, const char* filename, int depth);
 
 #endif

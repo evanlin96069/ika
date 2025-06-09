@@ -1,11 +1,12 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include "arena.h"
 #include "str.h"
 
 typedef enum TkType {
     TK_ERR = -1,
-    TK_NUL = 0,  // nothing
+    TK_EOF = 0,
     TK_IDENT,
     TK_INT,
     TK_STR,
@@ -95,7 +96,7 @@ typedef struct Token {
 
 struct ParserState;
 
-Token next_token_internal(struct ParserState* parser, int peek);
+Token next_token_from_line(Arena* arena, const char* p, int* size);
 
 Token next_token(struct ParserState* parser);
 

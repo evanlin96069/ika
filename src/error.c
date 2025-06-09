@@ -4,7 +4,7 @@
 
 #include "utils.h"
 
-void print_err(SourceState* src, Error* err) {
+void print_err(const SourceState* src, Error* err) {
     const SourceFile* file = &src->files[err->pos.line.file_index];
     const char* filename = file->filename;
     const char* line = err->pos.line.content;

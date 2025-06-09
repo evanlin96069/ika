@@ -72,15 +72,16 @@ int main(int argc, char* argv[]) {
     Arena arena;
     arena_init(&arena, ARENA_SIZE, NULL);
 
-    SourceState src;
-    pp_init(&src, &arena);
+    PPState pp_state;
+    const SourceState* src = &pp_state.src;
+    pp_init(&pp_state, &arena);
 
     // Read input file
 
-    Error* err = pp_expand(&src, src_path, 0);
+    Error* err = pp_expand(&pp_state, src_path, 0);
 
     if (err != NULL) {
-        print_err(&src, err);
+        print_err(src, err);
         return 1;
     }
 
@@ -95,8 +96,9 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        for (size_t i = 0; i < src.line_count; i++) {
-            fprintf(pp_out, "%s\n", src.lines[i].content);
+
+        for (size_t i = 0; i < src->line_count; i++) {
+            fprintf(pp_out, "%s\n", src->lines[i].content);
         }
 
         if (out_path) {
@@ -104,7 +106,7 @@ int main(int argc, char* argv[]) {
         }
 
         arena_deinit(&arena);
-        pp_deinit(&src);
+        pp_deinit(&pp_state);
         return 0;
     }
 
@@ -115,10 +117,10 @@ int main(int argc, char* argv[]) {
     ParserState parser;
     parser_init(&parser, &sym, &arena);
 
-    ASTNode* node = parser_parse(&parser, &src);
+    ASTNode* node = parser_parse(&parser, src);
     if (node->type == NODE_ERR) {
         err = ((ErrorNode*)node)->val;
-        print_err(&src, err);
+        print_err(src, err);
         return 1;
     }
 
@@ -131,7 +133,7 @@ int main(int argc, char* argv[]) {
 
     err = sema(&sema_state, node, &sym, entry_sym);
     if (err != NULL) {
-        print_err(&src, err);
+        print_err(src, err);
         return 1;
     }
 
@@ -168,7 +170,7 @@ int main(int argc, char* argv[]) {
     fclose(out);
 
     arena_deinit(&arena);
-    pp_deinit(&src);
+    pp_deinit(&pp_state);
 
     // Invoke cc
     if (!s_flag) {

@@ -1,7 +1,6 @@
 #include "lexer.h"
 
 #include "parser.h"
-#include "preprocessor.h"
 
 #define STR_DEFAULT_CAPACITY 16
 #define STR_GROWTH_RATE 2
@@ -55,7 +54,7 @@ static StrToken str_tk[] = {
 // p: null-terminated string start with '\'
 // size: return the size of the escape sequence
 // Returns TK_INT or TK_ERR
-static inline Token handle_string_escape(char* p, int* size) {
+static inline Token handle_string_escape(const char* p, int* size) {
     assert(*p == '\\');
     *size = 1;
 
@@ -116,57 +115,19 @@ static inline Token handle_string_escape(char* p, int* size) {
     return tk;
 }
 
-Token next_token_internal(ParserState* parser, int peek) {
-    Token tk = {0};
+Token next_token_from_line(Arena* arena, const char* p, int* size) {
+    Token tk;
+    int pos = 0;
 
-    if (!parser->src) {
-        tk.type = TK_NUL;
+    if (*p == ' ' || *p == '\t') {
+        p++;
+        pos++;
+    }
+
+    if (*p == '\0' || (*p == '/' && *(p + 1) == '/')) {
+        tk.type = TK_EOF;
         return tk;
     }
-
-    const SourceLine* lines = parser->src->lines;
-
-    size_t line = parser->line;
-    size_t pos = parser->pos;
-
-    SourcePos prev_token_end = {
-        .index = pos,
-        .line = lines[line],
-    };
-
-    // skip to next token start
-    char* p = &lines[line].content[pos];
-    while (*p == ' ' || *p == '\t' || *p == '\0' || *p == '/') {
-        if (*p == '\0' || (*p == '/' && *(p + 1) == '/')) {
-            // next line
-            if (line + 1 >= parser->src->line_count) {
-                if (!peek) {
-                    SourcePos curr_pos = {
-                        .index = pos,
-                        .line = lines[line],
-                    };
-                    parser->prev_token_end = prev_token_end;
-                    parser->token_start = curr_pos;
-                    parser->token_end = curr_pos;
-                }
-                tk.type = TK_NUL;
-                return tk;
-            }
-            line++;
-            pos = 0;
-            p = lines[line].content;
-        } else if (*p == '/') {
-            break;
-        } else {
-            pos++;
-            p++;
-        }
-    }
-
-    SourcePos token_start = {
-        .index = pos,
-        .line = lines[line],
-    };
 
     switch (*p) {
         case '*':
@@ -381,7 +342,7 @@ Token next_token_internal(ParserState* parser, int peek) {
             tk.type = TK_STR;
 
             char* buf =
-                arena_alloc(parser->arena, STR_DEFAULT_CAPACITY * sizeof(char));
+                arena_alloc(arena, STR_DEFAULT_CAPACITY * sizeof(char));
             int len = 0;
             int capacity = STR_DEFAULT_CAPACITY;
 
@@ -407,7 +368,7 @@ Token next_token_internal(ParserState* parser, int peek) {
                 }
 
                 if (len + 1 > capacity) {
-                    buf = arena_realloc(parser->arena, buf, capacity,
+                    buf = arena_realloc(arena, buf, capacity,
                                         capacity * STR_GROWTH_RATE);
                     capacity *= STR_GROWTH_RATE;
                 }
@@ -589,6 +550,61 @@ Token next_token_internal(ParserState* parser, int peek) {
             }
         }
     }
+
+    *size = pos;
+    return tk;
+}
+
+static Token next_token_internal(ParserState* parser, int peek) {
+    Token tk;
+
+    const SourceLine* lines = parser->src->lines;
+
+    size_t line = parser->line;
+    size_t pos = parser->pos;
+
+    SourcePos prev_token_end = {
+        .index = pos,
+        .line = lines[line],
+    };
+
+    // skip to next token start
+    char* p = &lines[line].content[pos];
+    while (*p == ' ' || *p == '\t' || *p == '\0' || *p == '/') {
+        if (*p == '\0' || (*p == '/' && *(p + 1) == '/')) {
+            // next line
+            if (line + 1 >= parser->src->line_count) {
+                if (!peek) {
+                    SourcePos curr_pos = {
+                        .index = pos,
+                        .line = lines[line],
+                    };
+                    parser->prev_token_end = prev_token_end;
+                    parser->token_start = curr_pos;
+                    parser->token_end = curr_pos;
+                }
+                tk.type = TK_EOF;
+                return tk;
+            }
+            line++;
+            pos = 0;
+            p = lines[line].content;
+        } else if (*p == '/') {
+            break;
+        } else {
+            pos++;
+            p++;
+        }
+    }
+
+    SourcePos token_start = {
+        .index = pos,
+        .line = lines[line],
+    };
+
+    int size;
+    tk = next_token_from_line(parser->arena, p, &size);
+    pos += size;
 
     SourcePos token_end = {
         .index = pos,

@@ -10,6 +10,6 @@ typedef struct Error {
     char msg[ERROR_MAX_LENGTH];
 } Error;
 
-void print_err(SourceState* src, Error* err);
+void print_err(const SourceState* src, Error* err);
 
 #endif

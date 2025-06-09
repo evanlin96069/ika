@@ -1738,7 +1738,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
     stmts->stmts = NULL;
 
     for (Token tk = peek_token(parser);
-         tk.type != TK_NUL && (!in_scope || tk.type != TK_RBRACE);
+         tk.type != TK_EOF && (!in_scope || tk.type != TK_RBRACE);
          tk = peek_token(parser)) {
         ASTNode* node = NULL;
 
@@ -1855,7 +1855,7 @@ void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena) {
     parser->sym = parser->global_sym = sym;
 }
 
-ASTNode* parser_parse(ParserState* parser, SourceState* src) {
+ASTNode* parser_parse(ParserState* parser, const SourceState* src) {
     parser->src = src;
     parser->line = 0;
     parser->pos = 0;

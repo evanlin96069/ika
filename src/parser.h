@@ -4,7 +4,7 @@
 #include "arena.h"
 #include "ast.h"
 #include "lexer.h"
-#include "preprocessor.h"
+#include "source.h"
 #include "symbol_table.h"
 
 typedef struct ParserState {
@@ -12,7 +12,7 @@ typedef struct ParserState {
     SymbolTable* sym;
     SymbolTable* global_sym;
 
-    SourceState* src;
+    const SourceState* src;
     size_t line;
     size_t pos;  // current pos
 
@@ -23,6 +23,6 @@ typedef struct ParserState {
 } ParserState;
 
 void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena);
-ASTNode* parser_parse(ParserState* parser, SourceState* src);
+ASTNode* parser_parse(ParserState* parser, const SourceState* src);
 
 #endif

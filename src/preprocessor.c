@@ -7,27 +7,31 @@
 #include <string.h>
 
 #include "error.h"
-#include "str.h"
+#include "symbol_table.h"
 #include "utils.h"
 
 #define FILE_INIT_SIZE 4
 #define LINE_INIT_SIZE 256
 #define ARRAY_GROUTH_RATE 2
 
-void pp_init(SourceState* state, Arena* arena) {
+void pp_init(PPState* state, Arena* arena) {
     state->arena = arena;
-    state->files = malloc(FILE_INIT_SIZE * sizeof(SourceFile));
-    state->file_count = 0;
-    state->file_capacity = FILE_INIT_SIZE;
-    state->lines = malloc(LINE_INIT_SIZE * sizeof(SourceLine));
-    state->line_count = 0;
-    state->line_capacity = LINE_INIT_SIZE;
+    state->src.files = malloc(FILE_INIT_SIZE * sizeof(SourceFile));
+    state->src.file_count = 0;
+    state->src.file_capacity = FILE_INIT_SIZE;
+    state->src.lines = malloc(LINE_INIT_SIZE * sizeof(SourceLine));
+    state->src.line_count = 0;
+    state->src.line_capacity = LINE_INIT_SIZE;
     state->last_include = 0;
+
+    state->sym =
+        arena_alloc(state->arena, sizeof(SymbolTable));
+    symbol_table_init(state->sym, 0, NULL, 0, state->arena);
 }
 
-void pp_deinit(SourceState* state) {
-    free(state->files);
-    free(state->lines);
+void pp_deinit(PPState* state) {
+    free(state->src.files);
+    free(state->src.lines);
 }
 
 static Error* error(SourcePos pos, const char* fmt, ...) {
@@ -62,8 +66,31 @@ static inline void append_line(SourceState* state, SourceLine line) {
     state->line_count++;
 }
 
-Error* pp_expand(SourceState* state, const char* filename, int depth) {
-    if (state->file_count == 0) {
+typedef enum PPType {
+    PP_NONE,
+    PP_INCLUDE,
+    PP_DEFINE,
+    PP_UNDEF,
+    PP_IF,
+    PP_ELIF,
+    PP_ELSE,
+    PP_ENDIF,
+    PP_ERROR,
+} PPType;
+
+typedef struct StrPPType {
+    const char* s;
+    PPType pp_type;
+} StrPPType;
+
+static const StrPPType str_pp[] = {
+    {"include", PP_INCLUDE}, {"define", PP_DEFINE}, {"undef", PP_UNDEF},
+    {"if", PP_IF}, {"elif", PP_DEFINE}, {"else", PP_ELSE},
+    {"endif", PP_ENDIF}, {"error", PP_ERROR},
+};
+
+Error* pp_expand(PPState* state, const char* filename, int depth) {
+    if (state->src.file_count == 0) {
         // original source
         SourceFile orig_file = {0};
         orig_file.filename = arena_alloc(state->arena, strlen(filename) + 1);
@@ -71,24 +98,24 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
         orig_file.pos.index = 0;
         orig_file.is_open = 0;
 
-        append_file(state, orig_file);
+        append_file(&state->src, orig_file);
     }
 
     int last_include = state->last_include;
-    int curr_file_index = state->file_count - 1;
+    int curr_file_index = state->src.file_count - 1;
     state->last_include = curr_file_index;
 
     if (depth > MAX_INCLUDE_DEPTH) {
-        return error(state->files[last_include].pos,
+        return error(state->src.files[last_include].pos,
                      "#include nested too deeply");
     }
 
     char* src = read_entire_file(filename);
     if (!src) {
-        return error(state->files[last_include].pos, "failed to read file: %s",
+        return error(state->src.files[last_include].pos, "failed to read file: %s",
                      strerror(errno));
     }
-    state->files[curr_file_index].is_open = 1;
+    state->src.files[curr_file_index].is_open = 1;
 
     size_t pos = 0;
     char c = *(src + pos);
@@ -127,65 +154,108 @@ Error* pp_expand(SourceState* state, const char* filename, int depth) {
             p++;
         }
 
-        if (strncmp("#include", p, 8) == 0) {
-            p += 8;
-            while (*p == ' ' || *p == '\t') {
-                p++;
-            }
+        if (*p != '#') {
+            append_line(&state->src, line);
+            continue;
+        }
+        p++;
 
-            if (*p != '"') {
-                SourcePos pos;
-                pos.line = line;
-                pos.index = p - line.content;
-                return error(pos, "#include expects \"FILENAME\"");
-            }
-
-            int include_index = p - line.content;
-
+        while (*p == ' ' || *p == '\t') {
             p++;
-            Str s = {
-                .ptr = p,
-                .len = 0,
-            };
+        }
 
-            while (*p != '"' && *p != '\0') {
-                s.len++;
+        PPType pp_type = PP_NONE;
+        for (unsigned int i = 0; i < sizeof(str_pp) / sizeof(str_pp[0]);
+             i++) {
+            int pp_len = strlen(str_pp[i].s);
+            if (strncmp(str_pp[i].s, p, pp_len) == 0) {
+                pp_type = str_pp[i].pp_type;
+                p += pp_len;
+            }
+            break;
+        }
+
+        if (pp_type == PP_NONE) {
+            SourcePos pos;
+            pos.line = line;
+            pos.index = p - line.content;
+            return error(pos, "invalid preprocessing directive");
+        }
+
+        switch (pp_type) {
+            case PP_INCLUDE: {
+                while (*p == ' ' || *p == '\t') {
+                    p++;
+                }
+
+                if (*p != '"') {
+                    SourcePos pos;
+                    pos.line = line;
+                    pos.index = p - line.content;
+                    return error(pos, "#include expects \"FILENAME\"");
+                }
+
+                int include_index = p - line.content;
+
                 p++;
-            }
+                Str s = {
+                    .ptr = p,
+                    .len = 0,
+                };
 
-            if (*p != '"') {
-                SourcePos pos;
-                pos.line = line;
-                pos.index = p - line.content;
-                return error(pos, "missing terminating \" character");
-            }
+                while (*p != '"' && *p != '\0') {
+                    s.len++;
+                    p++;
+                }
 
-            Str dir = get_dir_name(str(filename));
+                if (*p != '"') {
+                    SourcePos pos;
+                    pos.line = line;
+                    pos.index = p - line.content;
+                    return error(pos, "missing terminating \" character");
+                }
 
-            char inc_path[OS_PATH_MAX];
-            snprintf(inc_path, sizeof(inc_path), "%.*s/%.*s", dir.len, dir.ptr,
-                     s.len, s.ptr);
+                Str dir = get_dir_name(str(filename));
 
-            if (curr_file_index == 0) {
-                state->files[0].pos.index = include_index;
-                state->files[0].pos.line = line;
-            } else {
-                SourceFile file = {0};
-                file.filename = arena_alloc(state->arena, strlen(inc_path) + 1);
-                strcpy(file.filename, inc_path);
-                file.pos.index = include_index;
-                file.pos.line = line;
-                file.is_open = 0;
+                char inc_path[OS_PATH_MAX];
+                snprintf(inc_path, sizeof(inc_path), "%.*s/%.*s", dir.len, dir.ptr,
+                        s.len, s.ptr);
 
-                append_file(state, file);
-            }
+                if (curr_file_index == 0) {
+                    state->src.files[0].pos.index = include_index;
+                    state->src.files[0].pos.line = line;
+                } else {
+                    SourceFile file = {0};
+                    file.filename = arena_alloc(state->arena, strlen(inc_path) + 1);
+                    strcpy(file.filename, inc_path);
+                    file.pos.index = include_index;
+                    file.pos.line = line;
+                    file.is_open = 0;
 
-            Error* err = pp_expand(state, inc_path, depth + 1);
-            if (err != NULL) {
-                return err;
-            }
-        } else {
-            append_line(state, line);
+                    append_file(&state->src, file);
+                }
+
+                Error* err = pp_expand(state, inc_path, depth + 1);
+                if (err != NULL) {
+                    return err;
+                }
+            } break;
+            case PP_DEFINE:
+                break;
+            case PP_UNDEF:
+                break;
+            case PP_IF:
+                break;
+            case PP_ELIF:
+                break;
+            case PP_ELSE:
+                break;
+            case PP_ENDIF:
+                break;
+            case PP_ERROR:
+                break;
+            default: 
+                UNREACHABLE();
         }
     } while (c != '\0');
 
