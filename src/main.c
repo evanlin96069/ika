@@ -116,6 +116,7 @@ int main(int argc, char* argv[]) {
 
     if (err != NULL) {
         print_err(src, err);
+        utlarena_deinit(&arena);
         return 1;
     }
 
@@ -126,6 +127,7 @@ int main(int argc, char* argv[]) {
             if (!pp_out) {
                 ika_log(LOG_ERROR, "cannot open file %s: %s\n", out_path,
                         strerror(errno));
+                utlarena_deinit(&arena);
                 return 1;
             }
         }
@@ -153,6 +155,7 @@ int main(int argc, char* argv[]) {
     if (node->type == NODE_ERR) {
         err = ((ErrorNode*)node)->val;
         print_err(src, err);
+        utlarena_deinit(&arena);
         return 1;
     }
 
@@ -166,6 +169,7 @@ int main(int argc, char* argv[]) {
     err = sema(&sema_state, node, &sym, entry_sym);
     if (err != NULL) {
         print_err(src, err);
+        utlarena_deinit(&arena);
         return 1;
     }
 
@@ -190,6 +194,7 @@ int main(int argc, char* argv[]) {
     if (!out) {
         ika_log(LOG_ERROR, "cannot open file %s: %s\n", out_path,
                 strerror(errno));
+        utlarena_deinit(&arena);
         return 1;
     }
 
@@ -211,7 +216,7 @@ int main(int argc, char* argv[]) {
             ika_log(LOG_ERROR, "failed to compile %s into %s\n", asm_out_path,
                     out_path);
             _unlink(asm_out_path);
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         _unlink(asm_out_path);
 #else
@@ -223,8 +228,8 @@ int main(int argc, char* argv[]) {
 
         pid_t pid = fork();
         if (pid == -1) {
-            fprintf(stderr, "fork failed");
-            exit(1);
+            ika_log(LOG_ERROR, "fork failed");
+            exit(EXIT_FAILURE);
         }
 
         if (pid > 0) {
@@ -234,12 +239,12 @@ int main(int argc, char* argv[]) {
                 ika_log(LOG_ERROR, "failed to compile %s into %s\n",
                         asm_out_path, out_path);
                 unlink(asm_out_path);
-                exit(1);
+                exit(EXIT_FAILURE);
             }
         } else {
             execvp(args[0], args);
-            fprintf(stderr, "exec failed");
-            exit(1);
+            ika_log(LOG_ERROR, "fork failed");
+            exit(EXIT_FAILURE);
         }
 
         unlink(asm_out_path);
