@@ -13,7 +13,7 @@ typedef struct PPState {
     SourceState src;
 
     int last_include;
-    struct SymbolTable* sym; // for #define
+    struct SymbolTable* sym;  // for #define
 } PPState;
 
 void pp_init(PPState* state, Arena* arena);

@@ -94,9 +94,22 @@ typedef struct Token {
     };
 } Token;
 
+typedef struct StrToken {
+    const char* s;
+    int token_type;
+} StrToken;
+
 struct ParserState;
 
-Token next_token_from_line(Arena* arena, const char* p, int* size);
+// Return the next token in the line
+// - arena: for string token
+// - p: the source line
+// - search_keywords: return as keyword token or just return as identifier token
+// - start_offset: token start pos
+// - end_offset: token end pos
+Token next_token_from_line(Arena* arena, const char* p,
+                           const StrToken* keywords, int keyword_count,
+                           int* start_offset, int* end_offset);
 
 Token next_token(struct ParserState* parser);
 

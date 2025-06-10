@@ -216,3 +216,39 @@ SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
         return symbol_table_find(sym->parent, ident, 0);
     return NULL;
 }
+
+SymbolTableEntry* symbol_table_append_sym(SymbolTable* sym, Str ident) {
+    SymbolTableEntry* ste = arena_alloc(sym->arena, sizeof(SymbolTableEntry));
+    ste->type = SYM_NONE;
+
+    ste->ident = ident;
+    ste->hash = djb2_hash(ident);
+
+    symbol_table_append(sym, ste);
+    return ste;
+}
+
+int symbol_table_remove(SymbolTable* sym, Str ident) {
+    if (!sym)
+        return 0;
+
+    SymbolTableEntry* prev = NULL;
+    SymbolTableEntry* curr = sym->ste;
+
+    int hash = djb2_hash(ident);
+
+    while (curr) {
+        if (curr->hash == hash && str_eql(curr->ident, ident)) {
+            if (prev) {
+                prev->next = curr->next;
+            } else {
+                sym->ste = curr->next;
+            }
+            return 1;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    return 0;
+}

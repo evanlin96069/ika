@@ -9,6 +9,7 @@
 struct ASTNode;
 
 typedef enum SymbolType {
+    SYM_NONE,
     SYM_VAR,
     SYM_DEF,
     SYM_FUNC,
@@ -143,5 +144,16 @@ TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident,
 
 SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope);
+
+/*
+ *These are for preprocessor symbols (#define, #undef)
+ */
+
+// Append an empty symbol
+SymbolTableEntry* symbol_table_append_sym(SymbolTable* sym, Str ident);
+
+// Remove a symbol
+// return 1 if found and removed
+int symbol_table_remove(SymbolTable* sym, Str ident);
 
 #endif

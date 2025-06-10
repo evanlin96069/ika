@@ -34,12 +34,7 @@ static inline int is_letter(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-typedef struct StrToken {
-    const char* s;
-    TkType token_type;
-} StrToken;
-
-static StrToken str_tk[] = {
+static const StrToken str_tk[] = {
     {"var", TK_DECL},      {"const", TK_CONST}, {"if", TK_IF},
     {"else", TK_ELSE},     {"while", TK_WHILE}, {"fn", TK_FUNC},
     {"return", TK_RET},    {"break", TK_BREAK}, {"continue", TK_CONTINUE},
@@ -51,9 +46,10 @@ static StrToken str_tk[] = {
     {"as", TK_CAST},
 };
 
-// p: null-terminated string start with '\'
-// size: return the size of the escape sequence
-// Returns TK_INT or TK_ERR
+// Parse escape sequence in string literal
+// - p: null-terminated string start with '\'
+// - size: return the size of the escape sequence
+// - Returns TK_INT or TK_ERR
 static inline Token handle_string_escape(const char* p, int* size) {
     assert(*p == '\\');
     *size = 1;
@@ -115,14 +111,21 @@ static inline Token handle_string_escape(const char* p, int* size) {
     return tk;
 }
 
-Token next_token_from_line(Arena* arena, const char* p, int* size) {
+Token next_token_from_line(Arena* arena, const char* p,
+                           const StrToken* keywords, int keyword_count,
+                           int* start_offset, int* end_offset) {
     Token tk;
     int pos = 0;
 
-    if (*p == ' ' || *p == '\t') {
+    *start_offset = 0;
+    *end_offset = 0;
+
+    while (*p == ' ' || *p == '\t') {
         p++;
         pos++;
     }
+
+    *start_offset = pos;
 
     if (*p == '\0' || (*p == '/' && *(p + 1) == '/')) {
         tk.type = TK_EOF;
@@ -341,8 +344,7 @@ Token next_token_from_line(Arena* arena, const char* p, int* size) {
         case '"': {
             tk.type = TK_STR;
 
-            char* buf =
-                arena_alloc(arena, STR_DEFAULT_CAPACITY * sizeof(char));
+            char* buf = arena_alloc(arena, STR_DEFAULT_CAPACITY * sizeof(char));
             int len = 0;
             int capacity = STR_DEFAULT_CAPACITY;
 
@@ -536,10 +538,9 @@ Token next_token_from_line(Arena* arena, const char* p, int* size) {
                 tk.type = TK_IDENT;
                 tk.str = ident;
 
-                for (unsigned int i = 0; i < sizeof(str_tk) / sizeof(str_tk[0]);
-                     i++) {
-                    if (str_eql(str(str_tk[i].s), ident)) {
-                        tk.type = str_tk[i].token_type;
+                for (int i = 0; i < keyword_count; i++) {
+                    if (str_eql(str(keywords[i].s), ident)) {
+                        tk.type = keywords[i].token_type;
                         break;
                     }
                 }
@@ -551,7 +552,7 @@ Token next_token_from_line(Arena* arena, const char* p, int* size) {
         }
     }
 
-    *size = pos;
+    *end_offset = pos;
     return tk;
 }
 
@@ -602,9 +603,10 @@ static Token next_token_internal(ParserState* parser, int peek) {
         .line = lines[line],
     };
 
-    int size;
-    tk = next_token_from_line(parser->arena, p, &size);
-    pos += size;
+    int start_offset, end_offset;
+    tk = next_token_from_line(parser->arena, p, str_tk, ARRAY_SIZE(str_tk),
+                              &start_offset, &end_offset);
+    pos += end_offset;
 
     SourcePos token_end = {
         .index = pos,
