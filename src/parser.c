@@ -1864,7 +1864,7 @@ void parser_init(ParserState* parser, SymbolTable* sym,
 
 ASTNode* parser_parse(ParserState* parser, const SourceState* src) {
     parser->src = src;
-    parser->line = 0;
+    parser->line = parser->src->lines;
     parser->pos = 0;
 
     return stmt_list(parser, 0);

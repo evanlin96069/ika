@@ -24,6 +24,6 @@ void pp_finalize(PPState* state);
 
 struct Error;
 
-struct Error* pp_expand(PPState* state, const char* filename, int depth);
+struct Error* pp_expand(PPState* state, const char* filename);
 
 #endif

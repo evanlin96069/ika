@@ -565,26 +565,26 @@ Token next_token_from_line(UtlArenaAllocator* arena,
 static Token next_token_internal(ParserState* parser, int peek) {
     Token tk;
 
-    const SourceLine* lines = parser->src->lines.data;
+    SourceLine* line = parser->line;
+    assert(line);
 
-    size_t line = parser->line;
     size_t pos = parser->pos;
 
     SourcePos prev_token_end = {
         .index = pos,
-        .line = lines[line],
+        .line = *line,
     };
 
     // skip to next token start
-    char* p = &lines[line].content[pos];
+    char* p = &line->content[pos];
     while (*p == ' ' || *p == '\t' || *p == '\0' || *p == '/') {
         if (*p == '\0' || (*p == '/' && *(p + 1) == '/')) {
             // next line
-            if (line + 1 >= parser->src->lines.size) {
+            if (line->next == NULL) {
                 if (!peek) {
                     SourcePos curr_pos = {
                         .index = pos,
-                        .line = lines[line],
+                        .line = *line,
                     };
                     parser->prev_token_end = prev_token_end;
                     parser->token_start = curr_pos;
@@ -593,9 +593,9 @@ static Token next_token_internal(ParserState* parser, int peek) {
                 tk.type = TK_EOF;
                 return tk;
             }
-            line++;
+            line = line->next;
             pos = 0;
-            p = lines[line].content;
+            p = line->content;
         } else if (*p == '/') {
             break;
         } else {
@@ -606,7 +606,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
 
     SourcePos token_start = {
         .index = pos,
-        .line = lines[line],
+        .line = *line,
     };
 
     int start_offset, end_offset;
@@ -616,7 +616,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
 
     SourcePos token_end = {
         .index = pos,
-        .line = lines[line],
+        .line = *line,
     };
 
     if (!peek) {

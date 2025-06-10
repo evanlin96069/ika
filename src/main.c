@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
 
     // Read input file
 
-    Error* err = pp_expand(&pp_state, src_path, 0);
+    Error* err = pp_expand(&pp_state, src_path);
     pp_finalize(&pp_state);
 
     if (err != NULL) {
@@ -132,8 +132,10 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        for (size_t i = 0; i < src->lines.size; i++) {
-            fprintf(pp_out, "%s\n", src->lines.data[i].content);
+        SourceLine* line = src->lines;
+        while (line) {
+            fprintf(pp_out, "%s\n", line->content);
+            line = line->next;
         }
 
         if (out_path) {

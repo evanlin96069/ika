@@ -13,7 +13,7 @@ typedef struct ParserState {
     SymbolTable* global_sym;
 
     const SourceState* src;
-    size_t line;
+    SourceLine* line;
     size_t pos;  // current pos
 
     Token token;

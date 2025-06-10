@@ -3,11 +3,15 @@
 
 #include "utl/utlvector.h"
 
-typedef struct SourceLine {
+typedef struct SourceLine SourceLine;
+
+struct SourceLine {
     int file_index;
     int lineno;
     char* content;
-} SourceLine;
+
+    struct SourceLine* next;
+};
 
 typedef struct SourcePos {
     SourceLine line;
@@ -21,11 +25,10 @@ typedef struct SourceFile {
 } SourceFile;
 
 typedef UtlVector(SourceFile) SourceFiles;
-typedef UtlVector(SourceLine) SourceLines;
 
 typedef struct SourceState {
     SourceFiles files;
-    SourceLines lines;
+    SourceLine* lines;
 } SourceState;
 
 #endif
