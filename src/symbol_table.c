@@ -10,7 +10,7 @@ static inline int djb2_hash(Str s) {
 }
 
 void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
-                       int is_global, Arena* arena) {
+                       int is_global, UtlArenaAllocator* arena) {
     sym->offset = offset;
     sym->is_global = is_global;
     sym->parent = NULL;
@@ -18,7 +18,7 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
     sym->ste = NULL;
 
     if (!stack_size) {
-        stack_size = arena_alloc(arena, sizeof(int));
+        stack_size = utlarena_alloc(arena, sizeof(int));
         *stack_size = 0;
     }
     sym->stack_size = stack_size;
@@ -40,7 +40,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              const Type* data_type,
                                              SourcePos pos) {
     VarSymbolTableEntry* ste =
-        arena_alloc(sym->arena, sizeof(VarSymbolTableEntry));
+        utlarena_alloc(sym->arena, sizeof(VarSymbolTableEntry));
     ste->type = SYM_VAR;
 
     ste->ident = ident;
@@ -104,7 +104,7 @@ FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
                                                  const Type* data_type,
                                                  SourcePos pos) {
     FieldSymbolTableEntry* ste =
-        arena_alloc(sym->arena, sizeof(FieldSymbolTableEntry));
+        utlarena_alloc(sym->arena, sizeof(FieldSymbolTableEntry));
     ste->type = SYM_FIELD;
 
     ste->ident = ident;
@@ -141,7 +141,7 @@ DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
                                              DefSymbolValue val,
                                              SourcePos pos) {
     DefSymbolTableEntry* ste =
-        arena_alloc(sym->arena, sizeof(DefSymbolTableEntry));
+        utlarena_alloc(sym->arena, sizeof(DefSymbolTableEntry));
     ste->type = SYM_DEF;
 
     ste->ident = ident;
@@ -158,7 +158,7 @@ DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
                                                int is_extern, SourcePos pos) {
     FuncSymbolTableEntry* ste =
-        arena_alloc(sym->arena, sizeof(FuncSymbolTableEntry));
+        utlarena_alloc(sym->arena, sizeof(FuncSymbolTableEntry));
     ste->type = SYM_FUNC;
 
     ste->ident = ident;
@@ -179,7 +179,7 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
 TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident,
                                                SourcePos pos) {
     TypeSymbolTableEntry* ste =
-        arena_alloc(sym->arena, sizeof(TypeSymbolTableEntry));
+        utlarena_alloc(sym->arena, sizeof(TypeSymbolTableEntry));
     ste->type = SYM_TYPE;
 
     ste->ident = ident;
@@ -218,7 +218,8 @@ SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
 }
 
 SymbolTableEntry* symbol_table_append_sym(SymbolTable* sym, Str ident) {
-    SymbolTableEntry* ste = arena_alloc(sym->arena, sizeof(SymbolTableEntry));
+    SymbolTableEntry* ste =
+        utlarena_alloc(sym->arena, sizeof(SymbolTableEntry));
     ste->type = SYM_NONE;
 
     ste->ident = ident;

@@ -1,10 +1,11 @@
 #include "sema.h"
 
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 
-static Error* error(SourcePos pos, const char* fmt, ...) {
-    Error* result = malloc(sizeof(Error));
+static Error* error(SemaState* state, SourcePos pos, const char* fmt, ...) {
+    Error* result = utlarena_alloc(state->arena, sizeof(Error));
     result->pos = pos;
 
     va_list ap;
@@ -49,7 +50,8 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
 
     const Type* l_type = &(as_typed_ast(binop->left)->type_info.type);
     if (!(is_bool(l_type) || is_int(l_type) || is_ptr_like(l_type))) {
-        return error(binop->pos, "invalid left operand to do binary operation");
+        return error(state, binop->pos,
+                     "invalid left operand to do binary operation");
     }
 
     if (is_bool(l_type)) {
@@ -62,12 +64,12 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
 
             const Type* r_type = &(as_typed_ast(binop->right)->type_info.type);
             if (!is_bool(r_type)) {
-                return error(binop->pos,
+                return error(state, binop->pos,
                              "invalid right operand to do boolean operation");
             }
         } else {
             if (binop->op != TK_LOR && binop->op != TK_LAND) {
-                return error(binop->pos, "invalid boolean operator");
+                return error(state, binop->pos, "invalid boolean operator");
             }
 
             err = type_check_node(state, binop->right);
@@ -77,7 +79,7 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
 
             const Type* r_type = &(as_typed_ast(binop->right)->type_info.type);
             if (!is_bool(r_type)) {
-                return error(binop->pos,
+                return error(state, binop->pos,
                              "invalid right operand to do boolean operation");
             }
         }
@@ -92,7 +94,7 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
 
         const Type* r_type = &(as_typed_ast(binop->right)->type_info.type);
         if (!is_int(r_type) && !is_ptr_like(r_type)) {
-            return error(binop->pos,
+            return error(state, binop->pos,
                          "invalid right operand to do binary operation");
         }
 
@@ -105,14 +107,15 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
 
                 if (l_ptr || r_ptr) {  // Pointers
                     if (l_ptr && r_ptr) {
-                        return error(binop->pos,
+                        return error(state, binop->pos,
                                      "invalid operands to do binary operation");
                     }
 
                     const Type* p_type = l_ptr ? l_type : r_type;
                     if (!is_void(p_type->inner_type) &&
                         p_type->inner_type->incomplete) {
-                        return error(binop->pos, "use of incomplete tyoe");
+                        return error(state, binop->pos,
+                                     "use of incomplete tyoe");
                     }
 
                     binop->type_info.type = *p_type;
@@ -121,7 +124,7 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
                         *get_primitive_type(implicit_type_convert(
                             l_type->primitive_type, r_type->primitive_type));
                 } else {
-                    return error(binop->pos,
+                    return error(state, binop->pos,
                                  "invalid operands to do binary operation");
                 }
             } break;
@@ -153,7 +156,7 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
                 }
 
                 if (!is_valid_types) {
-                    return error(binop->pos,
+                    return error(state, binop->pos,
                                  "invalid operands for comparison operation");
                 }
                 binop->type_info.type = *get_primitive_type(TYPE_BOOL);
@@ -161,7 +164,7 @@ static Error* type_check_binop(SemaState* state, BinaryOpNode* binop) {
 
             default: {
                 if (!is_int(l_type) || !is_int(r_type)) {
-                    return error(binop->pos,
+                    return error(state, binop->pos,
                                  "invalid operands to do binary operation");
                 }
 
@@ -194,35 +197,35 @@ static Error* type_check_unaryop(SemaState* state, UnaryOpNode* unaryop) {
     switch (unaryop->op) {
         case TK_ADD:
             if (!is_int(type)) {
-                return error(unaryop->pos,
+                return error(state, unaryop->pos,
                              "invalid type to do unary operation");
             }
             break;
 
         case TK_SUB:
             if (!is_int(type)) {
-                return error(unaryop->pos,
+                return error(state, unaryop->pos,
                              "invalid type to do unary operation");
             }
             break;
 
         case TK_NOT:
             if (!is_int(type)) {
-                return error(unaryop->pos,
+                return error(state, unaryop->pos,
                              "invalid type to do unary operation");
             }
             break;
 
         case TK_LNOT:
             if (!is_bool(type)) {
-                return error(unaryop->pos,
+                return error(state, unaryop->pos,
                              "invalid type to do unary operation");
             }
             break;
 
         case TK_MUL:
             if (!is_ptr_like(type)) {
-                return error(unaryop->pos,
+                return error(state, unaryop->pos,
                              "indirection requires pointer operand");
             }
 
@@ -242,14 +245,14 @@ static Error* type_check_unaryop(SemaState* state, UnaryOpNode* unaryop) {
 
         case TK_AND:
             if (is_lvalue == 0) {
-                return error(unaryop->pos,
+                return error(state, unaryop->pos,
                              "lvalue required as unary '&' operand");
             }
 
             if (is_ptr(type)) {
                 unaryop->type_info.type.pointer_level++;
             } else {
-                Type* inner = arena_alloc(state->arena, sizeof(Type));
+                Type* inner = utlarena_alloc(state->arena, sizeof(Type));
                 *inner = unaryop->type_info.type;
                 unaryop->type_info.type.type = METADATA_POINTER;
                 unaryop->type_info.type.size = PTR_SIZE;
@@ -330,7 +333,7 @@ static Error* type_check_assign(SemaState* state, AssignNode* assign) {
 
     const TypedASTNode* l_node = as_typed_ast(assign->left);
     if (l_node->type_info.is_lvalue == 0) {
-        return error(assign->pos,
+        return error(state, assign->pos,
                      "lvalue required as left operand of assignment");
     }
 
@@ -344,7 +347,7 @@ static Error* type_check_assign(SemaState* state, AssignNode* assign) {
     const Type* r_type = &r_node->type_info.type;
 
     if (!is_allowed_type_convert(l_type, r_type)) {
-        return error(assign->pos, "type is not assignable");
+        return error(state, assign->pos, "type is not assignable");
     }
 
     assign->type_info.is_lvalue = 1;
@@ -360,7 +363,7 @@ static Error* type_check_if(SemaState* state, IfStatementNode* if_node) {
     }
 
     if (!is_bool(&(as_typed_ast(if_node->expr)->type_info.type))) {
-        return error(if_node->expr->pos, "expected type 'bool'");
+        return error(state, if_node->expr->pos, "expected type 'bool'");
     }
 
     err = type_check_node(state, if_node->then_block);
@@ -385,7 +388,7 @@ static Error* type_check_while(SemaState* state, WhileNode* while_node) {
     }
 
     if (!is_bool(&(as_typed_ast(while_node->expr)->type_info.type))) {
-        return error(while_node->expr->pos, "expected type 'bool'");
+        return error(state, while_node->expr->pos, "expected type 'bool'");
     }
 
     int prev_in_loop = state->in_loop;
@@ -413,12 +416,14 @@ static Error* type_check_goto(SemaState* state, GotoNode* node) {
     switch (node->op) {
         case TK_BREAK:
             if (state->in_loop == 0) {
-                return error(node->pos, "break statement not within a loop");
+                return error(state, node->pos,
+                             "break statement not within a loop");
             }
             break;
         case TK_CONTINUE:
             if (state->in_loop == 0) {
-                return error(node->pos, "continue statement not within a loop");
+                return error(state, node->pos,
+                             "continue statement not within a loop");
             }
             break;
         default:
@@ -436,7 +441,7 @@ static Error* type_check_call(SemaState* state, CallNode* call) {
 
     const Type* func_type = &(as_typed_ast(call->node)->type_info.type);
     if (func_type->type != METADATA_FUNC) {
-        return error(call->pos,
+        return error(state, call->pos,
                      "called object is not a function or function pointer");
     }
 
@@ -455,18 +460,18 @@ static Error* type_check_call(SemaState* state, CallNode* call) {
                 !is_allowed_type_convert(
                     arg_type->type,
                     &(as_typed_ast(curr->node)->type_info.type))) {
-                return error(curr->node->pos,
+                return error(state, curr->node->pos,
                              "passing argument with invalid type");
             }
             arg_type = arg_type->next;
         } else if (!has_va_args) {
-            return error(call->pos, "too many arguments");
+            return error(state, call->pos, "too many arguments");
         }
         curr = curr->next;
     }
 
     if (arg_type != NULL) {
-        return error(call->pos, "too few arguments");
+        return error(state, call->pos, "too few arguments");
     }
 
     const Type* return_type = func_type->func_data.return_type;
@@ -493,7 +498,8 @@ static Error* type_check_print(SemaState* state, PrintNode* print_node) {
         }
 
         if (as_typed_ast(curr->node)->type_info.type.size > REGISTER_SIZE) {
-            return error(curr->node->pos, "passing argument with invalid type");
+            return error(state, curr->node->pos,
+                         "passing argument with invalid type");
         }
 
         curr = curr->next;
@@ -514,7 +520,7 @@ static Error* type_check_ret(SemaState* state, ReturnNode* ret) {
     }
 
     if (!is_allowed_type_convert(state->return_type, return_type)) {
-        return error(ret->pos, "invalid return type");
+        return error(state, ret->pos, "invalid return type");
     }
 
     return NULL;
@@ -534,7 +540,7 @@ static Error* type_check_field(SemaState* state, FieldNode* field) {
     }
 
     if (type->type != METADATA_TYPE) {
-        return error(field->pos,
+        return error(state, field->pos,
                      "request for member in something not a struct");
     }
 
@@ -542,8 +548,8 @@ static Error* type_check_field(SemaState* state, FieldNode* field) {
     FieldSymbolTableEntry* ste = (FieldSymbolTableEntry*)symbol_table_find(
         type_ste->name_space, field->ident, 1);
     if (ste == NULL || ste->type != SYM_FIELD) {
-        return error(field->pos, "type has no member '%.*s'", field->ident.len,
-                     field->ident.ptr);
+        return error(state, field->pos, "type has no member '%.*s'",
+                     field->ident.len, field->ident.ptr);
     }
 
     field->type_info.is_lvalue = node->type_info.is_lvalue;
@@ -561,7 +567,7 @@ static Error* type_check_indexof(SemaState* state, IndexOfNode* idxof) {
     const TypedASTNode* l_node = as_typed_ast(idxof->left);
     const Type* l_type = &l_node->type_info.type;
     if (l_type->type != METADATA_ARRAY) {
-        return error(idxof->pos,
+        return error(state, idxof->pos,
                      "subscripted value is neither array nor array pointer");
     }
 
@@ -573,7 +579,7 @@ static Error* type_check_indexof(SemaState* state, IndexOfNode* idxof) {
     const TypedASTNode* r_node = as_typed_ast(idxof->right);
     const Type* r_type = &r_node->type_info.type;
     if (!is_int(r_type)) {
-        return error(idxof->pos, "array subscript is not an integer");
+        return error(state, idxof->pos, "array subscript is not an integer");
     }
 
     idxof->type_info.is_lvalue = l_node->type_info.is_lvalue;
@@ -597,7 +603,7 @@ static Error* type_check_cast(SemaState* state, CastNode* cast) {
             cast->type_info.is_lvalue = 0;
             cast->type_info.is_address = 0;
         } else {
-            return error(cast->pos, "cannot convert to a integer type");
+            return error(state, cast->pos, "cannot convert to a integer type");
         }
     } else if (is_ptr_like(cast->data_type) || is_func_ptr(cast->data_type)) {
         if (is_int(type) || is_ptr_like(type) || is_func_ptr(type)) {
@@ -605,10 +611,10 @@ static Error* type_check_cast(SemaState* state, CastNode* cast) {
             cast->type_info.is_lvalue = 0;
             cast->type_info.is_address = 0;
         } else {
-            return error(cast->pos, "cannot convert to a pointer type");
+            return error(state, cast->pos, "cannot convert to a pointer type");
         }
     } else {
-        return error(cast->pos, "invalid type conversion");
+        return error(state, cast->pos, "invalid type conversion");
     }
 
     return NULL;
@@ -714,7 +720,7 @@ static Error* type_check_global(SemaState* state, ASTNode* node) {
     while (iter) {
         if (iter->node->type != NODE_ASSIGN ||
             !((AssignNode*)iter->node)->from_decl) {
-            return error(iter->node->pos, "expected declaration");
+            return error(state, iter->node->pos, "expected declaration");
         }
 
         AssignNode* assign = (AssignNode*)iter->node;
@@ -733,7 +739,7 @@ static Error* type_check_global(SemaState* state, ASTNode* node) {
         if (assign->right->type != NODE_INTLIT &&
             assign->right->type != NODE_STRLIT) {
             return error(
-                assign->pos,
+                state, assign->pos,
                 "initialized element is not a compile-time constant integer "
                 "or string literal");
         }
@@ -743,7 +749,7 @@ static Error* type_check_global(SemaState* state, ASTNode* node) {
         const Type* r_type = &r_node->type_info.type;
 
         if (!is_allowed_type_convert(l_type, r_type)) {
-            return error(assign->pos, "type is not assignable");
+            return error(state, assign->pos, "type is not assignable");
         }
 
         assert(var_node->ste->type == SYM_VAR);
@@ -762,7 +768,7 @@ Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym, Str entry_sym) {
     SymbolTableEntry* entry_func = symbol_table_find(sym, entry_sym, 1);
     int has_user_defined_entry = (entry_func != NULL);
     if (has_user_defined_entry && entry_func->type != SYM_FUNC) {
-        return error(entry_func->pos, "entry should be a function");
+        return error(state, entry_func->pos, "entry should be a function");
     }
 
     // Functions

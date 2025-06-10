@@ -3,14 +3,12 @@
 
 #include <stdio.h>
 
-#include "arena.h"
 #include "ast.h"
 
 #define MAX_DATA_COUNT 256
 
 typedef struct CodegenState {
     FILE* out;
-    Arena* arena;
 
     int label_count;
 

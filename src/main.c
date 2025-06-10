@@ -23,6 +23,39 @@
 
 #define ARENA_SIZE (1 << 14)
 
+static void* never_fail_alloc(void* context, size_t size) {
+    UNUSED(context);
+
+    void* ptr = malloc(size);
+    if (!ptr && size != 0) {
+        ika_log(LOG_ERROR, "malloc: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    return ptr;
+}
+
+static void* never_fail_remap(void* context, void* buf, size_t new_size) {
+    UNUSED(context);
+
+    void* ptr = realloc(buf, new_size);
+    if (!ptr && new_size != 0) {
+        ika_log(LOG_ERROR, "realloc: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    return ptr;
+}
+
+static void never_fail_free(void* context, void* buf) {
+    UNUSED(context);
+    free(buf);
+}
+
+UtlAllocator never_fail_allocator = {
+    .alloc = never_fail_alloc,
+    .remap = never_fail_remap,
+    .free = never_fail_free,
+};
+
 void usage(void) {
     fprintf(stderr,
             "Usage: ikac [options] file\n"
@@ -69,16 +102,17 @@ int main(int argc, char* argv[]) {
 
     src_path = *argv;
 
-    Arena arena;
-    arena_init(&arena, ARENA_SIZE, NULL);
+    UtlArenaAllocator arena = utlarena_init(ARENA_SIZE, &never_fail_allocator);
+    UtlAllocator* temp_allocator = &never_fail_allocator;
 
     PPState pp_state;
     const SourceState* src = &pp_state.src;
-    pp_init(&pp_state, &arena);
+    pp_init(&pp_state, &arena, temp_allocator);
 
     // Read input file
 
     Error* err = pp_expand(&pp_state, src_path, 0);
+    pp_finalize(&pp_state);
 
     if (err != NULL) {
         print_err(src, err);
@@ -96,16 +130,15 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        for (size_t i = 0; i < src->line_count; i++) {
-            fprintf(pp_out, "%s\n", src->lines[i].content);
+        for (size_t i = 0; i < src->lines.size; i++) {
+            fprintf(pp_out, "%s\n", src->lines.data[i].content);
         }
 
         if (out_path) {
             fclose(pp_out);
         }
 
-        arena_deinit(&arena);
-        pp_deinit(&pp_state);
+        utlarena_deinit(&arena);
         return 0;
     }
 
@@ -114,7 +147,7 @@ int main(int argc, char* argv[]) {
     symbol_table_init(&sym, 0, NULL, 1, &arena);
 
     ParserState parser;
-    parser_init(&parser, &sym, &arena);
+    parser_init(&parser, &sym, &arena, temp_allocator);
 
     ASTNode* node = parser_parse(&parser, src);
     if (node->type == NODE_ERR) {
@@ -162,14 +195,12 @@ int main(int argc, char* argv[]) {
 
     CodegenState codegen_state = {
         .out = out,
-        .arena = &arena,
     };
 
     codegen(&codegen_state, node, &sym, entry_sym);
     fclose(out);
 
-    arena_deinit(&arena);
-    pp_deinit(&pp_state);
+    utlarena_deinit(&arena);
 
     // Invoke cc
     if (!s_flag) {

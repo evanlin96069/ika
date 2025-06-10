@@ -21,11 +21,11 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope);
 
 static ASTNode* error(ParserState* parser, SourcePos pos, const char* fmt,
                       ...) {
-    ErrorNode* err = arena_alloc(parser->arena, sizeof(ErrorNode));
+    ErrorNode* err = utlarena_alloc(parser->arena, sizeof(ErrorNode));
     err->type = NODE_ERR;
     err->pos = pos;
 
-    err->val = malloc(sizeof(Error));
+    err->val = utlarena_alloc(parser->arena, sizeof(Error));
     err->val->pos = pos;
 
     va_list ap;
@@ -53,7 +53,8 @@ static ASTNode* primary(ParserState* parser) {
         case TK_TRUE:
         case TK_FALSE:
         case TK_NULL: {
-            IntLitNode* intlit = arena_alloc(parser->arena, sizeof(IntLitNode));
+            IntLitNode* intlit =
+                utlarena_alloc(parser->arena, sizeof(IntLitNode));
             intlit->type = NODE_INTLIT;
             intlit->pos = parser->token_start;
             if (tk.type == TK_INT) {
@@ -70,7 +71,8 @@ static ASTNode* primary(ParserState* parser) {
         } break;
 
         case TK_SIZEOF: {
-            IntLitNode* intlit = arena_alloc(parser->arena, sizeof(IntLitNode));
+            IntLitNode* intlit =
+                utlarena_alloc(parser->arena, sizeof(IntLitNode));
             intlit->type = NODE_INTLIT;
             intlit->pos = parser->token_start;
             tk = next_token(parser);
@@ -96,7 +98,7 @@ static ASTNode* primary(ParserState* parser) {
         } break;
 
         case TK_CAST: {
-            CastNode* cast = arena_alloc(parser->arena, sizeof(CastNode));
+            CastNode* cast = utlarena_alloc(parser->arena, sizeof(CastNode));
             cast->type = NODE_CAST;
             cast->pos = parser->token_start;
             tk = next_token(parser);
@@ -132,7 +134,8 @@ static ASTNode* primary(ParserState* parser) {
         } break;
 
         case TK_STR: {
-            StrLitNode* strlit = arena_alloc(parser->arena, sizeof(StrLitNode));
+            StrLitNode* strlit =
+                utlarena_alloc(parser->arena, sizeof(StrLitNode));
             strlit->type = NODE_STRLIT;
             strlit->pos = parser->token_start;
             strlit->val = tk.str;
@@ -150,7 +153,7 @@ static ASTNode* primary(ParserState* parser) {
                 case SYM_VAR:
                 case SYM_FUNC: {
                     VarNode* var_node =
-                        arena_alloc(parser->arena, sizeof(VarNode));
+                        utlarena_alloc(parser->arena, sizeof(VarNode));
                     var_node->type = NODE_VAR;
                     var_node->pos = parser->token_start;
                     var_node->ste = ste;
@@ -161,14 +164,14 @@ static ASTNode* primary(ParserState* parser) {
                     DefSymbolTableEntry* def = (DefSymbolTableEntry*)ste;
                     if (def->val.is_str) {
                         StrLitNode* strlit =
-                            arena_alloc(parser->arena, sizeof(StrLitNode));
+                            utlarena_alloc(parser->arena, sizeof(StrLitNode));
                         strlit->type = NODE_STRLIT;
                         strlit->pos = parser->token_start;
                         strlit->val = def->val.str;
                         node = (ASTNode*)strlit;
                     } else {
                         IntLitNode* intlit =
-                            arena_alloc(parser->arena, sizeof(IntLitNode));
+                            utlarena_alloc(parser->arena, sizeof(IntLitNode));
                         intlit->type = NODE_INTLIT;
                         intlit->pos = parser->token_start;
                         intlit->data_type = def->val.data_type;
@@ -238,7 +241,7 @@ static ASTNode* primary(ParserState* parser) {
 
             if (node == NULL) {
                 UnaryOpNode* unary_node =
-                    arena_alloc(parser->arena, sizeof(UnaryOpNode));
+                    utlarena_alloc(parser->arena, sizeof(UnaryOpNode));
                 unary_node->type = NODE_UNARYOP;
                 unary_node->pos = parser->token_start;
                 unary_node->op = tk.type;
@@ -262,7 +265,7 @@ static ASTNode* primary(ParserState* parser) {
             case TK_DOT: {
                 next_token(parser);
                 FieldNode* field =
-                    arena_alloc(parser->arena, sizeof(FieldNode));
+                    utlarena_alloc(parser->arena, sizeof(FieldNode));
                 field->type = NODE_FIELD;
                 field->pos = parser->token_start;
                 field->node = node;
@@ -278,7 +281,7 @@ static ASTNode* primary(ParserState* parser) {
             case TK_LBRACKET: {
                 next_token(parser);
                 IndexOfNode* indexof =
-                    arena_alloc(parser->arena, sizeof(IndexOfNode));
+                    utlarena_alloc(parser->arena, sizeof(IndexOfNode));
                 indexof->type = NODE_INDEXOF;
                 indexof->pos = parser->token_start;
                 indexof->left = node;
@@ -298,7 +301,7 @@ static ASTNode* primary(ParserState* parser) {
             case TK_LPAREN: {
                 next_token(parser);
                 CallNode* call_node =
-                    arena_alloc(parser->arena, sizeof(CallNode));
+                    utlarena_alloc(parser->arena, sizeof(CallNode));
                 call_node->type = NODE_CALL;
                 call_node->pos = parser->token_start;
                 call_node->node = node;
@@ -315,7 +318,7 @@ static ASTNode* primary(ParserState* parser) {
                         }
 
                         ASTNodeList* arg =
-                            arena_alloc(parser->arena, sizeof(ASTNodeList));
+                            utlarena_alloc(parser->arena, sizeof(ASTNodeList));
                         arg->node = arg_node;
                         arg->next = call_node->args;
                         call_node->args = arg;
@@ -463,7 +466,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
         switch (tk.type) {
             case TK_ASSIGN: {
                 AssignNode* assign =
-                    arena_alloc(parser->arena, sizeof(AssignNode));
+                    utlarena_alloc(parser->arena, sizeof(AssignNode));
                 assign->type = NODE_ASSIGN;
                 assign->pos = parser->token_start;
                 assign->left = node;
@@ -486,14 +489,14 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
             case TK_AXOR:
             case TK_AOR: {
                 AssignNode* assign =
-                    arena_alloc(parser->arena, sizeof(AssignNode));
+                    utlarena_alloc(parser->arena, sizeof(AssignNode));
                 assign->type = NODE_ASSIGN;
                 assign->pos = parser->token_start;
                 assign->left = node;
                 assign->from_decl = 0;
 
                 BinaryOpNode* binop =
-                    arena_alloc(parser->arena, sizeof(BinaryOpNode));
+                    utlarena_alloc(parser->arena, sizeof(BinaryOpNode));
                 binop->type = NODE_BINARYOP;
                 binop->pos = parser->token_start;
                 switch (tk.type) {
@@ -710,7 +713,7 @@ static ASTNode* expr(ParserState* parser, int min_precedence) {
 
                 if (out == NULL) {
                     BinaryOpNode* binop =
-                        arena_alloc(parser->arena, sizeof(BinaryOpNode));
+                        utlarena_alloc(parser->arena, sizeof(BinaryOpNode));
                     binop->type = NODE_BINARYOP;
                     binop->pos = pos;
                     binop->op = tk.type;
@@ -781,7 +784,7 @@ static StrCallConv str_callconv[] = {
 static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
     Token tk = next_token(parser);
 
-    TypeNode* type_node = arena_alloc(parser->arena, sizeof(TypeNode));
+    TypeNode* type_node = utlarena_alloc(parser->arena, sizeof(TypeNode));
     type_node->type = NODE_TYPE;
     type_node->pos = parser->token_start;
 
@@ -798,7 +801,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
         return (ASTNode*)type_node;
     }
 
-    Type* type = arena_alloc(parser->arena, sizeof(Type));
+    Type* type = utlarena_alloc(parser->arena, sizeof(Type));
     switch (tk.type) {
         case TK_MUL: {
             type->incomplete = 0;
@@ -999,7 +1002,8 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
                         has_thisptr = is_ptr(((TypeNode*)arg_type)->data_type);
                     }
 
-                    ArgList* arg = arena_alloc(parser->arena, sizeof(ArgList));
+                    ArgList* arg =
+                        utlarena_alloc(parser->arena, sizeof(ArgList));
                     arg->next = func_data.args;
                     arg->type = ((TypeNode*)arg_type)->data_type;
                     func_data.args = arg;
@@ -1080,14 +1084,14 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
                          "initializing extern variable is not allowed");
         }
 
-        VarNode* var = arena_alloc(parser->arena, sizeof(VarNode));
+        VarNode* var = utlarena_alloc(parser->arena, sizeof(VarNode));
         var->type = NODE_VAR;
         var->pos = parser->token_start;
         var->ste = (SymbolTableEntry*)ste;
 
         next_token(parser);
 
-        AssignNode* assign = arena_alloc(parser->arena, sizeof(AssignNode));
+        AssignNode* assign = utlarena_alloc(parser->arena, sizeof(AssignNode));
         assign->type = NODE_ASSIGN;
         assign->pos = parser->token_start;
         assign->left = (ASTNode*)var;
@@ -1196,7 +1200,7 @@ static ASTNode* struct_decl(ParserState* parser) {
     int alignment = 0;
 
     SymbolTable* name_space =
-        arena_alloc(parser->sym->arena, sizeof(SymbolTable));
+        utlarena_alloc(parser->sym->arena, sizeof(SymbolTable));
     symbol_table_init(name_space, 0, NULL, 0, parser->sym->arena);
 
     tk = next_token(parser);
@@ -1368,7 +1372,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
     }
 
     SymbolTable* sym =
-        arena_alloc(parser->global_sym->arena, sizeof(SymbolTable));
+        utlarena_alloc(parser->global_sym->arena, sizeof(SymbolTable));
     symbol_table_init(sym, 0, NULL, 0, parser->global_sym->arena);
 
     sym->parent = parser->global_sym;
@@ -1434,7 +1438,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
                                     ((TypeNode*)arg_type)->data_type,
                                     ident_pos);
 
-            ArgList* arg = arena_alloc(parser->arena, sizeof(ArgList));
+            ArgList* arg = utlarena_alloc(parser->arena, sizeof(ArgList));
             arg->next = func_data.args;
             arg->type = ((TypeNode*)arg_type)->data_type;
             func_data.args = arg;
@@ -1500,7 +1504,7 @@ static ASTNode* return_stmt(ParserState* parser) {
     assert(tk.type == TK_RET);
 
     tk = peek_token(parser);
-    ReturnNode* ret_node = arena_alloc(parser->arena, sizeof(ReturnNode));
+    ReturnNode* ret_node = utlarena_alloc(parser->arena, sizeof(ReturnNode));
     ret_node->type = NODE_RET;
     ret_node->pos = parser->token_start;
     if (tk.type == TK_SEMICOLON) {
@@ -1520,7 +1524,7 @@ static ASTNode* if_stmt(ParserState* parser) {
     assert(tk.type == TK_IF);
 
     IfStatementNode* if_node =
-        arena_alloc(parser->arena, sizeof(IfStatementNode));
+        utlarena_alloc(parser->arena, sizeof(IfStatementNode));
     if_node->type = NODE_IF;
 
     tk = next_token(parser);
@@ -1562,7 +1566,7 @@ static ASTNode* while_stmt(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_WHILE);
 
-    WhileNode* while_node = arena_alloc(parser->arena, sizeof(WhileNode));
+    WhileNode* while_node = utlarena_alloc(parser->arena, sizeof(WhileNode));
     while_node->type = NODE_WHILE;
     while_node->pos = parser->token_start;
 
@@ -1604,7 +1608,7 @@ static ASTNode* scope(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_LBRACE);
 
-    SymbolTable* sym = arena_alloc(parser->sym->arena, sizeof(SymbolTable));
+    SymbolTable* sym = utlarena_alloc(parser->sym->arena, sizeof(SymbolTable));
     symbol_table_init(sym, parser->sym->offset, parser->sym->stack_size, 0,
                       parser->sym->arena);
     sym->parent = parser->sym;
@@ -1665,7 +1669,7 @@ static ASTNode* stmt(ParserState* parser) {
         case TK_STR: {
             next_token(parser);
             PrintNode* print_node =
-                arena_alloc(parser->arena, sizeof(PrintNode));
+                utlarena_alloc(parser->arena, sizeof(PrintNode));
             node = (ASTNode*)print_node;
 
             print_node->type = NODE_PRINT;
@@ -1680,7 +1684,7 @@ static ASTNode* stmt(ParserState* parser) {
                     return arg_node;
 
                 ASTNodeList* arg =
-                    arena_alloc(parser->arena, sizeof(ASTNodeList));
+                    utlarena_alloc(parser->arena, sizeof(ASTNodeList));
                 arg->node = arg_node;
                 arg->next = print_node->args;
                 print_node->args = arg;
@@ -1698,7 +1702,8 @@ static ASTNode* stmt(ParserState* parser) {
         case TK_CONTINUE: {
             next_token(parser);
 
-            GotoNode* goto_node = arena_alloc(parser->arena, sizeof(GotoNode));
+            GotoNode* goto_node =
+                utlarena_alloc(parser->arena, sizeof(GotoNode));
             node = (ASTNode*)goto_node;
             goto_node->type = NODE_GOTO;
             goto_node->pos = parser->token_start;
@@ -1732,7 +1737,7 @@ static ASTNode* stmt(ParserState* parser) {
 
 static ASTNode* stmt_list(ParserState* parser, int in_scope) {
     StatementListNode* stmts =
-        arena_alloc(parser->arena, sizeof(StatementListNode));
+        utlarena_alloc(parser->arena, sizeof(StatementListNode));
     stmts->type = NODE_STMTS;
     stmts->pos = parser->token_start;
     stmts->stmts = NULL;
@@ -1837,7 +1842,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
             return node;
         }
 
-        ASTNodeList* list = arena_alloc(parser->arena, sizeof(ASTNodeList));
+        ASTNodeList* list = utlarena_alloc(parser->arena, sizeof(ASTNodeList));
         list->node = node;
         list->next = NULL;
         if (!stmts->stmts) {
@@ -1850,8 +1855,10 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
     return (ASTNode*)stmts;
 }
 
-void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena) {
+void parser_init(ParserState* parser, SymbolTable* sym,
+                 UtlArenaAllocator* arena, UtlAllocator* temp_allocator) {
     parser->arena = arena;
+    parser->temp_allocator = temp_allocator;
     parser->sym = parser->global_sym = sym;
 }
 

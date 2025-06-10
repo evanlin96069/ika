@@ -5,7 +5,9 @@
 
 void ika_log(LogType level, const char* fmt, ...);
 
-char* read_entire_file(const char* path);
+struct UtlAllocator;
+
+char* read_entire_file(struct UtlAllocator* allocator, const char* path);
 
 Str get_dir_name(Str path);
 

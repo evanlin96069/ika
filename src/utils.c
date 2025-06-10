@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define UTL_IMPLEMENTATION
+#include "utl/utl.h"
+
 void ika_log(LogType level, const char* fmt, ...) {
     switch (level) {
         case LOG_DEBUG:
@@ -34,7 +37,7 @@ void ika_log(LogType level, const char* fmt, ...) {
     va_end(ap);
 }
 
-char* read_entire_file(const char* path) {
+char* read_entire_file(struct UtlAllocator* allocator, const char* path) {
     FILE* fp = fopen(path, "rb");
     if (!fp) {
         return NULL;
@@ -45,7 +48,7 @@ char* read_entire_file(const char* path) {
     size = ftell(fp);
     rewind(fp);
 
-    char* buf = malloc(size + 1);
+    char* buf = allocator->alloc(allocator, size + 1);
     if (!buf) {
         fclose(fp);
         errno = ENOMEM;
@@ -57,7 +60,7 @@ char* read_entire_file(const char* path) {
         fclose(fp);
 
         if (n_read != 1) {
-            free(buf);
+            allocator->free(allocator, buf);
             errno = EIO;
             return NULL;
         }

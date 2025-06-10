@@ -1,9 +1,10 @@
 #include "lexer.h"
 
 #include "parser.h"
+#include "utl/allocator/utlstackfallback.h"
+#include "utl/utlvector.h"
 
-#define STR_DEFAULT_CAPACITY 16
-#define STR_GROWTH_RATE 2
+#define DEFAULT_STR_SIZE 256
 
 static inline int is_digit(char c) { return c >= '0' && c <= '9'; }
 
@@ -111,7 +112,8 @@ static inline Token handle_string_escape(const char* p, int* size) {
     return tk;
 }
 
-Token next_token_from_line(Arena* arena, const char* p,
+Token next_token_from_line(UtlArenaAllocator* arena,
+                           UtlAllocator* temp_allocator, const char* p,
                            const StrToken* keywords, int keyword_count,
                            int* start_offset, int* end_offset) {
     Token tk;
@@ -344,9 +346,12 @@ Token next_token_from_line(Arena* arena, const char* p,
         case '"': {
             tk.type = TK_STR;
 
-            char* buf = arena_alloc(arena, STR_DEFAULT_CAPACITY * sizeof(char));
-            int len = 0;
-            int capacity = STR_DEFAULT_CAPACITY;
+            char buffer[DEFAULT_STR_SIZE];
+            UtlStackFallbackAllocator sf =
+                utlstackfallback_init(buffer, sizeof(buffer), temp_allocator);
+            UtlAllocator* allocator = utlstackfallback_allocator(&sf);
+
+            UtlVector(char) s = utlvector_init(allocator);
 
             p++;
             pos++;
@@ -369,28 +374,28 @@ Token next_token_from_line(Arena* arena, const char* p,
                     pos++;
                 }
 
-                if (len + 1 > capacity) {
-                    buf = arena_realloc(arena, buf, capacity,
-                                        capacity * STR_GROWTH_RATE);
-                    capacity *= STR_GROWTH_RATE;
-                }
-
-                buf[len] = c;
-                len++;
+                utlvector_push(&s, c);
             }
 
             if (tk.type != TK_ERR) {
-                tk.str = (Str){
-                    .ptr = buf,
-                    .len = len,
-                };
+                char* new_buffer = utlarena_alloc(arena, s.size);
+                memcpy(new_buffer, s.data, s.size);
+
+                Str result;
+                result.len = s.size;
+                result.ptr = new_buffer;
+
+                tk.str = result;
 
                 if (*p != '"') {
                     tk.type = TK_ERR;
                     tk.str = str("missing terminating \" character");
+                    break;
                 }
                 pos++;
             }
+
+            utlvector_deinit(&s);
         } break;
 
         case '\'':
@@ -426,6 +431,7 @@ Token next_token_from_line(Arena* arena, const char* p,
                 if (*p != '\'') {
                     tk.type = TK_ERR;
                     tk.str = str("missing terminating ' character");
+                    break;
                 }
                 pos++;
             }
@@ -559,7 +565,7 @@ Token next_token_from_line(Arena* arena, const char* p,
 static Token next_token_internal(ParserState* parser, int peek) {
     Token tk;
 
-    const SourceLine* lines = parser->src->lines;
+    const SourceLine* lines = parser->src->lines.data;
 
     size_t line = parser->line;
     size_t pos = parser->pos;
@@ -574,7 +580,7 @@ static Token next_token_internal(ParserState* parser, int peek) {
     while (*p == ' ' || *p == '\t' || *p == '\0' || *p == '/') {
         if (*p == '\0' || (*p == '/' && *(p + 1) == '/')) {
             // next line
-            if (line + 1 >= parser->src->line_count) {
+            if (line + 1 >= parser->src->lines.size) {
                 if (!peek) {
                     SourcePos curr_pos = {
                         .index = pos,
@@ -604,8 +610,8 @@ static Token next_token_internal(ParserState* parser, int peek) {
     };
 
     int start_offset, end_offset;
-    tk = next_token_from_line(parser->arena, p, str_tk, ARRAY_SIZE(str_tk),
-                              &start_offset, &end_offset);
+    tk = next_token_from_line(parser->arena, parser->temp_allocator, p, str_tk,
+                              ARRAY_SIZE(str_tk), &start_offset, &end_offset);
     pos += end_offset;
 
     SourcePos token_end = {

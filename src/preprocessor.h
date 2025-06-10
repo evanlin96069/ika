@@ -1,24 +1,26 @@
 #ifndef PREPROCESSOR_H
 #define PREPROCESSOR_H
 
-#include "arena.h"
 #include "source.h"
+#include "utl/allocator/utlarena.h"
 
 #define MAX_INCLUDE_DEPTH 15
 
 struct SymbolTable;
 
 typedef struct PPState {
-    Arena* arena;
+    UtlArenaAllocator* arena;
+    UtlAllocator* temp_allocator;
     SourceState src;
 
     int last_include;
     struct SymbolTable* sym;  // for #define
 } PPState;
 
-void pp_init(PPState* state, Arena* arena);
+void pp_init(PPState* state, UtlArenaAllocator* arena,
+             UtlAllocator* temp_allocator);
 
-void pp_deinit(PPState* state);
+void pp_finalize(PPState* state);
 
 struct Error;
 

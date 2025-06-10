@@ -1,14 +1,14 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "arena.h"
 #include "ast.h"
 #include "lexer.h"
 #include "source.h"
 #include "symbol_table.h"
 
 typedef struct ParserState {
-    Arena* arena;
+    UtlArenaAllocator* arena;
+    UtlAllocator* temp_allocator;
     SymbolTable* sym;
     SymbolTable* global_sym;
 
@@ -22,7 +22,8 @@ typedef struct ParserState {
     SourcePos token_end;
 } ParserState;
 
-void parser_init(ParserState* parser, SymbolTable* sym, Arena* arena);
+void parser_init(ParserState* parser, SymbolTable* sym,
+                 UtlArenaAllocator* arena, UtlAllocator* temp_allocator);
 ASTNode* parser_parse(ParserState* parser, const SourceState* src);
 
 #endif

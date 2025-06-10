@@ -1,6 +1,8 @@
 #ifndef SOURCE_H
 #define SOURCE_H
 
+#include "utl/utlvector.h"
+
 typedef struct SourceLine {
     int file_index;
     int lineno;
@@ -18,18 +20,12 @@ typedef struct SourceFile {
     SourcePos pos;
 } SourceFile;
 
-/*
- *  files and lines arrays are allocated using malloc,
- *  the inner memory allocations (filename, content...) are using the arena.
- */
-typedef struct SourceState {
-    SourceFile* files;
-    size_t file_count;
-    size_t file_capacity;
+typedef UtlVector(SourceFile) SourceFiles;
+typedef UtlVector(SourceLine) SourceLines;
 
-    SourceLine* lines;
-    size_t line_count;
-    size_t line_capacity;
+typedef struct SourceState {
+    SourceFiles files;
+    SourceLines lines;
 } SourceState;
 
 #endif

@@ -9,7 +9,7 @@ void print_message(LogType level, const SourceState* src, Error* err) {
     }
 #endif
 
-    const SourceFile* file = &src->files[err->pos.line.file_index];
+    const SourceFile* file = &src->files.data[err->pos.line.file_index];
     const char* filename = file->filename;
     const char* line = err->pos.line.content;
     int lineno = err->pos.line.lineno;
@@ -23,14 +23,14 @@ void print_message(LogType level, const SourceState* src, Error* err) {
     }
 
     if (err->pos.line.file_index != 0) {
-        const SourceFile* included_file = &src->files[included_by];
+        const SourceFile* included_file = &src->files.data[included_by];
         fprintf(stderr, "In file included from %s:%d%c\n",
                 included_file->filename, file->pos.line.lineno,
                 included_by == 0 ? ':' : ',');
         file = included_file;
         while (included_by != 0) {
             included_by = file->pos.line.file_index;
-            included_file = &src->files[included_by];
+            included_file = &src->files.data[included_by];
             fprintf(stderr, "                 from %s:%d%c\n",
                     included_file->filename, file->pos.line.lineno,
                     included_by == 0 ? ':' : ',');

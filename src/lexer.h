@@ -1,8 +1,8 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-#include "arena.h"
 #include "str.h"
+#include "utl/allocator/utlarena.h"
 
 typedef enum TkType {
     TK_ERR = -1,
@@ -107,10 +107,10 @@ struct ParserState;
 // - search_keywords: return as keyword token or just return as identifier token
 // - start_offset: token start pos
 // - end_offset: token end pos
-Token next_token_from_line(Arena* arena, const char* p,
+Token next_token_from_line(UtlArenaAllocator* arena,
+                           UtlAllocator* temp_allocator, const char* p,
                            const StrToken* keywords, int keyword_count,
                            int* start_offset, int* end_offset);
-
 Token next_token(struct ParserState* parser);
 
 Token peek_token(struct ParserState* parser);

@@ -1,10 +1,10 @@
 #ifndef SYMBOL_TABLE_H
 #define SYMBOL_TABLE_H
 
-#include "arena.h"
 #include "source.h"
 #include "str.h"
 #include "type.h"
+#include "utl/allocator/utlarena.h"
 
 struct ASTNode;
 
@@ -114,7 +114,7 @@ struct TypeSymbolTableEntry {
 
 struct SymbolTable {
     SymbolTable* parent;
-    Arena* arena;
+    UtlArenaAllocator* arena;
     SymbolTableEntry* ste;
     int* stack_size;  // total stack size
     int is_global;    // is global symbol table
@@ -126,7 +126,7 @@ struct SymbolTable {
 };
 
 void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
-                       int is_global, Arena* arena);
+                       int is_global, UtlArenaAllocator* arena);
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              int is_arg, int is_extern,
