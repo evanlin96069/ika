@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "utils.h"
-
 #if defined(__GNUC__) && !defined(__llvm__) && !defined(__INTEL_COMPILER)
 #pragma GCC diagnostic ignored "-Wswitch-unreachable"
 #endif

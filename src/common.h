@@ -25,6 +25,8 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
 
+#define ika_debug(...) ika_log(LOG_DEBUG, __VA_ARGS__)
+
 typedef enum LogType {
     LOG_DEBUG,
     LOG_NOTE,
