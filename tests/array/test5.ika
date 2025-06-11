@@ -1,4 +1,4 @@
-fn main() void {
+{
     var c: u8;
     var arr: [3]u8;
     var n: i32;

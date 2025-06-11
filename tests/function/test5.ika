@@ -1,8 +1,10 @@
-fn main() void {
+fn main() i32 {
     var c1: u8 = 34;
     var c2: u8 = 35;
     var n: i32 = 0;
 
     n = c1 + c2;
     "%d %d %d\n", c1, c2, n;
+
+    return 0;
 }

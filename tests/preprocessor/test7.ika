@@ -1,0 +1,4 @@
+#if !TEST7
+#define TEST7
+Test7
+#endif

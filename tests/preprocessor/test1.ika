@@ -1,0 +1,12 @@
+#define A
+#if B
+line B
+#elif A
+line A
+#elif C
+#if 1 // invalid expression shouldn't casue error in in active branch
+#endif
+line C
+#else
+line ELSE
+#endif

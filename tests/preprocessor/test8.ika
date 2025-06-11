@@ -1,0 +1,6 @@
+#if !TEST8
+#define TEST8
+#include "test7.ika"
+#include "test7.ika"
+Test8
+#endif

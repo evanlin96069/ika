@@ -1,0 +1,6 @@
+#define FOO
+#if FOO
+line A
+#else
+line B
+#endif

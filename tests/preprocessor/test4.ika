@@ -1,0 +1,11 @@
+#define X
+#if X
+line 1
+    #if Y
+line 2
+    #else
+line 3
+    #endif
+#else
+line 4
+#endif

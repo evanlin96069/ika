@@ -1,0 +1,11 @@
+#define A
+#define A
+#if A
+line A
+#endif
+#define B
+#define B
+#undef B
+#if B
+line B
+#endif

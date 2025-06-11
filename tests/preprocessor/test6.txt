@@ -1,0 +1,2 @@
+A and B
+Not (A and C)

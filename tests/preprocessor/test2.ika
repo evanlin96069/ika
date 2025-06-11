@@ -1,0 +1,10 @@
+#if OUTER
+line A
+    #if INNER
+line B
+    #else
+line C
+    #endif
+#else
+line D
+#endif

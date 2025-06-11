@@ -1,0 +1,7 @@
+#define A
+#undef A
+#if A
+line A
+#else
+line not A
+#endif
