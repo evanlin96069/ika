@@ -36,20 +36,52 @@ set(TEST_GROUPS
     array
     struct
     enum
+    preprocessor
 )
+
+set(IKAC $<TARGET_FILE:ikac>)
+
+function(add_ika_test TEST_GROUP TEST_FILE)
+    get_filename_component(TEST_NAME  ${TEST_FILE} NAME_WE)
+
+    # Paths that differ per‐test
+    set(BIN_OUT  ${CMAKE_BINARY_DIR}/tests/${TEST_GROUP}/${TEST_NAME}${CMAKE_EXECUTABLE_SUFFIX})
+    set(RUN_OUT  ${CMAKE_BINARY_DIR}/tests/${TEST_GROUP}/${TEST_NAME}.out)
+    set(EXPECTED ${CMAKE_SOURCE_DIR}/tests/${TEST_GROUP}/${TEST_NAME}.txt)
+
+    if(TEST_GROUP STREQUAL "preprocessor")
+        add_test(
+            NAME     ${TEST_GROUP}_${TEST_NAME}_${CMAKE_BUILD_TYPE}
+            COMMAND  ${CMAKE_COMMAND}
+                     -DIKAC=${IKAC}
+                     -DSRC=${TEST_FILE}
+                     -DOUTPUT=${RUN_OUT}
+                     -DEXPECTED=${EXPECTED}
+                     -P  ${CMAKE_SOURCE_DIR}/cmake/RunPreprocessorTest.cmake
+        )
+    else()
+        add_test(
+            NAME     ${TEST_GROUP}_${TEST_NAME}_${CMAKE_BUILD_TYPE}
+            COMMAND  ${CMAKE_COMMAND}
+                     -DIKAC=${IKAC}
+                     -DSRC=${TEST_FILE}
+                     -DBIN=${BIN_OUT}
+                     -DOUTPUT=${RUN_OUT}
+                     -DEXPECTED=${EXPECTED}
+                     -P  ${CMAKE_SOURCE_DIR}/cmake/RunTest.cmake
+        )
+    endif()
+
+    # Nice filtering in ctest -L <label>
+    set_tests_properties(${TEST_GROUP}_${TEST_NAME}_${CMAKE_BUILD_TYPE}
+        PROPERTIES LABELS "${TEST_GROUP}"
+    )
+endfunction()
 
 foreach(TEST_GROUP IN LISTS TEST_GROUPS)
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/tests/${TEST_GROUP})
-    file(GLOB TEST_FILES ${CMAKE_SOURCE_DIR}/tests/${TEST_GROUP}/*.ika)
+    file(GLOB TEST_FILES "${CMAKE_SOURCE_DIR}/tests/${TEST_GROUP}/*.ika")
     foreach(TEST_FILE IN LISTS TEST_FILES)
-        get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
-        set(OUTPUT_FILE ${CMAKE_BINARY_DIR}/tests/${TEST_GROUP}/${TEST_NAME}_${CMAKE_BUILD_TYPE}.txt)
-        add_test(
-            NAME ${TEST_GROUP}_${TEST_NAME}_${CMAKE_BUILD_TYPE}
-            COMMAND ikac -o ${OUTPUT_FILE} ${TEST_FILE}
-        )
-        set_tests_properties(${TEST_GROUP}_${TEST_NAME}_${CMAKE_BUILD_TYPE}
-            PROPERTIES LABELS ${TEST_GROUP}
-        )
+        add_ika_test("${TEST_GROUP}" "${TEST_FILE}")
     endforeach()
 endforeach()
