@@ -39,6 +39,8 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              int is_arg, int is_extern,
                                              const Type* data_type,
                                              SourcePos pos) {
+    assert(symbol_table_find(sym, ident, 1) == NULL);
+
     VarSymbolTableEntry* ste =
         utlarena_alloc(sym->arena, sizeof(VarSymbolTableEntry));
     ste->type = SYM_VAR;
@@ -103,6 +105,8 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
 FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
                                                  const Type* data_type,
                                                  SourcePos pos) {
+    assert(symbol_table_find(sym, ident, 1) == NULL);
+
     FieldSymbolTableEntry* ste =
         utlarena_alloc(sym->arena, sizeof(FieldSymbolTableEntry));
     ste->type = SYM_FIELD;
@@ -140,6 +144,8 @@ FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
                                              DefSymbolValue val,
                                              SourcePos pos) {
+    assert(symbol_table_find(sym, ident, 1) == NULL);
+
     DefSymbolTableEntry* ste =
         utlarena_alloc(sym->arena, sizeof(DefSymbolTableEntry));
     ste->type = SYM_DEF;
@@ -157,6 +163,8 @@ DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
 
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
                                                int is_extern, SourcePos pos) {
+    assert(symbol_table_find(sym, ident, 1) == NULL);
+
     FuncSymbolTableEntry* ste =
         utlarena_alloc(sym->arena, sizeof(FuncSymbolTableEntry));
     ste->type = SYM_FUNC;
@@ -178,6 +186,8 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
 
 TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident,
                                                SourcePos pos) {
+    assert(symbol_table_find(sym, ident, 1) == NULL);
+
     TypeSymbolTableEntry* ste =
         utlarena_alloc(sym->arena, sizeof(TypeSymbolTableEntry));
     ste->type = SYM_TYPE;
@@ -198,8 +208,9 @@ TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident,
 
 SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
                                     int in_current_scope) {
-    if (!sym)
+    if (sym == NULL) {
         return NULL;
+    }
 
     SymbolTableEntry* ste = sym->ste;
 
@@ -218,8 +229,13 @@ SymbolTableEntry* symbol_table_find(SymbolTable* sym, Str ident,
 }
 
 SymbolTableEntry* symbol_table_append_sym(SymbolTable* sym, Str ident) {
-    SymbolTableEntry* ste =
-        utlarena_alloc(sym->arena, sizeof(SymbolTableEntry));
+    // If user uses -D flags, there might be duplicated define symbols
+    SymbolTableEntry* ste = symbol_table_find(sym, ident, 1);
+    if (ste != NULL) {
+        return ste;
+    }
+
+    ste = utlarena_alloc(sym->arena, sizeof(SymbolTableEntry));
     ste->type = SYM_NONE;
 
     ste->ident = ident;

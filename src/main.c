@@ -65,6 +65,7 @@ void usage(void) {
             "  -S               Compile only; do not assemble or link.\n"
             "  -o <file>        Place the output into <file>.\n"
             "  -e <name>        Use the name as entrypoint.\n"
+            "  -D <name>        Predefine name as a macro.\n"
             "  -?               Display this information.\n");
 }
 
@@ -75,6 +76,14 @@ int main(int argc, char* argv[]) {
     const char* asm_out_path = NULL;
     int s_flag = 0;
     int e_flag = 0;
+
+    UtlArenaAllocator arena = utlarena_init(ARENA_SIZE, &never_fail_allocator);
+    UtlAllocator* temp_allocator = &never_fail_allocator;
+
+    SymbolTable define_sym;  // symbol table for #define
+    symbol_table_init(&define_sym, 0, NULL, 0, &arena);
+
+#define DEFINE_MACRO(name) symbol_table_append_sym(&define_sym, str(name))
 
     // Arg parse
     FOR_OPTS(argc, argv) {
@@ -90,6 +99,9 @@ int main(int argc, char* argv[]) {
         case 'e':
             entrypoint = OPTARG(argc, argv);
             break;
+        case 'D':
+            DEFINE_MACRO(OPTARG(argc, argv));
+            break;
         case '?':
             usage();
             return 0;
@@ -102,22 +114,14 @@ int main(int argc, char* argv[]) {
 
     src_path = *argv;
 
-    UtlArenaAllocator arena = utlarena_init(ARENA_SIZE, &never_fail_allocator);
-    UtlAllocator* temp_allocator = &never_fail_allocator;
-
-    SymbolTable define_sym;  // symbol table for #define
-    symbol_table_init(&define_sym, 0, NULL, 0, &arena);
-
-#define BUILTIN_DEFINE(name) symbol_table_append_sym(&define_sym, str(name))
-
 #ifdef __unix__
-    BUILTIN_DEFINE("__unix__");
+    DEFINE_MACRO("__unix__");
 #endif
 
 #ifdef __linux__
-    BUILTIN_DEFINE("__linux__");
+    DEFINE_MACRO("__linux__");
 #elif _WIN32
-    BUILTIN_DEFINE("__windows__");
+    DEFINE_MACRO("__windows__");
 #else
     // Add more targets here
 #endif
@@ -262,7 +266,7 @@ int main(int argc, char* argv[]) {
             }
         } else {
             execvp(args[0], args);
-            ika_log(LOG_ERROR, "fork failed");
+            ika_log(LOG_ERROR, "exec failed");
             exit(EXIT_FAILURE);
         }
 
