@@ -12,17 +12,14 @@
 #include "utils.h"
 
 void pp_init(PPState* state, UtlArenaAllocator* arena,
-             UtlAllocator* temp_allocator) {
+             UtlAllocator* temp_allocator, SymbolTable* sym) {
     state->arena = arena;
     state->temp_allocator = temp_allocator;
 
     state->src.files = (SourceFiles)utlvector_init(state->temp_allocator);
     state->src.lines = NULL;
 
-    state->last_include = 0;
-
-    state->sym = utlarena_alloc(state->arena, sizeof(SymbolTable));
-    symbol_table_init(state->sym, 0, NULL, 0, state->arena);
+    state->sym = sym;
 }
 
 void pp_finalize(PPState* state) {
@@ -237,9 +234,21 @@ typedef enum PP_Type {
     PP_ERROR,
 } PP_Type;
 
+typedef struct PP_IfFrame {
+    // are all outer conditions true
+    int parent_active;
+    // has any branch in this chain evaluated true
+    int branch_taken;
+    // is the line-emission of this branch enabled
+    int this_active;
+    // where the chain started
+    PP_Type type;
+    SourcePos pos;
+} PP_IfFrame;
+
 static const StrToken str_pp[] = {
     {"include", PP_INCLUDE}, {"define", PP_DEFINE},   {"undef", PP_UNDEF},
-    {"if", PP_IF},           {"elif", PP_DEFINE},     {"else", PP_ELSE},
+    {"if", PP_IF},           {"elif", PP_ELIF},       {"else", PP_ELSE},
     {"endif", PP_ENDIF},     {"warning", PP_WARNING}, {"error", PP_ERROR},
 };
 
@@ -312,16 +321,22 @@ Error* pp_expand(PPState* state, const char* filename) {
     read_lines(allocator, src, 0, &start, &end);
     state->src.lines = start;
 
-    int include_stack_size = 0;
+    int include_depth = 0;
     SourceLine* include_stack[MAX_INCLUDE_DEPTH];
 
     SourceLine* prev_line = NULL;
     SourceLine* line = start;
+
+    Error* err = NULL;
+    UtlVector(PP_IfFrame) if_stack = utlvector_init(state->temp_allocator);
+
     while (line) {
-        if (include_stack_size > 0 &&
-            line == include_stack[include_stack_size - 1]) {
-            include_stack_size--;
+        if (include_depth > 0 && line == include_stack[include_depth - 1]) {
+            include_depth--;
         }
+
+        int is_active = (if_stack.size == 0 ||
+                         if_stack.data[if_stack.size - 1].this_active);
 
         // process line
         char* p = line->content;
@@ -331,6 +346,9 @@ Error* pp_expand(PPState* state, const char* filename) {
         }
 
         if (*p != '#') {
+            if (!is_active) {
+                goto remove_line;
+            }
             prev_line = line;
             line = line->next;
             continue;
@@ -360,40 +378,54 @@ Error* pp_expand(PPState* state, const char* filename) {
         curr_pos.index = p - line->content;
 
         if (pp_type == PP_NONE) {
-            return error(state->arena, curr_pos,
-                         "invalid preprocessing directive");
+            if (!is_active) {
+                goto remove_line;
+            }
+            err = error(state->arena, curr_pos,
+                        "invalid preprocessing directive");
+            goto defer;
         }
 
         PP_ParserState parser;
         pp_parser_init(&parser, state->arena, state->temp_allocator, state->sym,
                        curr_pos);
 
-#define PP_NO_MORE_TOKENS()                                              \
-    do {                                                                 \
-        if (pp_peek_token(&parser).type != TK_EOF) {                     \
-            return error(state->arena, parser.token_start,               \
-                         "single-line comment or end-of-line expected"); \
-        }                                                                \
+#define PP_NO_MORE_TOKENS()                                             \
+    do {                                                                \
+        if (pp_next_token(&parser).type != TK_EOF) {                    \
+            err = error(state->arena, parser.token_start,               \
+                        "single-line comment or end-of-line expected"); \
+            goto defer;                                                 \
+        }                                                               \
     } while (0)
 
         switch (pp_type) {
             case PP_INCLUDE: {
+                if (!is_active) {
+                    break;
+                }
+
                 Token tk = pp_next_token(&parser);
                 if (tk.type == TK_ERR) {
-                    return error(state->arena, parser.token_end, "%.*s",
-                                 tk.str.len, tk.str.ptr);
+                    err = error(state->arena, parser.token_end, "%.*s",
+                                tk.str.len, tk.str.ptr);
+                    goto defer;
                 }
 
                 if (tk.type != TK_STR) {
-                    return error(state->arena, parser.token_start,
-                                 "#include expects \"FILENAME\"");
+                    err = error(state->arena, parser.token_start,
+                                "#include expects \"FILENAME\"");
+                    goto defer;
                 }
+
+                SourcePos str_pos = parser.token_start;
 
                 PP_NO_MORE_TOKENS();
 
-                if (include_stack_size + 1 > MAX_INCLUDE_DEPTH) {
-                    return error(state->arena, parser.token_start,
-                                 "#include nested too deeply");
+                if (include_depth + 1 > MAX_INCLUDE_DEPTH) {
+                    err = error(state->arena, str_pos,
+                                "#include nested too deeply");
+                    goto defer;
                 }
 
                 Str dir = get_dir_name(
@@ -421,47 +453,62 @@ Error* pp_expand(PPState* state, const char* filename) {
 
                 src = read_entire_file(allocator, inc_path);
                 if (!src) {
-                    return error(state->arena, parser.token_start,
-                                 "failed to read file: %s", strerror(errno));
+                    err = error(state->arena, str_pos,
+                                "failed to read file: %s", strerror(errno));
+                    goto defer;
                 }
 
                 state->src.files.data[file_index].is_open = 1;
 
                 read_lines(allocator, src, file_index, &start, &end);
-                include_stack[include_stack_size] = end;
-                include_stack_size++;
+                include_stack[include_depth] = end;
+                include_depth++;
 
                 end->next = line->next;
                 line->next = start;
             } break;
 
             case PP_DEFINE: {
+                if (!is_active) {
+                    break;
+                }
+
                 Token tk = pp_next_token(&parser);
                 if (tk.type == TK_ERR) {
-                    return error(state->arena, parser.token_end, "%.*s",
-                                 tk.str.len, tk.str.ptr);
+                    err = error(state->arena, parser.token_end, "%.*s",
+                                tk.str.len, tk.str.ptr);
+                    goto defer;
                 }
 
                 if (tk.type != TK_IDENT) {
-                    return error(state->arena, parser.token_start,
-                                 "#define expects an identifier");
+                    err = error(state->arena, parser.token_start,
+                                "#define expects an identifier");
+                    goto defer;
                 }
 
                 PP_NO_MORE_TOKENS();
 
-                symbol_table_append_sym(state->sym, tk.str);
+                if (symbol_table_find(state->sym, tk.str, 1) == NULL) {
+                    symbol_table_append_sym(state->sym, tk.str);
+                }
             } break;
 
             case PP_UNDEF: {
+                if (!is_active) {
+                    break;
+                }
+
                 Token tk = pp_next_token(&parser);
                 if (tk.type == TK_ERR) {
-                    return error(state->arena, parser.token_end, "%.*s",
-                                 tk.str.len, tk.str.ptr);
+                    err = error(state->arena, parser.token_end, "%.*s",
+                                tk.str.len, tk.str.ptr);
+                    goto defer;
                 }
 
                 if (tk.type != TK_IDENT) {
-                    return error(state->arena, parser.token_start,
-                                 "#undef expects an identifier");
+                    err = error(state->arena, parser.token_start,
+                                "#undef expects an identifier");
+                    goto defer;
                 }
 
                 PP_NO_MORE_TOKENS();
@@ -470,53 +517,119 @@ Error* pp_expand(PPState* state, const char* filename) {
             } break;
 
             case PP_IF: {
-                int result;
-                Error* err = pp_expr(&parser, 0, &result);
-                if (err != NULL) {
-                    return err;
+                int result = 0;
+                if (is_active) {
+                    err = pp_expr(&parser, 0, &result);
+                    if (err != NULL) {
+                        goto defer;
+                    }
+                    PP_NO_MORE_TOKENS();
                 }
 
-                PP_NO_MORE_TOKENS();
+                PP_IfFrame frame = {
+                    .parent_active = is_active,
+                    .branch_taken = result,
+                    .this_active = is_active && result,
+                    .type = PP_IF,
+                    .pos = pp_start_pos,
+                };
+                utlvector_push(&if_stack, frame);
             } break;
 
             case PP_ELIF: {
-                int result;
-                Error* err = pp_expr(&parser, 0, &result);
-                if (err != NULL) {
-                    return err;
+                if (if_stack.size == 0) {
+                    err =
+                        error(state->arena, pp_start_pos, "#elif without #if");
+                    goto defer;
                 }
 
-                PP_NO_MORE_TOKENS();
+                PP_IfFrame f = if_stack.data[if_stack.size - 1];
+                utlvector_pop(&if_stack);
+                int result = 0;
+                if (f.parent_active && !f.branch_taken) {
+                    err = pp_expr(&parser, 0, &result);
+                    if (err != NULL) {
+                        goto defer;
+                    }
+                    PP_NO_MORE_TOKENS();
+                }
+
+                PP_IfFrame frame = {
+                    .parent_active = f.parent_active,
+                    .branch_taken = f.branch_taken || result,
+                    .this_active = result,
+                    .type = PP_ELIF,
+                    .pos = pp_start_pos,
+                };
+                utlvector_push(&if_stack, frame);
             } break;
 
             case PP_ELSE:
+                if (if_stack.size == 0) {
+                    err =
+                        error(state->arena, pp_start_pos, "#elif without #if");
+                    goto defer;
+                }
+
                 PP_NO_MORE_TOKENS();
+
+                PP_IfFrame f = if_stack.data[if_stack.size - 1];
+                utlvector_pop(&if_stack);
+
+                if (f.type == PP_ELSE) {
+                    err =
+                        error(state->arena, pp_start_pos, "#else after #else");
+                    goto defer;
+                }
+
+                PP_IfFrame frame = {
+                    .parent_active = f.parent_active,
+                    .branch_taken = true,
+                    .this_active = f.parent_active && !f.branch_taken,
+                    .type = PP_ELSE,
+                    .pos = pp_start_pos,
+                };
+                utlvector_push(&if_stack, frame);
                 break;
 
             case PP_ENDIF:
+                if (if_stack.size == 0) {
+                    err =
+                        error(state->arena, pp_start_pos, "#endif without #if");
+                    goto defer;
+                }
+                utlvector_pop(&if_stack);
                 PP_NO_MORE_TOKENS();
                 break;
 
-            case PP_ERROR: {
+            case PP_ERROR:
+                if (!is_active) {
+                    break;
+                }
+
                 while (*p == ' ' || *p == '\t') {
                     p++;
                 }
-                return error(state->arena, pp_start_pos, "%s", p);
-            } break;
+                err = error(state->arena, pp_start_pos, "%s", p);
+                goto defer;
 
-            case PP_WARNING: {
+            case PP_WARNING:
+                if (!is_active) {
+                    break;
+                }
+
                 while (*p == ' ' || *p == '\t') {
                     p++;
                 }
                 print_warn(&state->src,
                            error(state->arena, pp_start_pos, "%s", p));
-            } break;
+                break;
 
             default:
                 UNREACHABLE();
         }
 
-        // remove the preprocessor line
+    remove_line:
         if (!prev_line) {
             state->src.lines = line->next;
         } else {
@@ -525,5 +638,26 @@ Error* pp_expand(PPState* state, const char* filename) {
         line = line->next;
     }
 
-    return NULL;
+    if (if_stack.size != 0) {
+        PP_IfFrame f = if_stack.data[if_stack.size - 1];
+        const char* msg;
+        switch (f.type) {
+            case PP_IF:
+                msg = "unterminated #if";
+                break;
+            case PP_ELIF:
+                msg = "unterminated #elif";
+                break;
+            case PP_ELSE:
+                msg = "unterminated #else";
+                break;
+            default:
+                UNREACHABLE();
+        }
+        err = error(state->arena, f.pos, msg);
+    }
+
+defer:
+    utlvector_deinit(&if_stack);
+    return err;
 }

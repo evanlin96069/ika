@@ -105,9 +105,26 @@ int main(int argc, char* argv[]) {
     UtlArenaAllocator arena = utlarena_init(ARENA_SIZE, &never_fail_allocator);
     UtlAllocator* temp_allocator = &never_fail_allocator;
 
+    SymbolTable define_sym;  // symbol table for #define
+    symbol_table_init(&define_sym, 0, NULL, 0, &arena);
+
+#define BUILTIN_DEFINE(name) symbol_table_append_sym(&define_sym, str(name))
+
+#ifdef __unix__
+    BUILTIN_DEFINE("__unix__");
+#endif
+
+#ifdef __linux__
+    BUILTIN_DEFINE("__linux__");
+#elif _WIN32
+    BUILTIN_DEFINE("__windows__");
+#else
+    // Add more targets here
+#endif
+
     PPState pp_state;
     const SourceState* src = &pp_state.src;
-    pp_init(&pp_state, &arena, temp_allocator);
+    pp_init(&pp_state, &arena, temp_allocator, &define_sym);
 
     // Read input file
 

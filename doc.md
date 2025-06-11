@@ -3,6 +3,10 @@
 - [Hello World](#hello-world)
 - [Comments](#comments)
 - [Values](#values)
+   * [Primitive Types](#primitive-types)
+   * [Primitive Values](#primitive-values)
+   * [Integer Literals](#integer-literals)
+   * [String Literals](#string-literals)
 - [Variables](#variables)
 - [Operators](#operators)
 - [Control Flow](#control-flow)
@@ -20,7 +24,12 @@
 - [Defines](#defines)
    * [const](#const)
    * [enum](#enum)
-- [#include](#include)
+- [Preprocessor](#preprocessor)
+   * [`#include`](#include)
+   * [Conditional Compilation](#conditional-compilation)
+   * [Defining Symbols](#defining-symbols)
+   * [Error and Warning](#error-and-warning)
+   * [Builtin Defines](#builtin-defines)
 
 ## Hello World
 
@@ -465,11 +474,50 @@ enum {
 };
 ```
 
-## Include
+## Preprocessor
 
-```zig
+### `#include`
+```c
 #include "libc.ika"
 printf("Hello world!\n");
 ```
 
 `#include "filename.ika"` works like `#include` in C, inserting the contents of another file. The maximum inclusion depth is 15.
+
+### Conditional Compilation
+
+- `#if`: Opens a conditional compilation, where code is compiled only if the specified symbol is defined.
+- `#elif`: Closes the preceding conditional compilation and opens a new conditional compilation based on if the specified symbol is defined.
+- `#else`: Closes the preceding conditional compilation and opens a new conditional compilation if the previous specified symbol isn't defined.
+- `#endif`: Closes the preceding conditional compilation.
+
+```c
+#if DEBUG
+    "Debug version\n";
+#endif
+
+#if !MYTEST
+   "MYTEST is not defined\n";
+#endif
+```
+
+You can use the operators `== `and `!=` to test for the bool values `true` or `false`.
+`true` means the symbol is defined.
+You can use the `&&`, `||`, and `!` operators to evaluate whether multiple symbols are defined.
+You can also group symbols and operators with parentheses.
+
+### Defining Symbols
+
+- `#define`: Define a symbol.
+- `#undef`: Undefine a symbol.
+
+### Error and Warning
+
+- `#error`: Generate a compiler error with a specified message.
+- `#warning`: Generate a compiler warning, with a specific message.
+
+### Builtin Defines
+
+- `__linux__` is defined if on Linux.
+- `__windows__` is defined if on Windows.
+- `__unix__` is defined if is on Unix-like system.

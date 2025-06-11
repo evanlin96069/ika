@@ -13,12 +13,13 @@ typedef struct PPState {
     UtlAllocator* temp_allocator;
     SourceState src;
 
-    int last_include;
     struct SymbolTable* sym;  // for #define
 } PPState;
 
+struct SymbolTable;
+
 void pp_init(PPState* state, UtlArenaAllocator* arena,
-             UtlAllocator* temp_allocator);
+             UtlAllocator* temp_allocator, struct SymbolTable* sym);
 
 void pp_finalize(PPState* state);
 
