@@ -1,12 +1,17 @@
+#if !_LIBC_
+#define _LIBC_
+
 // stdio.h
 
 const EOF = -1;
 
 struct FILE;
 
+#if !__windows__
 extern var stdin: *FILE;
 extern var stdout: *FILE;
 extern var stderr: *FILE;
+#endif
 
 extern fn snprintf(str: []u8, n: u32, format: []u8, ...) i32;
 extern fn fprintf(stream: *FILE, format: []u8, ...) i32;
@@ -115,3 +120,5 @@ extern fn isxdigit(c: i32) i32;
 
 extern fn tolower(c: i32) i32;
 extern fn toupper(c: i32) i32;
+
+#endif // _LIBC_

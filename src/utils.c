@@ -37,6 +37,39 @@ void ika_log(LogType level, const char* fmt, ...) {
     va_end(ap);
 }
 
+static void* never_fail_alloc(void* context, size_t size) {
+    UNUSED(context);
+
+    void* ptr = malloc(size);
+    if (!ptr && size != 0) {
+        ika_log(LOG_ERROR, "malloc: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    return ptr;
+}
+
+static void* never_fail_remap(void* context, void* buf, size_t new_size) {
+    UNUSED(context);
+
+    void* ptr = realloc(buf, new_size);
+    if (!ptr && new_size != 0) {
+        ika_log(LOG_ERROR, "realloc: out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    return ptr;
+}
+
+static void never_fail_free(void* context, void* buf) {
+    UNUSED(context);
+    free(buf);
+}
+
+UtlAllocator never_fail_allocator = {
+    .alloc = never_fail_alloc,
+    .remap = never_fail_remap,
+    .free = never_fail_free,
+};
+
 char* read_entire_file(struct UtlAllocator* allocator, const char* path) {
     FILE* fp = fopen(path, "rb");
     if (!fp) {
@@ -113,4 +146,13 @@ Str get_dir_name(Str path) {
 
     path.len = end_index + 1;
     return path;
+}
+
+int file_is_readable(const char* path) {
+    FILE* f = fopen(path, "r");
+    if (f) {
+        fclose(f);
+        return 1;
+    }
+    return 0;
 }

@@ -76,6 +76,9 @@ Options:
   -E               Preprocess only; do not compile, assemble or link.
   -S               Compile only; do not assemble or link.
   -o <file>        Place the output into <file>.
+  -e <entry>       Specify the program entry point.
+  -D <macro>       Define a <macro>.
+  -I <dir>         Add <dir> to the end of the main include path.
   -?               Display this information.
 ```
 

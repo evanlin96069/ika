@@ -8,8 +8,10 @@
 
 #ifdef _WIN32
 #define OS_PATH_MAX 4096
+#define OS_PATH_SEP "\\"
 #else
 #define OS_PATH_MAX 260
+#define OS_PATH_SEP "/"
 #endif
 
 #define UNREACHABLE() \

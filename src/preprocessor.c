@@ -12,13 +12,15 @@
 #include "utils.h"
 
 void pp_init(PPState* state, UtlArenaAllocator* arena,
-             UtlAllocator* temp_allocator, SymbolTable* sym) {
+             UtlAllocator* temp_allocator, const Paths* include_paths,
+             SymbolTable* sym) {
     state->arena = arena;
     state->temp_allocator = temp_allocator;
 
     state->src.files = (SourceFiles)utlvector_init(state->temp_allocator);
     state->src.lines = NULL;
 
+    state->include_paths = include_paths;
     state->sym = sym;
 }
 
@@ -428,18 +430,32 @@ Error* pp_expand(PPState* state, const char* filename) {
                     goto defer;
                 }
 
-                Str dir = get_dir_name(
-                    str(state->src.files.data[line->file_index].filename));
                 char inc_path[OS_PATH_MAX];
-                int inc_path_size;
-                if (str_eql(dir, str("."))) {
-                    inc_path_size = snprintf(inc_path, sizeof(inc_path), "%.*s",
-                                             tk.str.len, tk.str.ptr);
-                } else {
-                    inc_path_size =
-                        snprintf(inc_path, sizeof(inc_path), "%.*s/%.*s",
-                                 dir.len, dir.ptr, tk.str.len, tk.str.ptr);
+                int inc_path_size = 0;
+                for (size_t i = 0; i < state->include_paths->size; i++) {
+                    inc_path_size = snprintf(
+                        inc_path, sizeof(inc_path), "%s" OS_PATH_SEP "%.*s",
+                        state->include_paths->data[i], tk.str.len, tk.str.ptr);
+                    if (file_is_readable(inc_path)) {
+                        break;
+                    }
                 }
+
+                if (inc_path_size <= 0) {
+                    Str dir = get_dir_name(
+                        str(state->src.files.data[line->file_index].filename));
+                    if (str_eql(dir, str("."))) {
+                        inc_path_size =
+                            snprintf(inc_path, sizeof(inc_path), "%.*s",
+                                     tk.str.len, tk.str.ptr);
+                    } else {
+                        inc_path_size =
+                            snprintf(inc_path, sizeof(inc_path),
+                                     "%.*s" OS_PATH_SEP "%.*s", dir.len,
+                                     dir.ptr, tk.str.len, tk.str.ptr);
+                    }
+                }
+
                 assert(inc_path_size > 0);
 
                 SourceFile file = {0};

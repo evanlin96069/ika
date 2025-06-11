@@ -23,39 +23,6 @@
 
 #define ARENA_SIZE (1 << 14)
 
-static void* never_fail_alloc(void* context, size_t size) {
-    UNUSED(context);
-
-    void* ptr = malloc(size);
-    if (!ptr && size != 0) {
-        ika_log(LOG_ERROR, "malloc: out of memory\n");
-        exit(EXIT_FAILURE);
-    }
-    return ptr;
-}
-
-static void* never_fail_remap(void* context, void* buf, size_t new_size) {
-    UNUSED(context);
-
-    void* ptr = realloc(buf, new_size);
-    if (!ptr && new_size != 0) {
-        ika_log(LOG_ERROR, "realloc: out of memory\n");
-        exit(EXIT_FAILURE);
-    }
-    return ptr;
-}
-
-static void never_fail_free(void* context, void* buf) {
-    UNUSED(context);
-    free(buf);
-}
-
-UtlAllocator never_fail_allocator = {
-    .alloc = never_fail_alloc,
-    .remap = never_fail_remap,
-    .free = never_fail_free,
-};
-
 void usage(void) {
     fprintf(stderr,
             "Usage: ikac [options] file\n"
@@ -64,8 +31,9 @@ void usage(void) {
             "link.\n"
             "  -S               Compile only; do not assemble or link.\n"
             "  -o <file>        Place the output into <file>.\n"
-            "  -e <name>        Use the name as entrypoint.\n"
-            "  -D <name>        Predefine name as a macro.\n"
+            "  -e <entry>       Specify the program entry point.\n"
+            "  -D <macro>       Define a <macro>.\n"
+            "  -I <dir>         Add <dir> to the end of the main include path.\n"
             "  -?               Display this information.\n");
 }
 
@@ -79,6 +47,8 @@ int main(int argc, char* argv[]) {
 
     UtlArenaAllocator arena = utlarena_init(ARENA_SIZE, &never_fail_allocator);
     UtlAllocator* temp_allocator = &never_fail_allocator;
+
+    Paths include_paths = utlvector_init(temp_allocator);
 
     SymbolTable define_sym;  // symbol table for #define
     symbol_table_init(&define_sym, 0, NULL, 0, &arena);
@@ -102,12 +72,17 @@ int main(int argc, char* argv[]) {
         case 'D':
             DEFINE_MACRO(OPTARG(argc, argv));
             break;
+        case 'I':
+            utlvector_push(&include_paths, OPTARG(argc, argv));
+            break;
         case '?':
             usage();
             return 0;
     }
 
     if (*argv == NULL) {
+        utlvector_deinit(&include_paths);
+        utlarena_deinit(&arena);
         ika_log(LOG_ERROR, "no input file\n");
         return 1;
     }
@@ -128,12 +103,13 @@ int main(int argc, char* argv[]) {
 
     PPState pp_state;
     const SourceState* src = &pp_state.src;
-    pp_init(&pp_state, &arena, temp_allocator, &define_sym);
+    pp_init(&pp_state, &arena, temp_allocator, &include_paths, &define_sym);
 
     // Read input file
 
     Error* err = pp_expand(&pp_state, src_path);
     pp_finalize(&pp_state);
+    utlvector_deinit(&include_paths);
 
     if (err != NULL) {
         print_err(src, err);
