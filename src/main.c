@@ -24,17 +24,18 @@
 #define ARENA_SIZE (1 << 14)
 
 void usage(void) {
-    fprintf(stderr,
-            "Usage: ikac [options] file\n"
-            "Options:\n"
-            "  -E               Preprocess only; do not compile, assemble or "
-            "link.\n"
-            "  -S               Compile only; do not assemble or link.\n"
-            "  -o <file>        Place the output into <file>.\n"
-            "  -e <entry>       Specify the program entry point.\n"
-            "  -D <macro>       Define a <macro>.\n"
-            "  -I <dir>         Add <dir> to the end of the main include path.\n"
-            "  -?               Display this information.\n");
+    fprintf(
+        stderr,
+        "Usage: ikac [options] file\n"
+        "Options:\n"
+        "  -E               Preprocess only; do not compile, assemble or "
+        "link.\n"
+        "  -S               Compile only; do not assemble or link.\n"
+        "  -o <file>        Place the output into <file>.\n"
+        "  -e <entry>       Specify the program entry point.\n"
+        "  -D <macro>       Define a <macro>.\n"
+        "  -I <dir>         Add <dir> to the end of the main include path.\n"
+        "  -?               Display this information.\n");
 }
 
 int main(int argc, char* argv[]) {
