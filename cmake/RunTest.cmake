@@ -24,7 +24,7 @@ if(rc)
 endif()
 
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E compare_files "${OUTPUT}" "${EXPECTED}"
+    COMMAND "${CMAKE_COMMAND}" -E compare_files --ignore-eol "${OUTPUT}" "${EXPECTED}"
     RESULT_VARIABLE diff_rc
 )
 if(diff_rc)
