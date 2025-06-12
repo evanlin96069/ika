@@ -6,9 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define UTL_IMPLEMENTATION
-#include "utl/utl.h"
-
 void ika_log(LogType level, const char* fmt, ...) {
     switch (level) {
         case LOG_DEBUG:
@@ -70,7 +67,7 @@ UtlAllocator never_fail_allocator = {
     .free = never_fail_free,
 };
 
-char* read_entire_file(struct UtlAllocator* allocator, const char* path) {
+char* read_entire_file(UtlAllocator* allocator, const char* path) {
     FILE* fp = fopen(path, "rb");
     if (!fp) {
         return NULL;

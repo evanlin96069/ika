@@ -13,6 +13,7 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 file(GLOB_RECURSE IKA_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/utl/utl.c
     ${CMAKE_SOURCE_DIR}/src/*.c
 )
 

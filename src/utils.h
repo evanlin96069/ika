@@ -2,12 +2,11 @@
 #define UTILS_H
 
 #include "str.h"
+#include "utl/allocator/utlallocator.h"
 
-struct UtlAllocator;
+extern UtlAllocator never_fail_allocator;
 
-extern struct UtlAllocator never_fail_allocator;
-
-char* read_entire_file(struct UtlAllocator* allocator, const char* path);
+char* read_entire_file(UtlAllocator* allocator, const char* path);
 
 Str get_dir_name(Str path);
 
