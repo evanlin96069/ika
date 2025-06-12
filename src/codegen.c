@@ -874,7 +874,6 @@ static inline void emit_func_start(CodegenState* state, int stack_size) {
 }
 
 static inline void emit_func_exit(CodegenState* state, int args_size) {
-    genf(".L%d:", state->return_label);
     genf("    leave");
 
     if (args_size > 0) {
@@ -920,6 +919,14 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
     if (func->func_data.return_type->size > REGISTER_SIZE) {
         // Just in case function has no return but has return type
         genf("    movl 8(%%ebp), %%eax");
+    }
+
+    genf(".L%d:", state->return_label);
+
+    if (str_eql(func->ident, str("main")) &&
+        is_void(func->func_data.return_type)) {
+        // main returns void type, always returns 0
+        genf("    xorl %%eax, %%eax");
     }
 
     if (func_data->callconv == CALLCONV_CDECL) {
@@ -1029,13 +1036,15 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
 
     // entry function
     if (!has_user_defined_entry) {
-        setup_func_state(state, get_primitive_type(TYPE_I32), sym);
-        ;
+        setup_func_state(state, get_primitive_type(TYPE_U8), sym);
 
         genf(OS_SYM_PREFIX "%.*s:", entry_sym.len, entry_sym.ptr);
         emit_func_start(state, *sym->stack_size);
+
         emit_node(state, node);
+
         genf("    xorl %%eax, %%eax");
+        genf(".L%d:", state->return_label);
         emit_func_exit(state, 0);
 
         genf(".globl " OS_SYM_PREFIX "%.*s", entry_sym.len, entry_sym.ptr);

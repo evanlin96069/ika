@@ -53,6 +53,8 @@ fn main() void {
 }
 ```
 
+If `main` returns `void` type, it will always exit with 0.
+
 ## Comments
 
 ```zig
