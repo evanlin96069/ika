@@ -19,13 +19,11 @@ static inline UtlAllocator *utlstackfallback_allocator(
     return (UtlAllocator *)sf;
 }
 
-#define utlstackfallback_init(buf, len, _fallback)   \
-    {                                                \
-        .alloc = utlstackfallback_alloc,             \
-        .remap = utlstackfallback_remap,             \
-        .free = utlstackfallback_free,               \
-        .allocator = utlfixedbuf_init((buf), (len)), \
-        .fallback = (_fallback),                     \
+#define utlstackfallback_init(buf, len, _fallback)                            \
+    {                                                                         \
+        .alloc = utlstackfallback_alloc, .remap = utlstackfallback_remap,     \
+        .free = utlstackfallback_free,                                        \
+        .allocator = utlfixedbuf_init((buf), (len)), .fallback = (_fallback), \
     }
 
 void *utlstackfallback_alloc(UtlStackFallbackAllocator *sf, size_t size);

@@ -9,11 +9,11 @@
 #define UTLVECTOR_IMPLEMENTATION
 #endif  // UTL_IMPLEMENTATION
 
-#include "utldef.h"
 #include "allocator/utlallocator.h"
 #include "allocator/utlarena.h"
 #include "allocator/utlfixedbuf.h"
 #include "allocator/utlstackfallback.h"
+#include "utldef.h"
 #include "utlvector.h"
 
 #endif  // UTL_H
