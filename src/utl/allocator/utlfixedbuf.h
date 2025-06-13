@@ -22,10 +22,14 @@ static inline UtlAllocator *utlfixedbuf_allocator(
     return (UtlAllocator *)fixedbuf;
 }
 
-#define utlfixedbuf_init(buf, len)                                             \
-    {                                                                          \
-        .alloc = utlfixedbuf_alloc, .remap = utlfixedbuf_remap,                \
-        .free = utlfixedbuf_free, .size = 0, .capacity = (len), .data = (buf), \
+#define utlfixedbuf_init(buf, len)  \
+    {                               \
+        .alloc = utlfixedbuf_alloc, \
+        .remap = utlfixedbuf_remap, \
+        .free = utlfixedbuf_free,   \
+        .size = 0,                  \
+        .capacity = (len),          \
+        .data = (buf),              \
     }
 
 void utlfixedbuf_reset(UtlFixedBufferAllocator *fixedbuf);

@@ -15,8 +15,7 @@
 
 typedef UtlVector(void*) UtlVector_void;
 
-#define utlvector_init(_allocator) \
-    { .allocator = (_allocator) }
+#define utlvector_init(_allocator) {.allocator = (_allocator)}
 
 #define utlvector_push(v, val)                                         \
     (_utlvector_ensure((UtlVector_void*)(v), sizeof(*(v)->data), 1) && \
@@ -27,7 +26,8 @@ typedef UtlVector(void*) UtlVector_void;
      (memcpy(&(v)->data[(v)->size], (arr), (count) * sizeof(*(arr))),        \
       (v)->size += (count), true))
 
-#define utlvector_pop(v) ((v)->size > 0 && ((void)(v)->data[--(v)->size], true))
+#define utlvector_pop(v) \
+    ((v)->size > 0 ? ((void)(v)->data[--(v)->size], true) : false)
 
 #define utlvector_clear(v) (v)->size = 0;
 

@@ -23,11 +23,13 @@ static inline UtlAllocator *utlarena_allocator(UtlArenaAllocator *arena) {
     return (UtlAllocator *)arena;
 }
 
-#define utlarena_init(block_size, allocator)              \
-    {                                                     \
-        .alloc = utlarena_alloc, .remap = utlarena_remap, \
-        .free = utlarena_free, ._allocator = (allocator), \
-        .first_block_size = (block_size),                 \
+#define utlarena_init(block_size, allocator) \
+    {                                        \
+        .alloc = utlarena_alloc,             \
+        .remap = utlarena_remap,             \
+        .free = utlarena_free,               \
+        ._allocator = (allocator),           \
+        .first_block_size = (block_size),    \
     }
 
 void utlarena_deinit(UtlArenaAllocator *arena);
