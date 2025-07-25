@@ -684,6 +684,9 @@ static Error* type_check_node(SemaState* state, ASTNode* node) {
         case NODE_CAST:
             return type_check_cast(state, (CastNode*)node);
 
+        case NODE_ASM:
+            return NULL;
+
         default:
             UNREACHABLE();
     }

@@ -15,6 +15,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern);
 static ASTNode* return_stmt(ParserState* parser);
 static ASTNode* if_stmt(ParserState* parser);
 static ASTNode* while_stmt(ParserState* parser);
+static ASTNode* asm_stmt(ParserState* parser);
 static ASTNode* scope(ParserState* parser);
 static ASTNode* stmt(ParserState* parser);
 static ASTNode* stmt_list(ParserState* parser, int in_scope);
@@ -1604,6 +1605,33 @@ static ASTNode* while_stmt(ParserState* parser) {
     return (ASTNode*)while_node;
 }
 
+static ASTNode* asm_stmt(ParserState* parser) {
+    Token tk = next_token(parser);
+    assert(tk.type == TK_ASM);
+
+    AsmNode* asm_node = utlarena_alloc(parser->arena, sizeof(AsmNode));
+    asm_node->type = NODE_ASM;
+    asm_node->pos = parser->token_start;
+
+    tk = next_token(parser);
+    if (tk.type != TK_LPAREN) {
+        return error(parser, parser->prev_token_end, "expected '('");
+    }
+
+    tk = next_token(parser);
+    if (tk.type != TK_STR) {
+        return error(parser, parser->prev_token_end, "expected string literal");
+    }
+    asm_node->asm_str = tk.str;
+
+    tk = next_token(parser);
+    if (tk.type != TK_RPAREN) {
+        return error(parser, parser->prev_token_end, "expected ')'");
+    }
+
+    return (ASTNode*)asm_node;
+}
+
 static ASTNode* scope(ParserState* parser) {
     Token tk = next_token(parser);
     assert(tk.type == TK_LBRACE);
@@ -1645,6 +1673,17 @@ static ASTNode* stmt(ParserState* parser) {
             if (tk.type != TK_SEMICOLON) {
                 return error(parser, parser->prev_token_end,
                              "expected ';' after return statement");
+            }
+            break;
+
+        case TK_ASM:
+            node = asm_stmt(parser);
+            if (node->type == NODE_ERR)
+                return node;
+            tk = next_token(parser);
+            if (tk.type != TK_SEMICOLON) {
+                return error(parser, parser->prev_token_end,
+                             "expected ';' after asm statement");
             }
             break;
 

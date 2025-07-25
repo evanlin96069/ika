@@ -26,6 +26,7 @@ typedef enum ASTNodeType {
     NODE_INDEXOF,
     NODE_FIELD,
     NODE_CAST,
+    NODE_ASM,
 } ASTNodeType;
 
 typedef struct ASTNode {
@@ -197,6 +198,13 @@ typedef struct CastNode {
     const Type* data_type;
     ASTNode* expr;
 } CastNode;
+
+typedef struct AsmNode {
+    ASTNodeType type;
+    SourcePos pos;
+
+    Str asm_str;
+} AsmNode;
 
 static inline TypedASTNode* as_typed_ast(ASTNode* node) {
     switch (node->type) {

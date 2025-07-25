@@ -794,6 +794,11 @@ static void emit_cast(CodegenState* state, CastNode* cast) {
     }
 }
 
+static void emit_asm(CodegenState* state, AsmNode* asm_node) {
+    UNUSED(state);
+    genf("%.*s", asm_node->asm_str.len, asm_node->asm_str.ptr);
+}
+
 static void emit_node(CodegenState* state, ASTNode* node) {
     switch (node->type) {
         case NODE_STMTS:
@@ -858,6 +863,10 @@ static void emit_node(CodegenState* state, ASTNode* node) {
 
         case NODE_CAST:
             emit_cast(state, (CastNode*)node);
+            break;
+
+        case NODE_ASM:
+            emit_asm(state, (AsmNode*)node);
             break;
 
         default:

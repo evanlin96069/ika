@@ -26,6 +26,7 @@ typedef enum TkType {
 
     TK_SIZEOF,
     TK_CAST,
+    TK_ASM,
 
     TK_MUL,
     TK_DIV,
