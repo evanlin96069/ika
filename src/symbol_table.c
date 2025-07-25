@@ -104,7 +104,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
 
 FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
                                                  const Type* data_type,
-                                                 SourcePos pos) {
+                                                 int packed, SourcePos pos) {
     assert(symbol_table_find(sym, ident, 1) == NULL);
 
     FieldSymbolTableEntry* ste =
@@ -121,7 +121,7 @@ FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
     int alignment = data_type->alignment;
 
     int alignment_off = sym->offset % alignment;
-    if (alignment_off != 0) {
+    if (packed == 0 && alignment_off != 0) {
         sym->offset += alignment - alignment_off;
     }
 
@@ -131,7 +131,7 @@ FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
     if (*sym->stack_size < sym->offset) {
         *sym->stack_size = sym->offset;
         int alignment_off = sym->offset % MAX_ALIGNMENT;
-        if (alignment_off != 0) {
+        if (packed == 0 && alignment_off != 0) {
             *sym->stack_size += MAX_ALIGNMENT - alignment_off;
         }
     }

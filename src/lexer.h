@@ -14,6 +14,7 @@ typedef enum TkType {
     TK_CONST,
     TK_ENUM,
     TK_STRUCT,
+    TK_PACKED,
     TK_FUNC,
     TK_EXTERN,
     TK_RET,

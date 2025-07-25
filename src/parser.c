@@ -1164,7 +1164,17 @@ static ASTNode* def_decl(ParserState* parser) {
 
 static ASTNode* struct_decl(ParserState* parser) {
     Token tk = next_token(parser);
-    assert(tk.type == TK_STRUCT);
+    assert(tk.type == TK_STRUCT || tk.type == TK_PACKED);
+
+    int packed = 0;
+    if (tk.type == TK_PACKED) {
+        tk = next_token(parser);
+        packed = 1;
+    }
+
+    if (tk.type != TK_STRUCT) {
+        return error(parser, parser->token_start, "expected a struct");
+    }
 
     tk = next_token(parser);
 
@@ -1230,7 +1240,7 @@ static ASTNode* struct_decl(ParserState* parser) {
         assert(type_node->type == NODE_TYPE);
 
         const Type* type = ((TypeNode*)type_node)->data_type;
-        symbol_table_append_field(name_space, ident, type, ident_pos);
+        symbol_table_append_field(name_space, ident, type, packed, ident_pos);
         if (type->alignment > alignment) {
             alignment = type->alignment;
         }
@@ -1812,6 +1822,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 }
                 break;
 
+            case TK_PACKED:
             case TK_STRUCT:
                 if (in_scope) {
                     next_token(parser);

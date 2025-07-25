@@ -134,7 +134,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
                                              SourcePos pos);
 FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
                                                  const Type* data_type,
-                                                 SourcePos pos);
+                                                 int packed, SourcePos pos);
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
                                              DefSymbolValue val, SourcePos pos);
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,

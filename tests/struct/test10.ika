@@ -1,0 +1,11 @@
+packed struct S {
+    a: u16,
+    b: u32,
+};
+
+var s: S;
+
+var a_offset: u32 = as(u32, &s.a) - as(u32, &s);
+var b_offset: u32 = as(u32, &s.b) - as(u32, &s);
+
+"%d %d\n", a_offset, b_offset;
