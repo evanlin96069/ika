@@ -141,7 +141,7 @@ Str get_dir_name(Str path) {
         return str(".");
     }
 
-    path.len = end_index + 1;
+    path.len = end_index;
     return path;
 }
 
