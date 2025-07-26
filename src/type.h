@@ -82,7 +82,7 @@ static inline int is_array_ptr(const Type* type) {
 }
 
 static inline int is_ptr_like(const Type* type) {
-    return is_ptr(type) || is_array_ptr(type);
+    return is_ptr(type) || is_func_ptr(type) || is_array_ptr(type);
 }
 
 static inline int is_void(const Type* type) {
