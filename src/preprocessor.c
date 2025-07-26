@@ -433,10 +433,11 @@ Error* pp_expand(PPState* state, const char* filename) {
                 char inc_path[OS_PATH_MAX];
                 int inc_path_size = 0;
                 for (size_t i = 0; i < state->include_paths->size; i++) {
-                    inc_path_size = snprintf(
+                    int path_size = snprintf(
                         inc_path, sizeof(inc_path), "%s" OS_PATH_SEP "%.*s",
                         state->include_paths->data[i], tk.str.len, tk.str.ptr);
                     if (file_is_readable(inc_path)) {
+                        inc_path_size = path_size;
                         break;
                     }
                 }
