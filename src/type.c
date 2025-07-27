@@ -54,7 +54,7 @@ static const Type primitive_tpyes[] = {
             .size = 4,
             .alignment = 4,
             .type = METADATA_PRIMITIVE,
-            .primitive_type = TYPE_U32,
+            .primitive_type = TYPE_I32,
         },
 };
 

@@ -7,7 +7,7 @@ fn swap(x: *i32, y: *i32) void {
     *y = tmp;
 }
 
-fn partition(arr: []i32, lo: u32, hi: u32) u32 {
+fn partition(arr: []i32, lo: i32, hi: i32) u32 {
     var pivot: i32 = arr[hi];
     var i: u32 = lo;
     var j: u32 = lo;
@@ -24,7 +24,7 @@ fn partition(arr: []i32, lo: u32, hi: u32) u32 {
     return i;
 }
 
-fn quicksort(arr: []i32, lo: u32, hi: u32) void {
+fn quicksort(arr: []i32, lo: i32, hi: i32) void {
     if (lo < hi) {
         var p: u32 = partition(arr, lo, hi);
         quicksort(arr, lo, p - 1);

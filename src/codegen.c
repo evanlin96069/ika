@@ -158,6 +158,7 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
             genf(".L%d:", label);
         }
     } else {
+        // At this point, both operands are either pointer or integer.
         switch (binop->op) {
             case TK_ADD:
             case TK_SUB: {
@@ -205,6 +206,14 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
             case TK_LE:
             case TK_GT:
             case TK_GE: {
+                int pri_ltype =
+                    is_ptr_like(l_type) ? TYPE_U32 : l_type->primitive_type;
+                int pri_rtype =
+                    is_ptr_like(r_type) ? TYPE_U32 : r_type->primitive_type;
+                PrimitiveType result_type =
+                    implicit_type_convert(pri_ltype, pri_rtype);
+                int result_signed = is_signed(result_type);
+
                 genf("    cmpl %%ecx, %%eax");
                 switch (binop->op) {
                     case TK_EQ:
@@ -214,16 +223,32 @@ static void emit_binop(CodegenState* state, BinaryOpNode* binop) {
                         genf("    setne %%al");
                         break;
                     case TK_LT:
-                        genf("    setl %%al");
+                        if (result_signed) {
+                            genf("    setl %%al");
+                        } else {
+                            genf("    setb %%al");
+                        }
                         break;
                     case TK_LE:
-                        genf("    setle %%al");
+                        if (result_signed) {
+                            genf("    setle %%al");
+                        } else {
+                            genf("    setbe %%al");
+                        }
                         break;
                     case TK_GT:
-                        genf("    setg %%al");
+                        if (result_signed) {
+                            genf("    setg %%al");
+                        } else {
+                            genf("    seta %%al");
+                        }
                         break;
                     case TK_GE:
-                        genf("    setge %%al");
+                        if (result_signed) {
+                            genf("    setge %%al");
+                        } else {
+                            genf("    setae %%al");
+                        }
                         break;
                     default:
                         break;

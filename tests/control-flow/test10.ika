@@ -1,0 +1,50 @@
+var test_no: i32 = 0;
+var failed_count: i32 = 0;
+fn check(expr: bool) void {
+    test_no += 1;
+    if (!expr) {
+        failed_count += 1;
+        "Test %d: FAILED\n", test_no;
+    }
+}
+
+// signed
+var s1: i32 = 3;
+var s2: i32 = 2;
+check(s1 >= s2);
+
+var s3: i32 = -5;
+var s4: i32 = 4;
+check(s3 < s4);
+check(s3 <= s4);
+check(!(s3 > s4));
+check(!(s3 >= s4));
+
+var s5: i32 = -1;
+var s6: i32 = -1;
+check(s5 == s6);
+check(!(s5 != s6));
+
+// unsigned
+var u1: u32 = 0xffffffff;
+var u2: u32 = 0;
+check(u1 > u2);
+check(u1 >= u2);
+check(!(u1 < u2));
+check(!(u1 <= u2));
+
+var u3: u32 = 0x80000000;
+check(u2 < u3);
+check(u3 >= u3);
+
+// mixed
+var m1: i32 = -1;
+var m2: u32 = as(u32, m1); // 0xffffffff
+check(m2 > u2);
+check(m2 != u2);
+
+if (failed_count == 0) {
+    "All comparison tests passed\n";
+} else {
+    "%d test(s) failed\n", failed_count;
+}
