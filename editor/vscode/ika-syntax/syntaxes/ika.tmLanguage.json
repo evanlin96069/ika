@@ -1,0 +1,110 @@
+{
+  "scopeName": "source.ika",
+  "name": "Ika",
+  "patterns": [
+    {
+      "name": "keyword.control.ika",
+      "match": "\\b(else|if|return|while|break|continue|asm)\\b"
+    },
+    {
+      "name": "keyword.control.directive.ika",
+      "match": "^\\s*#\\s*(include|define|undef|if|elif|else|endif)\\b"
+    },
+	{
+	  "name": "keyword.control.directive.error.ika",
+	  "begin": "^\\s*#\\s*error\\b",
+	  "end": "$",
+	  "patterns": [
+		{
+		  "name": "string.unquoted.message.ika",
+		  "match": ".+",
+		  "beginCaptures": {},
+		  "endCaptures": {}
+		}
+	  ]
+	},
+	{
+	  "name": "keyword.control.directive.warning.ika",
+	  "begin": "^\\s*#\\s*warning\\b",
+	  "end": "$",
+	  "patterns": [
+		{
+		  "name": "string.unquoted.message.ika",
+		  "match": ".+",
+		  "beginCaptures": {},
+		  "endCaptures": {}
+		}
+	  ]
+	},
+    {
+      "name": "storage.modifier.ika",
+      "match": "\\b(var|const|fn|extern|pub|packed|enum|struct)\\b"
+    },
+	{
+	  "name": "support.function.builtin.ika",
+	  "match": "\\b(sizeof)\\b"
+	},
+	{
+	  "name": "keyword.operator.cast.ika",
+	  "match": "\\b(as)\\b"
+	},
+	{
+	  "name": "constant.language.boolean.ika",
+	  "match": "\\b(true|false)\\b"
+	},
+	{
+	  "name": "constant.language.null.ika",
+	  "match": "\\bnull\\b"
+	},
+    {
+      "name": "storage.type.ika",
+      "match": "\\b(void|bool|u8|u16|u32|i8|i16|i32)\\b"
+    },
+    {
+      "name": "comment.line.double-slash.ika",
+      "match": "//.*$"
+    },
+    {
+      "name": "string.quoted.double.ika",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.ika",
+          "match": "\\\\[nrt\\\\'\"0]"
+        },
+        {
+          "name": "constant.character.escape.hex.ika",
+          "match": "\\\\x[0-9a-fA-F]{2}"
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.single.ika",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.ika",
+          "match": "\\\\[nrt\\\\'\"0]"
+        },
+        {
+          "name": "constant.character.escape.hex.ika",
+          "match": "\\\\x[0-9a-fA-F]{2}"
+        }
+      ]
+    },
+    {
+      "name": "constant.numeric.binary.ika",
+      "match": "\\b0[bB][01]+\\b"
+    },
+    {
+      "name": "constant.numeric.hex.ika",
+      "match": "\\b0[xX][0-9a-fA-F]+\\b"
+    },
+    {
+      "name": "constant.numeric.decimal.ika",
+      "match": "\\b\\d+\\b"
+    }
+  ]
+}

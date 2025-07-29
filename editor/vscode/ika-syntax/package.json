@@ -1,0 +1,28 @@
+{
+  "name": "ika-syntax",
+  "displayName": "ika Syntax",
+  "description": "Syntax highlighting for the ika language.",
+  "version": "0.0.1",
+  "publisher": "evanlin96069",
+  "engines": {
+    "vscode": "^1.50.0"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "ika",
+        "aliases": ["Ika"],
+        "extensions": [".ika"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ika",
+        "scopeName": "source.ika",
+        "path": "./syntaxes/ika.tmLanguage.json"
+      }
+    ]
+  }
+}

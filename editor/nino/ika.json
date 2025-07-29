@@ -1,0 +1,50 @@
+{
+    "name": "ika",
+    "extensions": [
+        ".ika"
+    ],
+    "comment": "//",
+    "keywords1": [
+        "else",
+        "if",
+        "return",
+        "while",
+        "break",
+        "continue",
+        "asm",
+        "#include",
+        "#define",
+        "#undef",
+        "#if",
+        "#elif",
+        "#else",
+        "#endif",
+        "#warning",
+        "#error"
+    ],
+    "keywords2": [
+        "var",
+        "const",
+        "fn",
+        "extern",
+        "pub",
+        "enum",
+        "struct",
+        "packed",
+        "sizeof",
+        "as",
+        "true",
+        "false",
+        "null"
+    ],
+    "keywords3": [
+        "void",
+        "bool",
+        "u8",
+        "u16",
+        "u32",
+        "i8",
+        "i16",
+        "i32"
+    ]
+}
