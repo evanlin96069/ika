@@ -1796,8 +1796,8 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
         ASTNode* node = NULL;
 
         SymbolAttr attr = SYM_ATTR_NONE;
-
         if (tk.type == TK_EXTERN || tk.type == TK_PUB) {
+            Token attr_tk = tk;
             next_token(parser);
             tk = peek_token(parser);
             if (tk.type != TK_FUNC && tk.type != TK_DECL) {
@@ -1805,7 +1805,8 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 return error(parser, parser->token_start,
                              "expected function or variable declaration");
             }
-            attr = tk.type == TK_EXTERN ? SYM_ATTR_EXTERN : SYM_ATTR_EXPORT;
+            attr =
+                (attr_tk.type == TK_EXTERN) ? SYM_ATTR_EXTERN : SYM_ATTR_EXPORT;
         }
 
         switch (tk.type) {
