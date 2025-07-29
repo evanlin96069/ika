@@ -26,6 +26,12 @@ typedef struct DefSymbolTableEntry DefSymbolTableEntry;
 typedef struct FuncSymbolTableEntry FuncSymbolTableEntry;
 typedef struct TypeSymbolTableEntry TypeSymbolTableEntry;
 
+typedef enum SymbolAttr {
+    SYM_ATTR_NONE,
+    SYM_ATTR_EXPORT,
+    SYM_ATTR_EXTERN,
+} SymbolAttr;
+
 struct SymbolTableEntry {
     Str ident;
     int hash;
@@ -44,7 +50,7 @@ struct VarSymbolTableEntry {
     SymbolTable* sym;
 
     int is_arg;
-    int is_extern;
+    SymbolAttr attr;
     int is_global;
     int offset;
     const Type* data_type;
@@ -91,7 +97,7 @@ struct FuncSymbolTableEntry {
     SymbolType type;
     SymbolTable* sym;
 
-    int is_extern;
+    SymbolAttr attr;
     FuncMetadata func_data;
 
     struct ASTNode* node;
@@ -129,7 +135,7 @@ void symbol_table_init(SymbolTable* sym, int offset, int* stack_size,
                        int is_global, UtlArenaAllocator* arena);
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
-                                             int is_arg, int is_extern,
+                                             int is_arg, SymbolAttr attr,
                                              const Type* data_type,
                                              SourcePos pos);
 FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
@@ -138,7 +144,7 @@ FieldSymbolTableEntry* symbol_table_append_field(SymbolTable* sym, Str ident,
 DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
                                              DefSymbolValue val, SourcePos pos);
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
-                                               int is_extern, SourcePos pos);
+                                               SymbolAttr attr, SourcePos pos);
 TypeSymbolTableEntry* symbol_table_append_type(SymbolTable* sym, Str ident,
                                                SourcePos pos);
 

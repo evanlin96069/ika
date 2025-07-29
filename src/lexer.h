@@ -17,6 +17,7 @@ typedef enum TkType {
     TK_PACKED,
     TK_FUNC,
     TK_EXTERN,
+    TK_PUB,
     TK_RET,
     TK_PRINT,
     TK_IF,

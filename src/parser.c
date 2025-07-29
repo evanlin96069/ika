@@ -7,11 +7,11 @@
 static ASTNode* primary(ParserState* parser);
 static ASTNode* expr(ParserState* parser, int min_precedence);
 static ASTNode* data_type(ParserState* parser, int allow_incomplete);
-static ASTNode* var_decl(ParserState* parser, int is_extern);
+static ASTNode* var_decl(ParserState* parser, SymbolAttr attr);
 static ASTNode* def_decl(ParserState* parser);
 static ASTNode* struct_decl(ParserState* parser);
 static ASTNode* enum_decl(ParserState* parser);
-static ASTNode* func_decl(ParserState* parser, int is_extern);
+static ASTNode* func_decl(ParserState* parser, SymbolAttr attr);
 static ASTNode* return_stmt(ParserState* parser);
 static ASTNode* if_stmt(ParserState* parser);
 static ASTNode* while_stmt(ParserState* parser);
@@ -1046,7 +1046,7 @@ static ASTNode* data_type(ParserState* parser, int allow_incomplete) {
     return (ASTNode*)type_node;
 }
 
-static ASTNode* var_decl(ParserState* parser, int is_extern) {
+static ASTNode* var_decl(ParserState* parser, SymbolAttr attr) {
     Token tk = next_token(parser);
     assert(tk.type == TK_DECL);
 
@@ -1074,12 +1074,12 @@ static ASTNode* var_decl(ParserState* parser, int is_extern) {
     assert(var_type->type == NODE_TYPE);
 
     VarSymbolTableEntry* ste =
-        symbol_table_append_var(parser->sym, ident, 0, is_extern,
+        symbol_table_append_var(parser->sym, ident, 0, attr,
                                 ((TypeNode*)var_type)->data_type, ident_pos);
 
     tk = peek_token(parser);
     if (tk.type == TK_ASSIGN) {
-        if (is_extern) {
+        if (attr == SYM_ATTR_EXTERN) {
             next_token(parser);
             return error(parser, parser->token_start,
                          "initializing extern variable is not allowed");
@@ -1333,7 +1333,7 @@ static ASTNode* enum_decl(ParserState* parser) {
     return NULL;
 }
 
-static ASTNode* func_decl(ParserState* parser, int is_extern) {
+static ASTNode* func_decl(ParserState* parser, SymbolAttr attr) {
     Token tk = next_token(parser);
     assert(tk.type == TK_FUNC);
 
@@ -1366,8 +1366,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
     FuncSymbolTableEntry* func;
     if (ste == NULL) {
-        func =
-            symbol_table_append_func(parser->sym, ident, is_extern, ident_pos);
+        func = symbol_table_append_func(parser->sym, ident, attr, ident_pos);
     } else if (ste->type == SYM_FUNC &&
                ((FuncSymbolTableEntry*)ste)->node == NULL) {
         // forward declaration
@@ -1487,7 +1486,7 @@ static ASTNode* func_decl(ParserState* parser, int is_extern) {
 
     tk = peek_token(parser);
     if (tk.type == TK_LBRACE) {
-        if (func->is_extern) {
+        if (func->attr == SYM_ATTR_EXTERN) {
             next_token(parser);
             return error(parser, parser->token_start,
                          "implementing extern function is not allowed");
@@ -1796,9 +1795,9 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
          tk = peek_token(parser)) {
         ASTNode* node = NULL;
 
-        int is_extern = 0;
+        SymbolAttr attr = SYM_ATTR_NONE;
 
-        if (tk.type == TK_EXTERN) {
+        if (tk.type == TK_EXTERN || tk.type == TK_PUB) {
             next_token(parser);
             tk = peek_token(parser);
             if (tk.type != TK_FUNC && tk.type != TK_DECL) {
@@ -1806,7 +1805,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 return error(parser, parser->token_start,
                              "expected function or variable declaration");
             }
-            is_extern = 1;
+            attr = tk.type == TK_EXTERN ? SYM_ATTR_EXTERN : SYM_ATTR_EXPORT;
         }
 
         switch (tk.type) {
@@ -1816,7 +1815,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                     return error(parser, parser->token_start,
                                  "function definition is not allowed here");
                 }
-                node = func_decl(parser, is_extern);
+                node = func_decl(parser, attr);
                 if (node && node->type == NODE_ERR) {
                     return node;
                 }
@@ -1842,7 +1841,7 @@ static ASTNode* stmt_list(ParserState* parser, int in_scope) {
                 break;
 
             case TK_DECL:
-                node = var_decl(parser, is_extern);
+                node = var_decl(parser, attr);
                 if (node && node->type == NODE_ERR) {
                     return node;
                 }

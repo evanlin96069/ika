@@ -62,7 +62,7 @@ fn interpreter(code: []u8) void {
     free(tape);
 }
 
-fn main(argc: i32, argv: [][]u8) void {
+pub fn main(argc: i32, argv: [][]u8) void {
     if (argc != 2) {
         "usage: bf <src path>\n";
         exit(1);

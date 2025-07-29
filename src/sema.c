@@ -770,8 +770,15 @@ Error* sema(SemaState* state, ASTNode* node, SymbolTable* sym, Str entry_sym) {
 
     SymbolTableEntry* entry_func = symbol_table_find(sym, entry_sym, 1);
     int has_user_defined_entry = (entry_func != NULL);
-    if (has_user_defined_entry && entry_func->type != SYM_FUNC) {
-        return error(state, entry_func->pos, "entry should be a function");
+    if (has_user_defined_entry) {
+        if (entry_func->type != SYM_FUNC) {
+            return error(state, entry_func->pos, "entry should be a function");
+        }
+        FuncSymbolTableEntry* func = (FuncSymbolTableEntry*)entry_func;
+        if (func->attr != SYM_ATTR_EXPORT) {
+            return error(state, entry_func->pos,
+                         "entry function is not marked 'pub'");
+        }
     }
 
     // Functions

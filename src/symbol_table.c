@@ -36,7 +36,7 @@ static inline void symbol_table_append(SymbolTable* sym,
 }
 
 VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
-                                             int is_arg, int is_extern,
+                                             int is_arg, SymbolAttr attr,
                                              const Type* data_type,
                                              SourcePos pos) {
     assert(symbol_table_find(sym, ident, 1) == NULL);
@@ -50,7 +50,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
     ste->pos = pos;
 
     ste->is_arg = is_arg;
-    ste->is_extern = is_extern;
+    ste->attr = attr;
     ste->is_global = sym->is_global;
 
     ste->data_type = data_type;
@@ -59,7 +59,7 @@ VarSymbolTableEntry* symbol_table_append_var(SymbolTable* sym, Str ident,
     int size = data_type->size;
     int alignment = data_type->alignment;
 
-    if (is_extern == 0) {
+    if (attr != SYM_ATTR_EXTERN) {
         if (is_arg) {
             // Arguments
             if (size < 4) {
@@ -162,7 +162,7 @@ DefSymbolTableEntry* symbol_table_append_def(SymbolTable* sym, Str ident,
 }
 
 FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
-                                               int is_extern, SourcePos pos) {
+                                               SymbolAttr attr, SourcePos pos) {
     assert(symbol_table_find(sym, ident, 1) == NULL);
 
     FuncSymbolTableEntry* ste =
@@ -173,7 +173,7 @@ FuncSymbolTableEntry* symbol_table_append_func(SymbolTable* sym, Str ident,
     ste->hash = djb2_hash(ident);
     ste->pos = pos;
 
-    ste->is_extern = is_extern;
+    ste->attr = attr;
     // ste->func_data = func_data; // fill in during parsing
 
     ste->node = NULL;      // fill in during parsing

@@ -410,7 +410,7 @@ static void emit_var(CodegenState* state, VarNode* var) {
         case SYM_VAR: {
             // Variable
             VarSymbolTableEntry* var_ste = (VarSymbolTableEntry*)var->ste;
-            if (var_ste->is_extern || var_ste->is_global) {
+            if (var_ste->attr == SYM_ATTR_EXPORT || var_ste->is_global) {
                 genf("    movl $" OS_SYM_PREFIX "%.*s, %%eax",
                      var_ste->ident.len, var_ste->ident.ptr);
             } else if (var_ste->is_arg) {
@@ -969,11 +969,14 @@ static void emit_func(CodegenState* state, FuncSymbolTableEntry* func) {
         emit_func_exit(state, args_size);
     }
 
-    if (func_data->callconv == CALLCONV_STDCALL) {
-        genf(".globl " OS_SYM_PREFIX "%.*s@%d", func->ident.len,
-             func->ident.ptr, args_size);
-    } else {
-        genf(".globl " OS_SYM_PREFIX "%.*s", func->ident.len, func->ident.ptr);
+    if (func->attr == SYM_ATTR_EXPORT) {
+        if (func_data->callconv == CALLCONV_STDCALL) {
+            genf(".globl " OS_SYM_PREFIX "%.*s@%d", func->ident.len,
+                 func->ident.ptr, args_size);
+        } else {
+            genf(".globl " OS_SYM_PREFIX "%.*s", func->ident.len,
+                 func->ident.ptr);
+        }
     }
 }
 
@@ -1022,7 +1025,7 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
     while (curr) {
         if (curr->type == SYM_VAR) {
             VarSymbolTableEntry* var = (VarSymbolTableEntry*)curr;
-            if (var->is_extern == 0) {
+            if (var->attr != SYM_ATTR_EXTERN) {
                 genf(OS_SYM_PREFIX "%.*s:", var->ident.len, var->ident.ptr);
                 if (var->init_val) {
                     switch (var->init_val->type) {
@@ -1045,8 +1048,10 @@ void codegen(CodegenState* state, ASTNode* node, SymbolTable* sym,
                     genf("    .zero %d", size + padding);
                 }
 
-                genf(".globl " OS_SYM_PREFIX "%.*s", var->ident.len,
-                     var->ident.ptr);
+                if (var->attr == SYM_ATTR_EXPORT) {
+                    genf(".globl " OS_SYM_PREFIX "%.*s", var->ident.len,
+                         var->ident.ptr);
+                }
                 fprintf(state->out, "\n");
             }
         }

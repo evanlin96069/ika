@@ -39,12 +39,13 @@ static const StrToken str_tk[] = {
     {"var", TK_DECL},      {"const", TK_CONST},   {"if", TK_IF},
     {"else", TK_ELSE},     {"while", TK_WHILE},   {"fn", TK_FUNC},
     {"return", TK_RET},    {"break", TK_BREAK},   {"continue", TK_CONTINUE},
-    {"extern", TK_EXTERN}, {"enum", TK_ENUM},     {"struct", TK_STRUCT},
-    {"packed", TK_PACKED}, {"sizeof", TK_SIZEOF}, {"void", TK_VOID},
-    {"u8", TK_U8},         {"u16", TK_U16},       {"u32", TK_U32},
-    {"i8", TK_I8},         {"i16", TK_I16},       {"i32", TK_I32},
-    {"bool", TK_BOOL},     {"true", TK_TRUE},     {"false", TK_FALSE},
-    {"null", TK_NULL},     {"as", TK_CAST},       {"asm", TK_ASM},
+    {"extern", TK_EXTERN}, {"pub", TK_PUB},       {"enum", TK_ENUM},
+    {"struct", TK_STRUCT}, {"packed", TK_PACKED}, {"sizeof", TK_SIZEOF},
+    {"void", TK_VOID},     {"u8", TK_U8},         {"u16", TK_U16},
+    {"u32", TK_U32},       {"i8", TK_I8},         {"i16", TK_I16},
+    {"i32", TK_I32},       {"bool", TK_BOOL},     {"true", TK_TRUE},
+    {"false", TK_FALSE},   {"null", TK_NULL},     {"as", TK_CAST},
+    {"asm", TK_ASM},
 };
 
 // Parse escape sequence in string literal

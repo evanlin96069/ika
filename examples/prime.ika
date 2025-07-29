@@ -69,7 +69,7 @@ fn is_prime(n: i32, k: i32) bool {
     return true;
 }
 
-fn main() void {
+pub fn main() void {
     const k = 4;
 
     var i: i32 = 0;

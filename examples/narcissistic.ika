@@ -26,7 +26,7 @@ fn is_narcissistic(n: i32) bool {
     return sum == n;
 }
 
-fn main() void {
+pub fn main() void {
     var i: i32 = 0;
     while (i < 10000) : (i += 1) {
         if (is_narcissistic(i)) {

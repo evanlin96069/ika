@@ -22,7 +22,7 @@ fn make_points() [size]Point {
     return points;
 }
 
-fn main() i32 {
+pub fn main() i32 {
     var p: Point = make_point(1, 2);
     "%d %d\n", p.x, p.y;
     var y: i32 = make_point(7, 8).y;
