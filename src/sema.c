@@ -286,6 +286,9 @@ static Error* type_check_var(SemaState* state, VarNode* var) {
             var->type_info.is_lvalue = 0;
             var->type_info.is_address = 0;
             var->type_info.type.type = METADATA_FUNC;
+            var->type_info.type.incomplete = 0;
+            var->type_info.type.size = PTR_SIZE;
+            var->type_info.type.alignment = PTR_SIZE;
             var->type_info.type.func_data = func_ste->func_data;
         } break;
         default:
